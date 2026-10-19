@@ -1,0 +1,20 @@
+# ANTIGRAVITY AGENT RULES - JAPANESE EDTECH PLATFORM
+
+## 1. NGUYÊN TẮC "THINK - CHALLENGE - OPTIMIZE - CONFIRM" (BẮT BUỘC TRƯỚC KHI CODE)
+- Không bao giờ viết code ngay lập tức khi nhận yêu cầu phức tạp.
+- Luôn thực hiện 4 bước:
+  1. Phân tích bài toán & xác định các ca biên (Edge cases), rủi ro hiệu năng/bảo mật.
+  2. Phản biện giải pháp của người dùng nếu có phương án tốt hơn (tối ưu hơn về chi phí API, độ trễ, hoặc UX).
+  3. Đề xuất phương án tối ưu kèm phân tích ưu/nhược điểm rõ ràng.
+  4. Xác nhận sự đồng thuận của người dùng trước khi tạo file hoặc viết code.
+
+## 2. NGUYÊN TẮC BẢO VỆ TÀI NGUYÊN & ZERO-TOKEN-WASTE
+- LLM Response Caching: 100% các câu hỏi phân tích ngữ pháp, câu ví dụ, mẹo nhớ Kanji phải kiểm tra Cache (Redis/MySQL) trước khi gọi Gemini.
+- Tuyệt đối không dùng Cloud TTS trả phí; luôn ưu tiên Web Speech API hoặc file MP3 gốc từ NHK.
+- Sử dụng thư viện Offline `kuromoji.js` cho tác vụ phân tích hình thái từ vựng thay vì đẩy qua LLM.
+
+## 3. TIÊU CHUẨN KỸ THUẬT (ENGINEERING STANDARDS)
+- Full-stack TypeScript: Khắt khe về Type-Safety (không dùng `any`).
+- MySQL XAMPP qua Prisma ORM: Luôn tạo Migration sạch và đánh Index tối ưu.
+- Giao diện Next.js 15: Tách rõ Server Components (SEO/Tĩnh) và Client Components (Tương tác/Canvas/React Flow).
+- API Gateway Pattern: Toàn bộ Request từ Client phải đi qua Gateway để kiểm tra Auth và Rate Limit.

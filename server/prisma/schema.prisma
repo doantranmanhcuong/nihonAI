@@ -1,0 +1,429 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex", "fullTextSearch"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  
+  @@map("system_settings")
+}
+
+model User {
+  id              String              @id @default(uuid())
+  email           String              @unique
+  firebaseUid     String?             @unique
+  displayName     String?
+  targetLevel     String              @default("N5")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  avatar          String?
+  passwordHash    String?
+  authProvider    String              @default("LOCAL")
+  googleId        String?             @unique
+  isEmailVerified Boolean             @default(false)
+  lastLoginAt     DateTime?
+  tokenVersion    Int                 @default(1)
+  role            String              @default("USER")
+  status          UserStatus          @default(ACTIVE)
+  banReason       String?
+  lastStudyDate   DateTime?
+  studyStreak     Int                 @default(0)
+  examAttempts    JlptExamAttempt[]
+  notebookItems   NotebookItem[]
+  aiAuditLogs     AiAuditLog[]
+  readingQuotas   ReadingDailyQuota[]
+
+  @@index([lastLoginAt])
+  @@index([role])
+  @@map("users")
+}
+
+model Kanji {
+  id              String          @id @default(uuid())
+  character       String          @unique
+  hanViet         String
+  strokeCount     Int
+  jlptLevel       String          @default("N5")
+  onyomi          String
+  kunyomi         String
+  meaningVi       String
+  radicals        String
+  svgPathData     String          @db.LongText
+  mnemonicAi      String?         @db.Text
+  createdAt       DateTime        @default(now())
+  curriculum      String?
+  exampleWords    String?         @db.Text
+  lesson          Int?
+  lessonTitle     String?         @db.Text
+  levelTag        String?
+  lookAndLearnTip String?         @db.Text
+  phoneticRule    String?         @db.Text
+  aiInsight       KanjiAiInsight?
+
+  @@index([jlptLevel])
+  @@index([strokeCount])
+  @@index([jlptLevel, strokeCount])
+  @@index([curriculum])
+  @@index([hanViet])
+  @@fulltext([meaningVi])
+  @@map("kanjis")
+}
+
+model Vocabulary {
+  id           String               @id @default(uuid())
+  word         String
+  reading      String
+  romaji       String?
+  hanViet      String?
+  meaningVi    String               @db.Text
+  jlptLevel    String               @default("N5")
+  lesson       Int?
+  partOfSpeech String?
+  pitchAccent  String?
+  exampleJp    String?              @db.Text
+  exampleVi    String?              @db.Text
+  createdAt    DateTime             @default(now())
+  curriculum   String               @default("MINNA")
+  topic        String?
+  lessonTitle  String?
+  aiInsight    VocabularyAiInsight?
+
+  @@index([word])
+  @@index([reading])
+  @@index([jlptLevel])
+  @@index([curriculum])
+  @@index([curriculum, jlptLevel])
+  @@index([curriculum, jlptLevel, lesson])
+  @@index([topic])
+  @@fulltext([meaningVi])
+  @@map("vocabularies")
+}
+
+model KanjiAiInsight {
+  id               String   @id @default(uuid())
+  kanjiId          String   @unique
+  character        String   @unique
+  mnemonicStory    String   @db.Text
+  radicalBreakdown String   @db.Text
+  culturalContext  String?  @db.Text
+  confusionWarning String?  @db.Text
+  generatedByModel String   @default("gemini-3.6-flash")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  kanji            Kanji    @relation(fields: [kanjiId], references: [id], onDelete: Cascade)
+
+  @@index([character])
+  @@map("kanji_ai_insights")
+}
+
+model VocabularyAiInsight {
+  id               String     @id @default(uuid())
+  vocabId          String     @unique
+  scenariosJson    String     @db.Text
+  collocationsJson String?    @db.Text
+  mistakeWarning   String?    @db.Text
+  nuanceNote       String?    @db.Text
+  generatedByModel String     @default("gemini-3.6-flash")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  vocabulary       Vocabulary @relation(fields: [vocabId], references: [id], onDelete: Cascade)
+
+  @@map("vocabulary_ai_insights")
+}
+
+model ReadingArticle {
+  id              String               @id @default(uuid())
+  title           String               @db.VarChar(255)
+  sourceType      String               @default("AI_GENERATED")
+  sourceUrl       String?              @db.Text
+  youtubeId       String?              @db.VarChar(50)
+  level           String               @default("N3")
+  topic           String               @default("Đời sống")
+  durationSeconds Int                  @default(0)
+  audioUrl        String?              @db.Text
+  totalWords      Int                  @default(0)
+  isPublic        Boolean              @default(true)
+  createdBy       String?
+  viewCount       Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  translationFull String?              @db.LongText
+  imageUrl        String?              @db.Text
+  isEvergreen     Boolean              @default(false)
+  savedCount      Int                  @default(0)
+  vocabSavedCount Int                  @default(0)
+  grammars        ReadingGrammarItem[]
+  quizzes         ReadingQuiz[]
+  sentences       ReadingSentence[]
+  vocabularies    ReadingVocabItem[]
+
+  @@index([sourceType, level])
+  @@index([level, topic])
+  @@index([isPublic])
+  @@index([createdAt, viewCount, savedCount])
+  @@map("reading_articles")
+}
+
+model ReadingSentence {
+  id          String         @id @default(uuid())
+  articleId   String
+  orderIndex  Int
+  sentenceJp  String         @db.Text
+  sentenceVi  String         @db.Text
+  furigana    String?        @db.Text
+  startTimeMs Int            @default(0)
+  endTimeMs   Int            @default(0)
+  article     ReadingArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, orderIndex])
+  @@map("reading_sentences")
+}
+
+model ReadingVocabItem {
+  id        String         @id @default(uuid())
+  articleId String
+  word      String         @db.VarChar(100)
+  reading   String         @db.VarChar(100)
+  hanViet   String?        @db.VarChar(100)
+  meaningVi String         @db.VarChar(255)
+  level     String?        @db.VarChar(10)
+  article   ReadingArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@map("reading_vocab_items")
+}
+
+model ReadingGrammarItem {
+  id           String         @id @default(uuid())
+  articleId    String
+  grammarPoint String         @db.VarChar(150)
+  level        String?        @db.VarChar(10)
+  meaningVi    String         @db.VarChar(255)
+  excerpt      String         @db.Text
+  article      ReadingArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@map("reading_grammar_items")
+}
+
+model ReadingQuiz {
+  id            String         @id @default(uuid())
+  articleId     String
+  question      String         @db.Text
+  optionsJson   String         @db.Text
+  correctIndex  Int            @default(0)
+  explanation   String?        @db.Text
+  questionType  String?        @db.VarChar(50)
+  optionsViJson String?        @db.Text
+  questionVi    String?        @db.Text
+  article       ReadingArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@map("reading_quizzes")
+}
+
+model ReadingDailyQuota {
+  id        String   @id @default(uuid())
+  userId    String
+  dateKey   String   @db.VarChar(20)
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dateKey])
+  @@map("reading_daily_quotas")
+}
+
+model VideoShadowingLesson {
+  id              String          @id @default(uuid())
+  title           String          @db.VarChar(255)
+  youtubeId       String          @db.VarChar(50)
+  level           String          @default("N3")
+  topic           String          @default("Giao tiếp đời sống")
+  category        String          @default("DAILY_LIFE")
+  durationSeconds Int             @default(0)
+  thumbnailUrl    String?         @db.Text
+  description     String?         @db.Text
+  viewCount       Int             @default(0)
+  isPublic        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  author          String?         @db.VarChar(100)
+  channelTitle    String?         @db.VarChar(100)
+  tags            String?         @db.VarChar(255)
+  subtitles       VideoSubtitle[]
+
+  @@index([level, isPublic])
+  @@index([category, level])
+  @@index([channelTitle])
+  @@index([youtubeId])
+  @@index([viewCount])
+  @@map("video_shadowing_lessons")
+}
+
+model VideoSubtitle {
+  id           String               @id @default(uuid())
+  lessonId     String
+  orderIndex   Int
+  startTimeMs  Int
+  endTimeMs    Int
+  japanese     String               @db.Text
+  furigana     String?              @db.Text
+  romaji       String?              @db.Text
+  vietnamese   String               @db.Text
+  keyWords     String?              @db.Text
+  grammarNotes String?              @db.Text
+  lesson       VideoShadowingLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, orderIndex])
+  @@index([lessonId, startTimeMs])
+  @@map("video_subtitles")
+}
+
+model JlptExam {
+  id                String            @id @default(uuid())
+  code              String            @unique
+  title             String            @db.VarChar(255)
+  level             String            @db.VarChar(10)
+  year              Int
+  session           String            @db.VarChar(20)
+  edition           String            @db.VarChar(255)
+  description       String?           @db.Text
+  durationMinutes   Int               @default(100)
+  totalQuestions    Int               @default(15)
+  passingScore      Int               @default(95)
+  sectionalMinScore Int               @default(19)
+  isPublished       Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  listeningAudioUrl String?           @db.Text
+  structure         String?           @db.LongText
+  attempts          JlptExamAttempt[]
+  questions         JlptQuestion[]
+
+  @@index([level, year, session])
+  @@index([level, isPublished])
+  @@map("jlpt_exams")
+}
+
+model JlptQuestion {
+  id             String   @id @default(uuid())
+  examId         String
+  orderNumber    Int
+  section        String   @db.VarChar(30)
+  subType        String   @db.VarChar(50)
+  subTypeLabel   String   @db.VarChar(100)
+  question       String   @db.Text
+  questionVi     String   @db.Text
+  passage        String?  @db.LongText
+  passageVi      String?  @db.LongText
+  options        String   @db.Text
+  optionsVi      String?  @db.Text
+  correctIndex   Int
+  explanation    String   @db.Text
+  officialSource String   @db.VarChar(255)
+  createdAt      DateTime @default(now())
+  audioUrl       String?  @db.Text
+  imageUrl       String?  @db.Text
+  exam           JlptExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId, orderNumber])
+  @@index([examId, section])
+  @@map("jlpt_questions")
+}
+
+model JlptExamAttempt {
+  id                  String   @id @default(uuid())
+  userId              String?
+  examId              String
+  totalScore          Int
+  totalCorrect        Int
+  totalQuestions      Int
+  isPassed            Boolean
+  hasSectionalFailure Boolean  @default(false)
+  timeSpentSeconds    Int
+  userAnswers         String   @db.Text
+  sectionScores       String   @db.Text
+  createdAt           DateTime @default(now())
+  exam                JlptExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user                User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, examId])
+  @@index([examId, createdAt])
+  @@index([userId, createdAt])
+  @@index([examId], map: "idx_fk_examId")
+  @@map("jlpt_exam_attempts")
+}
+
+model NotebookItem {
+  id             String    @id @default(uuid())
+  userId         String
+  itemType       String    @db.VarChar(20)
+  title          String    @db.VarChar(255)
+  reading        String?   @db.VarChar(255)
+  meaningVi      String    @db.Text
+  level          String    @default("N3") @db.VarChar(10)
+  structure      String?   @db.Text
+  exampleJp      String?   @db.Text
+  exampleVi      String?   @db.Text
+  note           String?   @db.Text
+  tags           String?   @db.VarChar(255)
+  masteryStatus  String    @default("LEARNING") @db.VarChar(20)
+  reviewCount    Int       @default(0)
+  lastReviewedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  easeFactor     Float     @default(2.5)
+  interval       Int       @default(1)
+  nextReviewAt   DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, itemType])
+  @@index([userId, masteryStatus])
+  @@index([userId, level])
+  @@index([createdAt])
+  @@index([userId, nextReviewAt])
+  @@map("notebook_items")
+}
+enum UserStatus {
+  ACTIVE
+  BANNED
+  SUSPENDED
+}
+
+model AiPromptConfig {
+  id         String   @id @default(uuid())
+  key        String   @unique
+  promptText String   @db.Text
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("ai_prompt_configs")
+}
+
+model AiAuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query     String   @db.Text
+  response  String   @db.Text
+  tokens    Int?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("ai_audit_logs")
+}

@@ -1,0 +1,112 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;900&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Noto Sans JP', var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Hiragino Sans', 'Yu Gothic UI', Meiryo, sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --font-japanese: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Yu Gothic', Meiryo, sans-serif;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: 'Noto Sans JP', var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Hiragino Sans', 'Yu Gothic UI', Meiryo, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Định nghĩa chuẩn font tiếng Nhật chất lượng cao và khử răng cưa */
+.font-japanese {
+  font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Yu Gothic', Meiryo, sans-serif !important;
+  font-feature-settings: 'palt' 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Chuẩn hóa hiển thị Furigana (Ruby) không bị lệch vị trí hay làm giãn khoảng cách chữ */
+ruby {
+  display: inline-ruby !important;
+  ruby-position: over !important;
+  ruby-align: center !important;
+  line-height: inherit !important;
+}
+
+rt {
+  display: ruby-text !important;
+  ruby-align: center !important;
+  text-align: center !important;
+  font-size: 0.54em !important;
+  line-height: 1 !important;
+  user-select: none !important;
+  font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', Meiryo, sans-serif !important;
+  font-feature-settings: normal !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Chế độ hiển thị Furigana tùy biến toàn hệ thống */
+[data-furigana="hover"] rt {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease-in-out !important;
+}
+
+[data-furigana="hover"] ruby:hover rt,
+[data-furigana="hover"] ruby:focus rt {
+  opacity: 1 !important;
+}
+
+[data-furigana="hidden"] rt {
+  display: none !important;
+}
+
+/* 3D Card Flip Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+}
+.transform-style-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+}
+
+/* Minimalist & Friendly Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

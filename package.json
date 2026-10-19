@@ -1,0 +1,24 @@
+{
+  "name": "cool-hopper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Japanese Learning EdTech Platform with AI - Monorepo Root",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev"
+  },
+  "keywords": [
+    "japanese",
+    "ai",
+    "edtech",
+    "gemini",
+    "nextjs",
+    "express",
+    "prisma"
+  ],
+  "author": "Doan Tran Manh Cuong",
+  "license": "ISC",
+  "dependencies": {
+    "glob": "^13.0.6"
+  }
+}
