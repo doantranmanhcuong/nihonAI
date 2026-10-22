@@ -7,17 +7,14 @@ Hãy làm tuần tự theo 5 bước sau đây:
 ---
 
 ## Bước 1: Đẩy Mã Nguồn (Code) Lên GitHub
-1. Mở trang [GitHub.com](https://github.com), tạo một **Repository** mới (Có thể để Private).
-2. Mở Terminal (VS Code hoặc PowerShell) tại thư mục `cool-hopper` và gõ các lệnh sau:
+1. Mã nguồn dự án đã được đẩy lên GitHub tại: [https://github.com/doantranmanhcuong/nihonAI](https://github.com/doantranmanhcuong/nihonAI).
+2. Khi cần cập nhật code mới nhất từ máy tính:
    ```bash
-   git init
+   cd D:\cool-hopper
    git add .
-   git commit -m "🚀 Initial deploy for NihonAI"
-   git branch -M main
-   git remote add origin https://github.com/[TÊN_GITHUB_CỦA_BẠN]/[TÊN_REPO].git
-   git push -u origin main
+   git commit -m "Update system features"
+   git push origin main
    ```
-*(Nếu bạn chưa cài Git, hãy tải và cài đặt Git for Windows).*
 
 ---
 

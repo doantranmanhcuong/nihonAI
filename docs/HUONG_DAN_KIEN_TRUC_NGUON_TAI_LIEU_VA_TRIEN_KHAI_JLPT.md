@@ -140,7 +140,7 @@ Sau khi bóc tách thô, dữ liệu bắt buộc phải trải qua pipeline x�
 
 ## 5. CÁCH THỨC LƯU TRỮ TRONG CƠ SỞ DỮ LIỆU MYSQL (DATABASE ARCHITECTURE)
 
-Dữ liệu được lưu trữ trong CSDL quan hệ MySQL (`cool_hopper`) thông qua ORM Prisma với mô hình chuẩn hóa 3 bảng:
+Dữ liệu được lưu trữ trong CSDL quan hệ MySQL (`japanese_learning_db`) thông qua ORM Prisma với mô hình chuẩn hóa 3 bảng:
 
 ```
 ┌─────────────────────────┐         ┌─────────────────────────┐
@@ -268,7 +268,7 @@ Dữ liệu được lưu trữ trong CSDL quan hệ MySQL (`cool_hopper`) thôn
 Khi cần thiết lập môi trường mới hoặc cập nhật CSDL, chỉ cần chạy lệnh duy nhất:
 
 ```bash
-cd server
+cd D:\cool-hopper\server
 npm run seed:exams
 ```
 

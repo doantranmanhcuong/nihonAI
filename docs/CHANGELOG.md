@@ -5,7 +5,49 @@ Tài liệu này lưu trữ ngắn gọn, chính xác toàn bộ lịch sử cá
 ---
 
 
-## [Giai đoạn 4: Tháng 09/2026] - Nâng cấp Kiến trúc Enterprise & Tối ưu Database
+## [2026-10-22] - Phiên bản 2.5.0: Chuẩn Hóa Toàn Diện Hệ Thống Tài Liệu, Bổ Sung Tính Năng & Bảo Mật Khóa API
+### 1. Rà Soát & Cập Nhật Toàn Bộ Tài Liệu Kỹ Thuật (System Docs Modernization)
+- **Cập nhật đồng bộ 6 tài liệu lớn:** `SYSTEM_GUIDE.md`, `KIEN_TRUC_VA_QUY_TRINH_BO_DE_JLPT_MO_PHONG_CHUAN.md`, `HUONG_DAN_TRIEN_KHAI_SO_TAY_VA_TOAN_HE_THONG.md`, `HE_THONG_XAC_THUC_VA_TRIEN_KHAI.md`, `READING_SHADOWING_ARCHITECTURE.md`, `KANJI_MODULE_DOCUMENTATION.md`.
+- **Cập nhật kiến trúc 9 Microservices:** Bổ sung đầy đủ các service mới (`exam-service`, `notebook-service`, `admin-service`, `reading-shadowing-service`, `shadowing-service`, `ai-tutor-service`).
+- **Làm sạch tài liệu:** Loại bỏ tiêu đề trùng lặp, xóa bỏ đường dẫn cũ, chuẩn hóa đường dẫn dự án `D:\cool-hopper` và repository [github.com/doantranmanhcuong/nihonAI](https://github.com/doantranmanhcuong/nihonAI).
+
+### 2. Bảo Mật Khóa API & Mã Nguồn Git
+- Toàn bộ API Keys (`GEMINI_*`), chuỗi kết nối MySQL và JWT secrets được kiểm tra và loại bỏ triệt để khỏi các file tài liệu và lịch sử Git commit.
+- Di chuyển toàn bộ mã nguồn đồ án từ ổ `C:` sang ổ `D:\cool-hopper`, giải phóng 100% dung lượng quá tải ổ C.
+
+---
+
+## [2026-10-21] - Phiên bản 2.4.0: Sửa Lỗi Âm Thanh Choukai, Định Dạng Font Chữ & Accordion Ngân Hàng Câu Hỏi Sai
+### 1. Sửa Lỗi Âm Thanh Choukai & Khử Furigana Lặp Tiếng
+- **Khắc phục lỗi Web Speech API đọc lặp:** Xây dựng hàm `cleanJapaneseTextForSpeech` loại bỏ nội dung thẻ `<rt>...</rt>` trong `<ruby>`, chỉ đọc chữ Hán hoặc Kana nguyên bản, chấm dứt hoàn toàn tình trạng đọc lặp hai lần (`漢字かんじ`).
+- **Đồng bộ hóa thanh trượt audio:** Khắc phục lỗi timeline bài nghe Choukai, thêm cờ trạng thái ngăn chặn phát lại trùng lặp.
+
+### 2. Tối Ưu Giao Diện Ngân Hàng Câu Hỏi Làm Sai (Mistake Bank)
+- **Sửa lỗi font chữ & hiển thị đáp án:** Thay thế kết xuất thô bằng `renderQuestionText` an toàn, loại bỏ hiệu ứng `line-through` gây biến dạng văn bản.
+- **Tách biệt rõ ràng 2 khối so sánh:** Hiển thị 2 huy hiệu trực quan:
+  - `✕ Bạn chọn: [Phương án chọn sai]` (Huy hiệu đỏ).
+  - `🎯 Đáp án đúng: [Phương án đúng]` (Huy hiệu xanh lục).
+- **Chế độ Thu gọn (Compact Accordion Mode):** Bổ sung nút chuyển đổi hiển thị thu gọn / mở rộng toàn bộ và từng câu, giúp học viên quét nhanh lỗi sai mà không phải cuộn trang mệt mỏi khi sai nhiều câu.
+
+### 3. Cổng Quản Trị Viên (Admin Portal) - Giám Sát Kết Quả Thi Của Học Viên
+- Cập nhật API `getUserProgress` trả về chi tiết các lượt thi JLPT (`totalScore`, `examTitle`, `level`, `isPassed`, `createdAt`), mục tiêu cấp độ và streak học tập.
+- Thêm hiệu ứng highlight hàng được chọn khi xem chi tiết học viên.
+
+---
+
+## [2026-10-15] - Phiên bản 2.3.0: Chuẩn Hóa Hai Chế Độ Thi Thử JLPT (Express vs Full) & Engine Âm Thanh Đa Giọng
+### 1. Hai Chế Độ Thi Thử Linh Hoạt (Dual-Format Exam)
+- **Chế độ Tinh gọn (Express Mode):** 34 câu hỏi tiêu biểu đại diện chuẩn xác cho 16 Mondai trong 35 - 55 phút.
+- **Chế độ Toàn diện (Full Mode):** Tái hiện 100% cấu trúc đề thi chính thức chuẩn JEES (75 đến 105 câu) trong 105 - 170 phút.
+
+### 2. Engine Âm Thanh Đa Giọng Bản Xứ Tokyo (Choukai Multi-Voice)
+- Phân vai hội thoại tự động theo nhãn (`[NARRATOR]`, `[MALE]`, `[FEMALE]`) với giọng đọc Edge-TTS Tokyo bản xứ.
+- Tự động chèn tiếng chuông phòng thi (Chime) và khoảng lặng tĩnh 10-15 giây (Silence Gap) để thí sinh suy nghĩ trước khi chuyển câu.
+- Thuật toán chấm điểm tự động thang chuẩn 180 điểm JLPT kèm điều kiện điểm liệt (< 19/60).
+
+---
+
+
 ### Security (Bảo mật)
 - Hoàn thiện Dual-Token (Access/Refresh Token) bằng `HttpOnly Cookie`.
 - Đóng triệt để lỗ hổng IDOR trên toàn bộ các Endpoint (Notebook, Exam, Reading) qua `authenticateToken` Middleware.
