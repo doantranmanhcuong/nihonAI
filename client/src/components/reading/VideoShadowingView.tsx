@@ -572,7 +572,7 @@ export const VideoShadowingView: React.FC<VideoShadowingViewProps> = ({
     if (!lesson || !lesson.id || syncOffsetMs === 0) return;
     setIsSavingSync(true);
     try {
-      await fetch(`http://localhost:5000/api/shadowing/${lesson.id}/sync`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/shadowing/${lesson.id}/sync`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ offsetMs: syncOffsetMs })

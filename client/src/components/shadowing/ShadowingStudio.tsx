@@ -311,7 +311,7 @@ export const ShadowingStudio: React.FC = () => {
           <p className="text-sm text-slate-500 max-w-sm">
             {user?.role === "ADMIN" 
               ? "Nhấn Thêm Video để thêm bài học đầu tiên!"
-              : "Không tìm thấy bài học nào phù hợp với b? l?c hi?n t?i."}
+              : "Không tìm thấy bài học nào phù hợp với bộ lọc hiện tại."}
           </p>
         </div>
       ) : (

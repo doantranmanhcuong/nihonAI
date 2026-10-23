@@ -1,6 +1,7 @@
 import { ReadingArticle, QuotaStatus, ReadingQuiz, NewsFeedItem } from './reading.types';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api') + '/reading';
+const SHADOWING_API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api') + '/shadowing';
 
 export class ReadingApi {
   /**
@@ -242,7 +243,7 @@ export class ReadingApi {
     if (filters.page) params.append('page', String(filters.page));
     if (filters.limit) params.append('limit', String(filters.limit));
 
-    const res = await fetch(`http://localhost:5000/api/shadowing/lessons?${params.toString()}`);
+    const res = await fetch(`${SHADOWING_API_BASE}/lessons?${params.toString()}`);
     if (!res.ok) throw new Error('Không thể tải danh sách bài học video');
     const json = await res.json();
     return json.data;
@@ -252,7 +253,7 @@ export class ReadingApi {
    * Lấy chi tiết bài học video kèm phụ đề mili-giây
    */
   static async getVideoLessonDetail(id: string): Promise<any> {
-    const res = await fetch(`http://localhost:5000/api/shadowing/lessons/${id}`);
+    const res = await fetch(`${SHADOWING_API_BASE}/lessons/${id}`);
     if (!res.ok) throw new Error('Không tìm thấy bài học video');
     const json = await res.json();
     return json.data;
@@ -262,7 +263,7 @@ export class ReadingApi {
    * Tạo bài học video mới
    */
   static async createVideoLesson(payload: any): Promise<any> {
-    const res = await fetch('http://localhost:5000/api/shadowing/lessons', {
+    const res = await fetch(`${SHADOWING_API_BASE}/lessons`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -284,7 +285,7 @@ export class ReadingApi {
     autoSync?: boolean;
     rawTranscript?: any[];
   }): Promise<any> {
-    const res = await fetch('http://localhost:5000/api/shadowing/process-youtube', {
+    const res = await fetch(`${SHADOWING_API_BASE}/process-youtube`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -295,7 +296,7 @@ export class ReadingApi {
   }
 
   static async explainWord(word: string, context?: string): Promise<any> {
-    const res = await fetch('http://localhost:5000/api/shadowing/explain-word', {
+    const res = await fetch(`${SHADOWING_API_BASE}/explain-word`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ word, context })
