@@ -27,11 +27,49 @@ export interface NotebookItem {
 export interface NotebookFilterParams {
   itemType?: string;
   level?: string;
+  section?: string;
   masteryStatus?: string;
   search?: string;
   tags?: string;
   page?: number;
   limit?: number;
+}
+
+export interface LevelSummary {
+  total: number;
+  due: number;
+  mistakes: number;
+  vocab: number;
+  kanji: number;
+  grammar: number;
+  note: number;
+  mastered: number;
+  learning: number;
+  reviewing: number;
+}
+
+export interface NotebookHubSummary {
+  levels: {
+    N5: LevelSummary;
+    N4: LevelSummary;
+    N3: LevelSummary;
+    N2: LevelSummary;
+    N1: LevelSummary;
+  };
+  overall: {
+    total: number;
+    due: number;
+    mistakes: number;
+    vocab: number;
+    kanji: number;
+    grammar: number;
+    note: number;
+    mastered: number;
+    learning: number;
+    reviewing: number;
+    studyStreak: number;
+    lastStudyDate?: string | null;
+  };
 }
 
 export interface CreateNotebookItemInput {

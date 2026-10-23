@@ -1,6 +1,7 @@
 import { prisma } from '../../core/prisma.service';
 import { GeminiPoolService } from '../../core/ai-pool.service';
 import { RedisService } from '../../core/redis.service';
+import { LevelSummary, NotebookHubSummary } from './notebook.types';
 
 export class NotebookService {
   static async getItems(userId: string | undefined, filters: any) {
@@ -10,26 +11,205 @@ export class NotebookService {
     const { data } = await RedisService.getOrSet(
       cacheKey,
       async () => {
-        const where: any = { userId };
-        if (filters.itemType) where.itemType = filters.itemType;
-        if (filters.level) where.level = filters.level;
-        if (filters.masteryStatus) where.masteryStatus = filters.masteryStatus;
-        if (filters.tags) where.tags = { contains: filters.tags };
-        if (filters.search) {
-          where.OR = [
-            { title: { contains: filters.search } },
-            { meaningVi: { contains: filters.search } }
-          ];
+        const andConditions: any[] = [{ userId }];
+
+        if (filters.level && filters.level !== 'ALL') {
+          andConditions.push({ level: filters.level });
         }
+        if (filters.masteryStatus && filters.masteryStatus !== 'ALL') {
+          andConditions.push({ masteryStatus: filters.masteryStatus });
+        }
+        if (filters.tags) {
+          andConditions.push({ tags: { contains: filters.tags } });
+        }
+
+        // Section handling (Hỗ trợ phân nhóm linh hoạt cho Phương án 4)
+        if (filters.section && filters.section !== 'all') {
+          if (filters.section === 'due') {
+            andConditions.push({ nextReviewAt: { lte: new Date() } });
+          } else if (filters.section === 'mistakes') {
+            andConditions.push({
+              OR: [
+                { tags: { contains: 'Câu_sai' } },
+                { tags: { contains: 'Thi_thử' } }
+              ]
+            });
+          } else if (filters.section === 'vocab') {
+            andConditions.push({ itemType: 'VOCAB' });
+            andConditions.push({
+              OR: [
+                { tags: null },
+                {
+                  AND: [
+                    { tags: { not: { contains: 'Câu_sai' } } },
+                    { tags: { not: { contains: 'Thi_thử' } } }
+                  ]
+                }
+              ]
+            });
+          } else if (filters.section === 'kanji') {
+            andConditions.push({ itemType: 'KANJI' });
+          } else if (filters.section === 'grammar') {
+            andConditions.push({ itemType: 'GRAMMAR' });
+          } else if (filters.section === 'note') {
+            andConditions.push({ itemType: 'NOTE' });
+            andConditions.push({
+              OR: [
+                { tags: null },
+                {
+                  AND: [
+                    { tags: { not: { contains: 'Câu_sai' } } },
+                    { tags: { not: { contains: 'Thi_thử' } } }
+                  ]
+                }
+              ]
+            });
+          }
+        } else if (filters.itemType && filters.itemType !== 'ALL') {
+          andConditions.push({ itemType: filters.itemType });
+        }
+
+        if (filters.search) {
+          const s = String(filters.search).trim();
+          andConditions.push({
+            OR: [
+              { title: { contains: s } },
+              { meaningVi: { contains: s } },
+              { reading: { contains: s } },
+              { tags: { contains: s } }
+            ]
+          });
+        }
+
+        const where = { AND: andConditions };
         
         return await prisma.notebookItem.findMany({
           where,
           orderBy: { updatedAt: 'desc' },
-          take: filters.limit || 50
+          take: filters.limit ? Number(filters.limit) : 200
         });
       },
       300 // cache for 5 minutes
     );
+    return data;
+  }
+
+  static async getHubSummary(userId: string | undefined): Promise<NotebookHubSummary> {
+    if (!userId) throw new Error('Unauthorized');
+
+    const cacheKey = `notebook:v2:${userId}:hub-summary`;
+    const { data } = await RedisService.getOrSet(
+      cacheKey,
+      async () => {
+        const now = new Date();
+        const [items, user] = await Promise.all([
+          prisma.notebookItem.findMany({
+            where: { userId },
+            select: {
+              id: true,
+              level: true,
+              itemType: true,
+              tags: true,
+              masteryStatus: true,
+              nextReviewAt: true
+            }
+          }),
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: { studyStreak: true, lastStudyDate: true }
+          })
+        ]);
+
+        const createEmptySummary = (): LevelSummary => ({
+          total: 0,
+          due: 0,
+          mistakes: 0,
+          vocab: 0,
+          kanji: 0,
+          grammar: 0,
+          note: 0,
+          mastered: 0,
+          learning: 0,
+          reviewing: 0
+        });
+
+        const levels: Record<string, LevelSummary> = {
+          N5: createEmptySummary(),
+          N4: createEmptySummary(),
+          N3: createEmptySummary(),
+          N2: createEmptySummary(),
+          N1: createEmptySummary()
+        };
+
+        const overall: NotebookHubSummary['overall'] = {
+          total: 0,
+          due: 0,
+          mistakes: 0,
+          vocab: 0,
+          kanji: 0,
+          grammar: 0,
+          note: 0,
+          mastered: 0,
+          learning: 0,
+          reviewing: 0,
+          studyStreak: user?.studyStreak || 0,
+          lastStudyDate: user?.lastStudyDate || null
+        };
+
+        for (const item of items) {
+          const rawLvl = item.level?.toUpperCase();
+          const lvl = (rawLvl && levels[rawLvl]) ? rawLvl : 'N3';
+          const target = levels[lvl];
+          const isMistake = Boolean(item.tags?.includes('Câu_sai') || item.tags?.includes('Thi_thử'));
+          const isDue = item.nextReviewAt ? new Date(item.nextReviewAt) <= now : false;
+
+          target.total++;
+          overall.total++;
+
+          if (isDue) {
+            target.due++;
+            overall.due++;
+          }
+
+          if (isMistake) {
+            target.mistakes++;
+            overall.mistakes++;
+          }
+
+          if (item.itemType === 'VOCAB') {
+            target.vocab++;
+            overall.vocab++;
+          } else if (item.itemType === 'KANJI') {
+            target.kanji++;
+            overall.kanji++;
+          } else if (item.itemType === 'GRAMMAR') {
+            target.grammar++;
+            overall.grammar++;
+          } else if (item.itemType === 'NOTE') {
+            target.note++;
+            overall.note++;
+          }
+
+          if (item.masteryStatus === 'MASTERED') {
+            target.mastered++;
+            overall.mastered++;
+          } else if (item.masteryStatus === 'REVIEWING') {
+            target.reviewing++;
+            overall.reviewing++;
+          } else {
+            target.learning++;
+            overall.learning++;
+          }
+        }
+
+        return {
+          levels: levels as NotebookHubSummary['levels'],
+          overall
+        };
+      },
+      300 // cache for 5 minutes
+    );
+
     return data;
   }
 
@@ -134,7 +314,6 @@ export class NotebookService {
     });
   }
 
-  
   static async deleteItemByTitle(itemType: string, title: string, userId: string | undefined) {
     if (!userId) throw new Error('Unauthorized');
     const items = await prisma.notebookItem.findMany({ 
@@ -148,7 +327,8 @@ export class NotebookService {
     await RedisService.delPrefix(`notebook:v2:${userId}:`);
     return { success: true };
   }
-static async deleteItem(id: string, userId: string | undefined) {
+
+  static async deleteItem(id: string, userId: string | undefined) {
     if (!userId) throw new Error('Unauthorized');
     const item = await prisma.notebookItem.findFirst({ where: { id, userId } });
     if (!item) throw new Error('Not found or unauthorized');
@@ -193,8 +373,8 @@ static async deleteItem(id: string, userId: string | undefined) {
       userId,
       nextReviewAt: { lte: new Date() }
     };
-    if (itemType) where.itemType = itemType;
-    if (level) where.level = level;
+    if (itemType && itemType !== 'ALL') where.itemType = itemType;
+    if (level && level !== 'ALL') where.level = level;
 
     return await prisma.notebookItem.findMany({
       where,
@@ -253,6 +433,8 @@ static async deleteItem(id: string, userId: string | undefined) {
       }
     });
 
+    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+
     // Handle User Streak logic
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (user) {
@@ -267,13 +449,10 @@ static async deleteItem(id: string, userId: string | undefined) {
         const diffDays = Math.floor((today.getTime() - lastStudyDay.getTime()) / (1000 * 60 * 60 * 24));
         
         if (diffDays === 1) {
-          // Continued streak
           newStreak += 1;
         } else if (diffDays > 1) {
-          // Broken streak
           newStreak = 1;
         }
-        // if diffDays === 0, streak is unchanged
       } else {
         newStreak = 1; // first time studying
       }

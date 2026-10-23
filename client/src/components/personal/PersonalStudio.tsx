@@ -5,17 +5,11 @@ import {
   Bookmark,
   Sparkles,
   BookOpen,
-  GraduationCap,
-  Award,
-  Flame,
   Volume2,
   Trash2,
   ExternalLink,
   Search,
   CheckCircle2,
-  ArrowRight,
-  TrendingUp,
-  Layers,
   RotateCw,
   Plus,
   X,
@@ -24,14 +18,19 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  SlidersHorizontal,
-  Eye,
   FileText,
   Languages,
   BookOpenCheck,
   AlertCircle,
   Lock,
-  LogIn
+  LogIn,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  LayoutGrid,
+  List,
+  Flame,
+  ArrowUpRight
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { NotebookApi } from './notebook.api';
@@ -39,6 +38,8 @@ import { speakJapanese } from '@/utils/studyPreferences';
 import {
   NotebookItem,
   NotebookStats,
+  NotebookHubSummary,
+  LevelSummary,
   ItemType,
   MasteryStatus,
   CreateNotebookItemInput
@@ -55,24 +56,28 @@ interface PersonalStudioProps {
 export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) => {
   const { user, isAuthenticated, openAuthModal, loginDemo } = useAuth();
 
-  // --- STATE DỮ LIỆU CSDL ---
+  // --- STATE DỮ LIỆU ---
   const [items, setItems] = useState<NotebookItem[]>([]);
+  const [hubSummary, setHubSummary] = useState<NotebookHubSummary | null>(null);
   const [stats, setStats] = useState<NotebookStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // --- BỘ LỌC TÌM KIẾM ---
-  const [selectedType, setSelectedType] = useState<string>('ALL');
-  const [selectedLevel, setSelectedLevel] = useState<string>('ALL');
+  // --- BỘ LỌC CẤP BẬC (PHƯƠNG ÁN 4: HYBRID SMART HUB) ---
+  // Tầng 1: Chọn Level (N5 -> N1 hoặc ALL). Mặc định lấy theo targetLevel của học viên
+  const [selectedLevel, setSelectedLevel] = useState<string>('N3');
+  // Tầng 2 & 3: Phân vùng trong Level (all | due | mistakes | vocab | kanji | grammar | note)
+  const [selectedSection, setSelectedSection] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // --- THẺ LẬT TRONG DANH SÁCH ---
-  const [flippedCards, setFlippedCards] = useState<{ [id: string]: boolean }>({});
-  const [isReviewingSrs, setIsReviewingSrs] = useState<boolean>(false);
-  const [itemToDelete, setItemToDelete] = useState<{id: string, title: string} | null>(null);
+  // --- CHẾ ĐỘ HIỂN THỊ ĐÓNG / MỞ LINH HOẠT ---
+  const [isCompactMode, setIsCompactMode] = useState<boolean>(false);
+  const [expandedCards, setExpandedCards] = useState<{ [id: string]: boolean }>({});
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; title: string } | null>(null);
 
-  // --- CHẾ ĐỘ LUYỆN TẬP FLASHCARD (SRS) ---
+  // --- CHẾ ĐỘ ÔN TẬP SRS & FLASHCARD ---
+  const [isReviewingSrs, setIsReviewingSrs] = useState<boolean>(false);
   const [isFlashcardMode, setIsFlashcardMode] = useState<boolean>(false);
   const [flashcardIndex, setFlashcardIndex] = useState<number>(0);
   const [isCurrentCardFlipped, setIsCurrentCardFlipped] = useState<boolean>(false);
@@ -106,25 +111,15 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<string | null>(null);
 
-  // Tính toán số lượng bài học theo từng phân loại (Từ vựng, Hán tự, Ngữ pháp, Ghi chú)
-  const tabCounts = useMemo(() => {
-    const s = stats;
-    const vocab = (s?.vocabCount !== undefined && s.vocabCount > 0) ? s.vocabCount : items.filter(it => it.itemType === 'VOCAB').length;
-    const kanji = (s?.kanjiCount !== undefined && s.kanjiCount > 0) ? s.kanjiCount : items.filter(it => it.itemType === 'KANJI').length;
-    const grammar = (s?.grammarCount !== undefined && s.grammarCount > 0) ? s.grammarCount : items.filter(it => it.itemType === 'GRAMMAR').length;
-    const note = (s?.noteCount !== undefined && s.noteCount > 0) ? s.noteCount : items.filter(it => it.itemType === 'NOTE').length;
-    const total = s?.total || (vocab + kanji + grammar + note) || items.length;
+  // Đồng bộ Level mặc định theo tài khoản học viên khi đăng nhập
+  useEffect(() => {
+    if (user?.targetLevel && ['N5', 'N4', 'N3', 'N2', 'N1'].includes(user.targetLevel)) {
+      setSelectedLevel(user.targetLevel);
+      setFormData((prev) => ({ ...prev, level: user.targetLevel }));
+    }
+  }, [user?.targetLevel]);
 
-    return {
-      ALL: total,
-      VOCAB: vocab,
-      KANJI: kanji,
-      GRAMMAR: grammar,
-      NOTE: note
-    };
-  }, [stats, items]);
-
-  // 1. TẢI DỮ LIỆU TỪ CSDL MYSQL
+  // 1. TẢI DỮ LIỆU TỪ CSDL VÀ BỘ ĐỆM CACHE REDIS
   const loadData = async () => {
     if (!isAuthenticated) {
       setLoading(false);
@@ -133,16 +128,19 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
     setLoading(true);
     setErrorMsg(null);
     try {
-      const [itemsData, statsData] = await Promise.all([
+      const [itemsData, summaryData, statsData] = await Promise.all([
         NotebookApi.getItems({
-          itemType: selectedType !== 'ALL' ? selectedType : undefined,
           level: selectedLevel !== 'ALL' ? selectedLevel : undefined,
+          section: selectedSection !== 'all' ? selectedSection : undefined,
           masteryStatus: selectedStatus !== 'ALL' ? selectedStatus : undefined,
-          search: searchQuery.trim() ? searchQuery.trim() : undefined
+          search: searchQuery.trim() ? searchQuery.trim() : undefined,
+          limit: 150
         }),
+        NotebookApi.getHubSummary(),
         NotebookApi.getStats()
       ]);
       setItems(itemsData);
+      setHubSummary(summaryData);
       setStats(statsData);
     } catch (err: any) {
       console.error('Lỗi khi tải dữ liệu sổ tay:', err);
@@ -157,20 +155,11 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       loadData();
     } else {
       setItems([]);
-      setStats({
-        total: 0,
-        vocabCount: 0,
-        kanjiCount: 0,
-        grammarCount: 0,
-        noteCount: 0,
-        learningCount: 0,
-        reviewingCount: 0,
-        masteredCount: 0,
-        masteryRate: 0
-      });
+      setHubSummary(null);
+      setStats(null);
       setLoading(false);
     }
-  }, [isAuthenticated, selectedType, selectedLevel, selectedStatus]);
+  }, [isAuthenticated, selectedLevel, selectedSection, selectedStatus]);
 
   // Tìm kiếm debounce
   useEffect(() => {
@@ -179,10 +168,31 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       loadData();
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, isAuthenticated]);
+  }, [searchQuery]);
 
-  // 3. ĐỔI TRẠNG THÁI GHI NHỚ SRS (1-CHẠM)
-  
+  // Thống kê số lượng hiện tại cho Level đang chọn
+  const currentLevelSummary = useMemo(() => {
+    if (!hubSummary) {
+      return {
+        total: items.length,
+        due: 0,
+        mistakes: 0,
+        vocab: 0,
+        kanji: 0,
+        grammar: 0,
+        note: 0,
+        mastered: 0,
+        learning: 0,
+        reviewing: 0
+      };
+    }
+    if (selectedLevel === 'ALL') {
+      return hubSummary.overall;
+    }
+    return hubSummary.levels[selectedLevel as keyof typeof hubSummary.levels] || hubSummary.overall;
+  }, [hubSummary, selectedLevel, items.length]);
+
+  // Format text (in đậm và ngôi sao ★)
   const formatText = (txt: string) => {
     if (!txt) return '';
     return txt
@@ -190,12 +200,12 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       .replace(/【?★】?/g, '<span class="inline-flex items-center justify-center w-6 h-6 bg-amber-100 text-amber-600 rounded-full mx-1 text-sm">★</span>');
   };
 
+  // 1-Chạm đổi trạng thái SRS
   const handleToggleMastery = async (id: string, newStatus: MasteryStatus) => {
     try {
       const updated = await NotebookApi.toggleMastery(id, newStatus);
-      // Cập nhật state cục bộ ngay tức thì
       setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
-      // Cập nhật lại thống kê
+      NotebookApi.getHubSummary().then((s) => setHubSummary(s)).catch(() => {});
       NotebookApi.getStats().then((s) => setStats(s)).catch(() => {});
     } catch (err) {
       console.error('Lỗi cập nhật trạng thái:', err);
@@ -203,16 +213,29 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
     }
   };
 
-  // 4. XÓA MỤC KHỎI CSDL
-  const handleDeleteItem = (id: string, title: string) => {
-    setItemToDelete({ id, title });
+  // Đóng/Mở từng card
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Mở tất cả / Thu gọn tất cả
+  const toggleExpandAll = (expand: boolean) => {
+    const newState: { [id: string]: boolean } = {};
+    if (expand) {
+      items.forEach((it) => {
+        newState[it.id] = true;
+      });
+    }
+    setExpandedCards(newState);
+  };
+
+  // Xóa mục
   const confirmDelete = async () => {
     if (!itemToDelete) return;
     try {
       await NotebookApi.deleteItem(itemToDelete.id);
       setItems((prev) => prev.filter((it) => it.id !== itemToDelete.id));
+      NotebookApi.getHubSummary().then((s) => setHubSummary(s)).catch(() => {});
       NotebookApi.getStats().then((s) => setStats(s)).catch(() => {});
     } catch (err) {
       console.error('Lỗi xóa mục:', err);
@@ -222,15 +245,11 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
     }
   };
 
-  // 5. THÊM MỚI MỤC VÀO CSDL
+  // Thêm mục mới
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) {
-      alert('Vui lòng nhập từ vựng, Hán tự hoặc tiêu đề.');
-      return;
-    }
-    if (!formData.meaningVi.trim()) {
-      alert('Vui lòng nhập nghĩa tiếng Việt.');
+    if (!formData.title.trim() || !formData.meaningVi.trim()) {
+      alert('Vui lòng nhập đầy đủ tiêu đề và ý nghĩa tiếng Việt.');
       return;
     }
 
@@ -239,13 +258,12 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       const created = await NotebookApi.createItem(formData);
       setItems((prev) => [created, ...prev]);
       setIsAddModalOpen(false);
-      // Reset form
       setFormData({
         itemType: 'VOCAB',
         title: '',
         reading: '',
         meaningVi: '',
-        level: 'N3',
+        level: selectedLevel !== 'ALL' ? selectedLevel : 'N3',
         structure: '',
         exampleJp: '',
         exampleVi: '',
@@ -253,56 +271,18 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         tags: '',
         masteryStatus: 'LEARNING'
       });
+      NotebookApi.getHubSummary().then((s) => setHubSummary(s)).catch(() => {});
       NotebookApi.getStats().then((s) => setStats(s)).catch(() => {});
     } catch (err: any) {
-      alert(err.message || 'Lỗi khi thêm mới mục vào CSDL.');
+      console.error('Lỗi khi tạo mục sổ tay:', err);
+      alert(err.message || 'Lỗi khi lưu mục sổ tay');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 6. MỞ PHÂN TÍCH NGỮ PHÁP AI
-  const handleOpenGrammarDetail = async (item: NotebookItem) => {
-    const readingGrammarItem: ReadingGrammarItem = {
-      id: item.id,
-      articleId: 'notebook-grammar',
-      grammarPoint: item.title,
-      level: item.level,
-      meaningVi: item.meaningVi,
-      excerpt: item.exampleJp || item.title
-    };
-
-    setSelectedGrammar(readingGrammarItem);
-    setIsGrammarModalOpen(true);
-    setIsGrammarLoading(true);
-
-    try {
-      const detailed = await ReadingApi.explainGrammar(item.title, item.exampleJp || '', item.level);
-      setDetailedGrammarInfo(detailed);
-    } catch {
-      setDetailedGrammarInfo({
-        grammarPoint: item.title,
-        level: item.level,
-        meaningVi: item.meaningVi,
-        structure: item.structure || '',
-        explanation: `Mẫu ngữ pháp ${item.title} là cấu trúc quan trọng cấp độ ${item.level}.`,
-        excerpt: item.exampleJp || '',
-        examples: item.exampleJp
-          ? [{ japanese: item.exampleJp, reading: item.exampleJp, vietnamese: item.exampleVi || '' }]
-          : []
-      });
-    } finally {
-      setIsGrammarLoading(false);
-    }
-  };
-
-  // Danh sách items dùng cho Flashcard
-  const activeFlashcardItems = items.length > 0 ? items : [];
-  const currentFlashcard = activeFlashcardItems[flashcardIndex];
-
-  // Helper trả về màu sắc theo cấp độ
   const getLevelColor = (level: string) => {
-    switch (level) {
+    switch (level?.toUpperCase()) {
       case 'N1':
         return 'bg-red-50 text-red-700 border-red-200';
       case 'N2':
@@ -340,13 +320,13 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         <div className="space-y-3">
           <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
             <Bookmark className="w-3.5 h-3.5" />
-            <span>Khu Vực Cá Nhân Hóa & SRS</span>
+            <span>Trung Tâm Sổ Tay & Ôn Tập Thông Minh</span>
           </span>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
             Vui lòng đăng nhập để sử dụng Sổ Tay Cá Nhân
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
-            Sổ tay lưu trữ toàn bộ từ vựng, hán tự, cấu trúc ngữ pháp và thẻ ghi nhớ Flashcard theo tài khoản cá nhân của bạn, giúp bạn học tập và ôn luyện lâu dài.
+            Hệ thống quản lý thông minh phân theo từng cấp độ JLPT (N5 - N1), gom nhóm ôn tập gấp, câu hỏi làm sai từ đề thi, từ vựng và ngữ pháp có hỗ trợ lặp lại ngắt quãng SRS.
           </p>
         </div>
 
@@ -373,225 +353,372 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
     );
   }
 
+  // Mở chế độ ôn tập SRS chuyên sâu
   if (isReviewingSrs) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8 animate-fadeIn">
-        <SrsFlashcardView itemType={selectedType} level={selectedLevel} onBack={() => {
-          setIsReviewingSrs(false);
-          loadData();
-        }} />
+        <SrsFlashcardView
+          level={selectedLevel !== 'ALL' ? selectedLevel : undefined}
+          onBack={() => {
+            setIsReviewingSrs(false);
+            loadData();
+          }}
+        />
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-fadeIn">
-      {/* 1. HEADER & HERO BANNER */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-700 text-white p-6 sm:p-10 shadow-2xl border border-indigo-400/30">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-6 sm:space-y-8 animate-fadeIn">
+      {/* 1. HERO HEADER GỌN GÀNG */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white p-6 sm:p-8 shadow-xl border border-indigo-500/20">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-xs font-semibold tracking-wide">
-              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-              <span>Sổ Tay Cá Nhân & Hệ Thống Ghi Nhớ Lặp Lại SRS</span>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <span>Sổ Tay Thông Minh & Quản Lý Ôn Tập Đa Tầng (SM-2 SRS)</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white drop-shadow-xs">
-              Sổ Tay Tiếng Nhật Cá Nhân
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Trung Tâm Sổ Tay & Ôn Tập Cá Nhân
             </h1>
-            
-              <p className="text-blue-50/90 max-w-2xl text-sm sm:text-base leading-relaxed">
-                Tối ưu lưu trữ trực tiếp vào CSDL MySQL. Tự do lưu trữ Từ vựng, Hán tự, Mẫu ngữ pháp và Mẹo giao tiếp qua các cấp độ N5 - N1 kèm thuật toán lặp lại ngắt quãng SRS.
-              </p>
+            <p className="text-slate-300 max-w-2xl text-xs sm:text-sm leading-relaxed">
+              Phân loại khoa học theo cấp độ JLPT, tự động tách riêng câu hỏi làm sai từ đề thi, thẻ đến hạn ôn tập gấp và kiến thức thường ngày.
+            </p>
 
-              {/* STREAK DISPLAY */}
-              {stats && stats.studyStreak !== undefined && (
-                <div className="mt-4 flex flex-wrap items-center gap-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-xl border border-white/20">
-                    <Flame className={`w-6 h-6 ${stats.studyStreak > 0 ? 'text-orange-400' : 'text-slate-300'}`} />
-                    <div>
-                      <div className="text-xs text-blue-100 font-medium">Chuỗi ngày học</div>
-                      <div className="font-bold text-white">{stats.studyStreak} ngày</div>
-                    </div>
-                  </div>
-                  
-                  {(stats.dueCount ?? 0) > 0 && (
-                    <button
-                      onClick={() => setIsReviewingSrs(true)}
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl shadow-xl shadow-indigo-900/20 hover:bg-indigo-50 hover:scale-105 transition-all duration-300"
-                    >
-                      <RotateCw className="w-5 h-5" />
-                      Bắt đầu ôn tập ({stats.dueCount} thẻ)
-                    </button>
-                  )}
-                </div>
-              )}
-
-
+            {/* CHUỖI NGÀY HỌC & TỔNG QUAN NHANH */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 rounded-xl border border-white/15 text-xs">
+                <Flame className={`w-4 h-4 ${(stats?.studyStreak ?? 0) > 0 ? 'text-orange-400' : 'text-slate-400'}`} />
+                <span className="font-bold text-white">{stats?.studyStreak || 0} ngày streak</span>
+              </div>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 rounded-xl border border-white/15 text-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-slate-200">Đã thành thạo: <strong className="text-white">{stats?.masteredCount || 0}</strong> ({stats?.masteryRate || 0}%)</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* CỤM NÚT HÀNH ĐỘNG GIAO DIỆN CHÍNH */}
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={() => {
                 if (items.length === 0) {
-                  alert('Sổ tay chưa có mục nào để luyện tập. Hãy thêm mục mới hoặc bỏ bớt bộ lọc!');
+                  alert('Không có mục nào trong danh sách hiện tại để luyện tập!');
                   return;
                 }
                 setFlashcardIndex(0);
                 setIsCurrentCardFlipped(false);
                 setIsFlashcardMode(true);
               }}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
             >
-              <Zap className="w-5 h-5 fill-slate-950" />
+              <Zap className="w-4 h-4 fill-slate-950" />
               <span>Luyện Flashcard ({items.length})</span>
             </button>
 
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/30 text-white font-semibold transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               <span>Thêm Mục Mới</span>
             </button>
           </div>
         </div>
-
-        {/* STATS PROGRESS BAR */}
-        {stats && (
-          <div className="mt-8 pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-              <span className="text-xs text-blue-200 block mb-1">Tổng Mục Đã Lưu</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-bold">{stats.total}</span>
-                <span className="text-xs text-blue-300">mục</span>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-              <span className="text-xs text-emerald-300 block mb-1">Đã Thành Thạo</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-bold text-emerald-400">{stats.masteredCount}</span>
-                <span className="text-xs text-emerald-200/80">({stats.masteryRate}%)</span>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-              <span className="text-xs text-amber-300 block mb-1">Cần Ôn Tập Lại</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-bold text-amber-300">{stats.reviewingCount}</span>
-                <span className="text-xs text-amber-200/80">mục</span>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-              <span className="text-xs text-sky-300 block mb-1">Đang Tiếp Thu</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-bold text-sky-300">{stats.learningCount}</span>
-                <span className="text-xs text-sky-200/80">mục</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* 2. SMART FILTER & SEARCH TOOLBAR */}
-      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
-        {/* Hàng 1: Loại mục (Tabs) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+      {/* 2. TẦNG 1: THANH ĐIỀU HƯỚNG LEVEL THÔNG MINH (LEVEL-FIRST BAR) */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200/80 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+              1. Chọn Cấp Độ JLPT Cần Quản Lý:
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span>Đang xem:</span>
+            <span className="font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
+              {selectedLevel === 'ALL' ? 'Tất cả các cấp độ' : `JLPT ${selectedLevel}`}
+            </span>
+          </div>
+        </div>
+
+        {/* CÁC NÚT LEVEL VỚI CHỈ SỐ ĐẾM THỰC TẾ TỪ REDIS */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+          {[
+            { id: 'N5', label: 'JLPT N5' },
+            { id: 'N4', label: 'JLPT N4' },
+            { id: 'N3', label: 'JLPT N3' },
+            { id: 'N2', label: 'JLPT N2' },
+            { id: 'N1', label: 'JLPT N1' },
+            { id: 'ALL', label: 'Tất Cả Level' }
+          ].map((lvl) => {
+            const isActive = selectedLevel === lvl.id;
+            const lvlStats = lvl.id === 'ALL' 
+              ? hubSummary?.overall 
+              : hubSummary?.levels[lvl.id as keyof typeof hubSummary.levels];
+            const totalCount = lvlStats?.total || 0;
+            const dueCount = lvlStats?.due || 0;
+            const mistakeCount = lvlStats?.mistakes || 0;
+
+            return (
+              <button
+                key={lvl.id}
+                onClick={() => {
+                  setSelectedLevel(lvl.id);
+                  setSelectedSection('all'); // Reset về xem tất cả của level đó
+                }}
+                className={`flex flex-col p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
+                  isActive
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/25 scale-[1.02]'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className={`text-xs font-black tracking-wide ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                    {lvl.label}
+                  </span>
+                  <span className={`text-[11px] font-bold px-2 py-0.2 rounded-full ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-700'
+                  }`}>
+                    {totalCount}
+                  </span>
+                </div>
+
+                {/* Huy hiệu cảnh báo ôn gấp & câu sai */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  {dueCount > 0 && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                      isActive ? 'bg-amber-400 text-slate-950 font-black' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      🔥 {dueCount}
+                    </span>
+                  )}
+                  {mistakeCount > 0 && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                      isActive ? 'bg-rose-400 text-slate-950 font-black' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      ❌ {mistakeCount}
+                    </span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. TẦNG 2: BẢNG ĐIỀU KHIỂN HÀNH ĐỘNG THÔNG MINH CHO LEVEL ĐƯỢC CHỌN */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* CARD 1: ÔN TẬP GẤP (SRS DUE) */}
+        <div className={`p-5 rounded-3xl border transition-all ${
+          (currentLevelSummary?.due || 0) > 0
+            ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 shadow-sm'
+            : 'bg-slate-50 border-slate-200 text-slate-500'
+        }`}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>Ôn Tập Khẩn Cấp (SRS)</span>
+            </span>
+            <span className="text-2xl font-black text-amber-700">
+              {currentLevelSummary?.due || 0}
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 mb-4 leading-relaxed font-medium">
+            {(currentLevelSummary?.due || 0) > 0
+              ? `Có ${currentLevelSummary?.due} thẻ thuộc ${selectedLevel === 'ALL' ? 'toàn bộ sổ tay' : selectedLevel} đã đến hạn ôn tập ngắt quãng hôm nay.`
+              : `Hiện không có thẻ nào đến hạn lặp lại trong ${selectedLevel === 'ALL' ? 'toàn bộ sổ tay' : selectedLevel}. Bạn đang ghi nhớ rất tốt!`}
+          </p>
+          {(currentLevelSummary?.due || 0) > 0 ? (
+            <button
+              onClick={() => setIsReviewingSrs(true)}
+              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-300 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            >
+              <Zap className="w-3.5 h-3.5 fill-white" />
+              <span>Bắt Đầu Ôn Gấp ({currentLevelSummary?.due} thẻ)</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setSelectedSection('due')}
+              className="w-full py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-100 transition-all cursor-pointer"
+            >
+              Xem danh sách đến hạn
+            </button>
+          )}
+        </div>
+
+        {/* CARD 2: NGÂN HÀNG CÂU HỎI LÀM SAI (MISTAKE BANK) */}
+        <div className={`p-5 rounded-3xl border transition-all ${
+          (currentLevelSummary?.mistakes || 0) > 0
+            ? 'bg-gradient-to-br from-rose-50 to-pink-50 border-rose-200 shadow-sm'
+            : 'bg-slate-50 border-slate-200 text-slate-500'
+        }`}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Ngân Hàng Câu Sai</span>
+            </span>
+            <span className="text-2xl font-black text-rose-700">
+              {currentLevelSummary?.mistakes || 0}
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 mb-4 leading-relaxed font-medium">
+            {(currentLevelSummary?.mistakes || 0) > 0
+              ? `Đã gom ${currentLevelSummary?.mistakes} câu hỏi trắc nghiệm bạn từng chọn nhầm từ các đề thi ${selectedLevel === 'ALL' ? '' : selectedLevel}.`
+              : `Chưa có câu hỏi làm sai nào được ghi nhận từ đề thi ${selectedLevel === 'ALL' ? '' : selectedLevel}.`}
+          </p>
+          <button
+            onClick={() => setSelectedSection('mistakes')}
+            className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+              selectedSection === 'mistakes'
+                ? 'bg-rose-700 text-white shadow-md'
+                : 'bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-200'
+            }`}
+          >
+            <BookOpenCheck className="w-3.5 h-3.5" />
+            <span>Luyện Lại Câu Sai ({currentLevelSummary?.mistakes || 0})</span>
+          </button>
+        </div>
+
+        {/* CARD 3: MẸO THI & GHI CHÚ CHUYÊN SÂU */}
+        <div className="p-5 rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-blue-50/70 shadow-sm">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold">
+              <FileText className="w-3.5 h-3.5" />
+              <span>Mẹo Thi & Ghi Chú</span>
+            </span>
+            <span className="text-2xl font-black text-indigo-700">
+              {currentLevelSummary?.note || 0}
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 mb-4 leading-relaxed font-medium">
+            Gồm các bí quyết làm bài Đọc hiểu Dokkai, lưu ý phân biệt trợ từ và mẹo tránh bẫy ngữ pháp theo cấp độ.
+          </p>
+          <button
+            onClick={() => setSelectedSection('note')}
+            className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+              selectedSection === 'note'
+                ? 'bg-indigo-700 text-white shadow-md'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Xem Toàn Bộ Mẹo & Ghi Chú</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 4. TẦNG 3: DANH MỤC THƯ MỤC PHÂN LOẠI & TOOLBAR ĐÓNG MỞ LINH HOẠT */}
+      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4">
+        {/* HÀNG TAB PHÂN NHÓM NỘI DUNG */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { id: 'ALL', label: 'Tất Cả', icon: Layers, count: tabCounts.ALL },
-              { id: 'VOCAB', label: 'Từ Vựng', icon: BookOpen, count: tabCounts.VOCAB },
-              { id: 'KANJI', label: 'Hán Tự', icon: Languages, count: tabCounts.KANJI },
-              { id: 'GRAMMAR', label: 'Ngữ Pháp', icon: BookOpenCheck, count: tabCounts.GRAMMAR },
-              { id: 'NOTE', label: 'Ghi Chú & Mẹo', icon: FileText, count: tabCounts.NOTE }
+              { id: 'all', label: 'Tất Cả', icon: Bookmark, count: currentLevelSummary?.total || 0 },
+              { id: 'due', label: 'Cần Ôn Gấp', icon: RotateCw, count: currentLevelSummary?.due || 0 },
+              { id: 'mistakes', label: 'Câu Sai Đề Thi', icon: AlertTriangle, count: currentLevelSummary?.mistakes || 0 },
+              { id: 'vocab', label: 'Từ Vựng', icon: BookOpen, count: currentLevelSummary?.vocab || 0 },
+              { id: 'kanji', label: 'Hán Tự', icon: Languages, count: currentLevelSummary?.kanji || 0 },
+              { id: 'grammar', label: 'Ngữ Pháp', icon: BookOpenCheck, count: currentLevelSummary?.grammar || 0 },
+              { id: 'note', label: 'Mẹo & Ghi Chú', icon: FileText, count: currentLevelSummary?.note || 0 }
             ].map((tab) => {
               const Icon = tab.icon;
-              const isActive = selectedType === tab.id;
+              const isActive = selectedSection === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setSelectedType(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  onClick={() => setSelectedSection(tab.id)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200:bg-slate-700'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
-                  {tab.count !== undefined && (
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  )}
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {tab.count}
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          <button
-            onClick={loadData}
-            title="Làm mới dữ liệu từ CSDL"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-100:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Đồng bộ CSDL</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => toggleExpandAll(true)}
+              title="Mở rộng tất cả các thẻ"
+              className="p-2 text-xs font-semibold text-slate-600 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-xl border border-slate-200 flex items-center gap-1 transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Mở tất cả</span>
+            </button>
+
+            <button
+              onClick={() => toggleExpandAll(false)}
+              title="Thu gọn tất cả các thẻ"
+              className="p-2 text-xs font-semibold text-slate-600 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-xl border border-slate-200 flex items-center gap-1 transition-colors"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Thu gọn</span>
+            </button>
+
+            <button
+              onClick={() => setIsCompactMode(!isCompactMode)}
+              title={isCompactMode ? 'Chuyển sang xem dạng thẻ lưới' : 'Chuyển sang xem danh sách thu gọn'}
+              className={`p-2 text-xs font-semibold rounded-xl border flex items-center gap-1 transition-colors ${
+                isCompactMode ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'
+              }`}
+            >
+              {isCompactMode ? <LayoutGrid className="w-3.5 h-3.5" /> : <List className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isCompactMode ? 'Dạng Lưới' : 'Dạng Thu Gọn'}</span>
+            </button>
+
+            <button
+              onClick={loadData}
+              title="Đồng bộ dữ liệu CSDL"
+              className="p-2 text-xs text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        {/* Hàng 2: Bộ lọc phụ (Level, Mastery, Search input) */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Cấp độ */}
-            <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-200">
-              {['ALL', 'N5', 'N4', 'N3', 'N2', 'N1'].map((lvl) => (
-                <button
-                  key={lvl}
-                  onClick={() => setSelectedLevel(lvl)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    selectedLevel === lvl
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {lvl}
-                </button>
-              ))}
-            </div>
-
-            {/* Trạng thái ghi nhớ SRS */}
+        {/* HÀNG TÌM KIẾM & BỘ LỌC SRS */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500">Trạng thái:</span>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-semibold bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="ALL">Mọi trạng thái SRS</option>
               <option value="LEARNING">Đang học (Learning)</option>
               <option value="REVIEWING">Cần ôn lại (Reviewing)</option>
-              <option value="MASTERED">Đã thuộc (Mastered)</option>
+              <option value="MASTERED">Đã thành thạo (Mastered)</option>
             </select>
           </div>
 
-          {/* Ô Tìm Kiếm */}
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm từ vựng, Hán tự, ngữ pháp, nghĩa tiếng Việt..."
+              placeholder="Tìm kiếm theo từ vựng, Kanji, nghĩa tiếng Việt, bẫy thi..."
               className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 placeholder-slate-400"
             />
           </div>
         </div>
       </div>
 
-      {/* 3. THÔNG BÁO LỖI NẾU CÓ */}
+      {/* THÔNG BÁO LỖI NẾU CÓ */}
       {errorMsg && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-3 text-amber-800 text-sm">
           <AlertCircle className="w-5 h-5 shrink-0" />
@@ -599,19 +726,21 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         </div>
       )}
 
-      {/* 4. LƯỚI DANH SÁCH MỤC SỔ TAY */}
+      {/* 5. DANH SÁCH THẺ ÔN TẬP (HỖ TRỢ CẢ COMPACT LIST VÀ GRID CARD) */}
       {loading && items.length === 0 ? (
         <div className="text-center py-20">
           <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Đang đồng bộ dữ liệu từ CSDL MySQL...</p>
+          <p className="text-sm text-slate-500">Đang truy xuất CSDL siêu tốc qua bộ đệm Redis...</p>
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200 p-8 space-y-4">
+        <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200 p-8 space-y-4">
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto" />
           <div className="space-y-1">
-            <h3 className="text-lg font-bold text-slate-800">Không tìm thấy mục nào</h3>
-            <p className="text-sm text-slate-500">
-              Hãy thử điều chỉnh bộ lọc hoặc thêm mục mới vào sổ tay của bạn.
+            <h3 className="text-lg font-bold text-slate-800">
+              Không có nội dung nào trong danh mục này ({selectedLevel} - {selectedSection.toUpperCase()})
+            </h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              Bạn có thể thêm mục mới bằng tay hoặc các câu hỏi làm sai từ Đề Thi Thử sẽ tự động đổ vào đây.
             </p>
           </div>
           <button
@@ -619,48 +748,176 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all cursor-pointer shadow-md shadow-blue-500/20"
           >
             <Plus className="w-4 h-4" />
-            <span>Thêm mục ngay</span>
+            <span>Thêm mục mới ngay</span>
           </button>
         </div>
+      ) : isCompactMode ? (
+        /* CHẾ ĐỘ THU GỌN (COMPACT ACCORDION LIST) */
+        <div className="bg-white rounded-3xl p-3 sm:p-5 shadow-sm border border-slate-200/80 divide-y divide-slate-100">
+          {items.map((item) => {
+            const isFromExam = Boolean(item.tags?.includes('Thi_thử') || item.tags?.includes('Câu_sai'));
+            const isExpanded = !!expandedCards[item.id];
+            const isMastered = item.masteryStatus === 'MASTERED';
+            const isReviewing = item.masteryStatus === 'REVIEWING';
+
+            return (
+              <div key={item.id} className="py-3 px-2 sm:px-3 hover:bg-slate-50/80 rounded-2xl transition-all">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                    <button
+                      onClick={() => toggleCardExpand(item.id)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors mt-0.5 sm:mt-0"
+                    >
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`px-2 py-0.5 text-[11px] font-bold rounded-lg border ${getLevelColor(item.level)}`}>
+                        {item.level}
+                      </span>
+                      {isFromExam ? (
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                          🎯 Đề Thi
+                        </span>
+                      ) : (
+                        getItemTypeBadge(item.itemType)
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span
+                          className="font-bold text-slate-900 text-sm sm:text-base cursor-pointer hover:text-blue-600 truncate"
+                          dangerouslySetInnerHTML={{ __html: item.title }}
+                          onClick={() => {
+                            setSelectedNotebookItem(item);
+                            setIsDetailModalOpen(true);
+                          }}
+                        />
+                        {item.reading && (
+                          <span className="text-xs text-slate-400 hidden sm:inline truncate">
+                            {item.reading}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 truncate" dangerouslySetInnerHTML={{ __html: item.meaningVi }} />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    {/* Audio */}
+                    {!isFromExam && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          speakJapanese(item.title);
+                        }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                        title="Phát âm tiếng Nhật"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+                    )}
+
+                    {/* Toggle SRS */}
+                    <button
+                      onClick={() => {
+                        const nextStatus = item.masteryStatus === 'LEARNING' ? 'REVIEWING' : item.masteryStatus === 'REVIEWING' ? 'MASTERED' : 'LEARNING';
+                        handleToggleMastery(item.id, nextStatus as any);
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                        isMastered ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : isReviewing ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-sky-50 text-sky-700 border-sky-200'
+                      }`}
+                    >
+                      {isMastered ? 'Đã thuộc ✓' : isReviewing ? 'Cần ôn ↺' : 'Đang học'}
+                    </button>
+
+                    {/* Chi tiết */}
+                    <button
+                      onClick={() => {
+                        setSelectedNotebookItem(item);
+                        setIsDetailModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 transition-colors"
+                      title="Xem chi tiết"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                    </button>
+
+                    {/* Xóa */}
+                    <button
+                      onClick={() => setItemToDelete({ id: item.id, title: item.title })}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="Xóa mục"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* KHỐI NỘI DUNG MỞ RỘNG (KHI EXPANDED TRONG COMPACT MODE) */}
+                {isExpanded && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 text-xs sm:text-sm text-slate-700 space-y-2 bg-slate-50/50 p-3 rounded-xl animate-fadeIn">
+                    {item.exampleJp && (
+                      <div className="text-slate-900 font-medium whitespace-pre-wrap">
+                        <strong className="text-slate-500 font-bold block text-[11px]">Nội dung câu / Ví dụ:</strong>
+                        <div dangerouslySetInnerHTML={{ __html: formatText(item.exampleJp) }} />
+                      </div>
+                    )}
+                    {item.exampleVi && (
+                      <div className="text-slate-600">
+                        <strong className="text-slate-500 font-bold block text-[11px]">Dịch nghĩa câu:</strong>
+                        <div dangerouslySetInnerHTML={{ __html: item.exampleVi }} />
+                      </div>
+                    )}
+                    {item.note && (
+                      <div className="text-indigo-900 bg-indigo-50/80 p-2.5 rounded-lg border border-indigo-100">
+                        <strong className="text-indigo-700 font-bold block text-[11px] mb-1">Mẹo / Phân tích bẫy thi:</strong>
+                        <div dangerouslySetInnerHTML={{ __html: item.note.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       ) : (
+        /* CHẾ ĐỘ XEM THẺ LƯỚI (GRID CARDS CHUYÊN NGHIỆP) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.map((item) => {
-            const isFlipped = !!flippedCards[item.id];
+            const isFromExam = Boolean(item.tags?.includes('Thi_thử') || item.tags?.includes('Câu_sai'));
             const isMastered = item.masteryStatus === 'MASTERED';
             const isReviewing = item.masteryStatus === 'REVIEWING';
 
             return (
               <div
                 key={item.id}
-                className="group relative bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 hover:border-blue-200 flex flex-col h-full"
+                className="group relative bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-200/80 hover:border-blue-300 flex flex-col h-full"
               >
                 <div className="flex-1 flex flex-col">
-                  {/* Card Header: Type, Level, SRS Status, Actions */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                    <div className="flex items-center flex-wrap gap-2">
-                      {getItemTypeBadge(item.itemType)}
+                  {/* Header thẻ: Badge, Level, SRS toggle, Delete */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      {isFromExam ? (
+                        <span className="px-2.5 py-0.5 text-xs font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                          🎯 Đề Thi
+                        </span>
+                      ) : (
+                        getItemTypeBadge(item.itemType)
+                      )}
                       <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(item.level)}`}>
                         {item.level}
                       </span>
-                      {item.tags?.includes('Thi_thử') || item.tags?.includes('Câu_sai') ? (
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200" title="Được lưu từ Bài Kiểm Tra / Thi Thử">
-                          🎯 Từ Đề Thi
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200" title="Được lưu từ Bài Học / Sách giáo trình">
-                          📚 Từ Bài Học
-                        </span>
-                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {/* Nút 1-chạm đổi trạng thái SRS */}
                       <button
                         onClick={() => {
                           const nextStatus = item.masteryStatus === 'LEARNING' ? 'REVIEWING' : item.masteryStatus === 'REVIEWING' ? 'MASTERED' : 'LEARNING';
                           handleToggleMastery(item.id, nextStatus as any);
                         }}
-                        title="Bấm để chuyển trạng thái SRS (Đang học -> Cần ôn -> Đã thuộc)"
+                        title="Bấm để chuyển trạng thái SRS"
                         className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                           isMastered ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : isReviewing ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-sky-50 text-sky-700 border border-sky-200'
                         }`}
@@ -674,9 +931,8 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                         )}
                       </button>
 
-                      {/* Xóa */}
                       <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteItem(item.id, item.title); }}
+                        onClick={() => setItemToDelete({ id: item.id, title: item.title })}
                         title="Xóa khỏi sổ tay"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                       >
@@ -685,41 +941,42 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     </div>
                   </div>
 
-                  {/* Tiêu đề và Nội dung Tiếng Nhật */}
-                  <div className="space-y-1.5 mb-3">
+                  {/* Tiêu đề tiếng Nhật */}
+                  <div className="space-y-1 mb-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        {(() => {
-                          const isFromExam = item.tags?.includes('Thi_thử') || item.tags?.includes('Câu_sai');
-                          if (isFromExam) {
-                            return (
-                              <>
-                                <div className="text-[11px] text-slate-500 font-bold mb-1 uppercase tracking-wider" dangerouslySetInnerHTML={{ __html: item.title }} />
-                                <h3 
-                                  className="text-base font-bold text-slate-900 line-clamp-3 cursor-pointer hover:text-blue-600 transition-colors leading-relaxed whitespace-pre-wrap"
-                                  dangerouslySetInnerHTML={{ __html: formatText(item.exampleJp || item.meaningVi || item.title) }}
-                                  onClick={() => { setSelectedNotebookItem(item); setIsDetailModalOpen(true); }}
-                                />
-                              </>
-                            );
-                          }
-                          return (
-                            <>
-                              <h3 
-                                className="text-xl font-bold text-slate-900 line-clamp-2 cursor-pointer hover:text-blue-600 transition-colors"
-                                dangerouslySetInnerHTML={{ __html: item.title }}
-                                onClick={() => { setSelectedNotebookItem(item); setIsDetailModalOpen(true); }}
-                              />
-                              {item.reading && <div className="text-[13px] text-slate-500 font-medium mt-0.5 mb-1">{item.reading}</div>}
-                            </>
-                          );
-                        })()}
+                      <div className="flex-1 min-w-0">
+                        {isFromExam ? (
+                          <>
+                            <div className="text-[11px] text-slate-500 font-bold mb-1 uppercase tracking-wider" dangerouslySetInnerHTML={{ __html: item.title }} />
+                            <h3
+                              className="text-base font-bold text-slate-900 line-clamp-3 cursor-pointer hover:text-blue-600 transition-colors leading-relaxed whitespace-pre-wrap"
+                              dangerouslySetInnerHTML={{ __html: formatText(item.exampleJp || item.meaningVi || item.title) }}
+                              onClick={() => {
+                                setSelectedNotebookItem(item);
+                                setIsDetailModalOpen(true);
+                              }}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <h3
+                              className="text-xl font-bold text-slate-900 line-clamp-2 cursor-pointer hover:text-blue-600 transition-colors"
+                              dangerouslySetInnerHTML={{ __html: item.title }}
+                              onClick={() => {
+                                setSelectedNotebookItem(item);
+                                setIsDetailModalOpen(true);
+                              }}
+                            />
+                            {item.reading && <div className="text-[13px] text-slate-500 font-medium mt-0.5">{item.reading}</div>}
+                          </>
+                        )}
                       </div>
-                      {item.itemType !== 'NOTE' && !item.tags?.includes('Thi_thử') && !item.tags?.includes('Câu_sai') && (
+
+                      {!isFromExam && (
                         <button
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            speakJapanese(item.title); 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            speakJapanese(item.title);
                           }}
                           title="Phát âm tiếng Nhật chuẩn"
                           className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors cursor-pointer shrink-0 mt-1"
@@ -730,9 +987,9 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     </div>
                   </div>
 
-                  {/* Nghĩa Tiếng Việt / Nội dung thu gọn */}
+                  {/* Nghĩa tiếng Việt */}
                   {item.meaningVi && (
-                    <div 
+                    <div
                       className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-600 font-medium mb-4 line-clamp-2 cursor-pointer hover:bg-slate-100 transition-colors"
                       dangerouslySetInnerHTML={{ __html: item.meaningVi }}
                       onClick={() => {
@@ -744,9 +1001,9 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                   )}
                 </div>
 
-                {/* Nút Xem chi tiết: Luôn cố định đồng nhất ở đáy thẻ */}
-                <div className="mt-auto pt-3 border-t border-slate-100/80">
-                  <button 
+                {/* Footer thẻ: Nút xem giải thích chi tiết */}
+                <div className="mt-auto pt-3 border-t border-slate-100">
+                  <button
                     onClick={() => {
                       setSelectedNotebookItem(item);
                       setIsDetailModalOpen(true);
@@ -763,172 +1020,96 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         </div>
       )}
 
-      {/* 5. MODAL LUYỆN TẬP FLASHCARD SRS TOÀN MÀN HÌNH */}
-      {isFlashcardMode && currentFlashcard && (
+      {/* 6. MODAL LUYỆN TẬP FLASHCARD NHANH */}
+      {isFlashcardMode && items.length > 0 && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
-            {/* Header Flashcard */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">
-                  Thẻ {flashcardIndex + 1} / {activeFlashcardItems.length}
-                </span>
-                {getItemTypeBadge(currentFlashcard.itemType)}
-                <span className={`px-2 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(currentFlashcard.level)}`}>
-                  {currentFlashcard.level}
-                </span>
+          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base">
+                  Luyện Flashcard ({flashcardIndex + 1}/{items.length})
+                </h3>
               </div>
-
               <button
                 onClick={() => setIsFlashcardMode(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700:text-slate-200 hover:bg-slate-100:bg-slate-800 transition-colors"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Thanh tiến độ */}
-            <div className="w-full bg-slate-100 h-1.5">
+            <div className="p-6 sm:p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
               <div
-                className="bg-blue-600 h-1.5 transition-all duration-300"
-                style={{ width: `${((flashcardIndex + 1) / activeFlashcardItems.length) * 100}%` }}
-              ></div>
-            </div>
-
-            {/* Nội dung Thẻ Flashcard */}
-            <div
-              onClick={() => setIsCurrentCardFlipped(!isCurrentCardFlipped)}
-              className="p-8 sm:p-12 min-h-[300px] flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/50:bg-slate-800/30 transition-colors select-none"
-            >
-              {!isCurrentCardFlipped ? (
-                /* Mặt trước: Từ/Kanji/Ngữ pháp lớn */
-                <div className="space-y-4 animate-fadeIn">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest block">
-                    Mặt trước (Nhấp để lật)
-                  </span>
-                  <h2 className="text-4xl sm:text-5xl font-black text-slate-900">
-                    {currentFlashcard.title}
-                  </h2>
-                  <div className="flex items-center justify-center gap-2">
-                    {currentFlashcard.itemType !== 'NOTE' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          speakJapanese(currentFlashcard.title);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                        <span>Nghe phát âm</span>
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-6">💡 Chạm vào thẻ để xem phiên âm và nghĩa</p>
-                </div>
-              ) : (
-                /* Mặt sau: Phiên âm, Nghĩa, Ví dụ */
-                <div className="space-y-4 max-w-lg animate-fadeIn text-left">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest text-center block">
-                    Mặt sau (Đáp án)
-                  </span>
-                  <div className="text-center">
-                    <h3 className="text-3xl font-extrabold text-blue-600">
-                      {currentFlashcard.title}
-                    </h3>
-                    {currentFlashcard.reading && (
-                      <p className="text-sm font-medium text-slate-500 mt-1">
-                        {currentFlashcard.reading}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-blue-50 text-slate-800 font-semibold text-base text-center">
-                    {currentFlashcard.meaningVi}
-                  </div>
-
-                  {currentFlashcard.structure && (
-                    <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 text-xs">
-                      <span className="font-bold">Cấu trúc: </span>
-                      <code>{currentFlashcard.structure}</code>
-                    </div>
-                  )}
-
-                  {currentFlashcard.exampleJp && (
-                    <div className="border-l-2 border-blue-500 pl-3 py-1 text-xs space-y-1">
-                      <p className="text-slate-700 font-medium">
-                        {currentFlashcard.exampleJp}
-                      </p>
-                      {currentFlashcard.exampleVi && (
-                        <p className="text-slate-500 italic">
-                          {currentFlashcard.exampleVi}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {currentFlashcard.note && (
-                    <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded-xl">
-                      💡 {currentFlashcard.note}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Đánh giá SRS 1-chạm & Điều hướng */}
-            <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-              {/* Nút lật nhanh */}
-              <button
                 onClick={() => setIsCurrentCardFlipped(!isCurrentCardFlipped)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className="w-full h-full cursor-pointer flex flex-col items-center justify-center space-y-4"
               >
-                <RotateCw className="w-3.5 h-3.5" />
-                <span>{isCurrentCardFlipped ? 'Xem mặt trước' : 'Lật xem đáp án'}</span>
-              </button>
+                {!isCurrentCardFlipped ? (
+                  <>
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                      Mặt Trước • Bấm để lật
+                    </span>
+                    <h2
+                      className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight"
+                      dangerouslySetInnerHTML={{ __html: items[flashcardIndex]?.title || '' }}
+                    />
+                    {items[flashcardIndex]?.reading && (
+                      <p className="text-sm text-slate-500">{items[flashcardIndex]?.reading}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                      Mặt Sau • Ý Nghĩa & Ví Dụ
+                    </span>
+                    <div
+                      className="text-xl font-bold text-slate-800"
+                      dangerouslySetInnerHTML={{ __html: items[flashcardIndex]?.meaningVi || '' }}
+                    />
+                    {items[flashcardIndex]?.exampleJp && (
+                      <p className="text-xs text-slate-500 max-w-md italic mt-2">
+                        {items[flashcardIndex]?.exampleJp}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
 
-              {/* 3 Nút Đánh Giá SRS */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="p-4 sm:p-6 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    handleToggleMastery(currentFlashcard.id, 'LEARNING');
-                    if (flashcardIndex < activeFlashcardItems.length - 1) {
-                      setFlashcardIndex(flashcardIndex + 1);
-                      setIsCurrentCardFlipped(false);
-                    }
+                    handleToggleMastery(items[flashcardIndex].id, 'LEARNING');
+                    if (flashcardIndex < items.length - 1) setFlashcardIndex(flashcardIndex + 1);
+                    setIsCurrentCardFlipped(false);
                   }}
-                  className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold transition-all cursor-pointer"
+                  className="px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer"
                 >
                   Chưa thuộc
                 </button>
-
                 <button
                   onClick={() => {
-                    handleToggleMastery(currentFlashcard.id, 'REVIEWING');
-                    if (flashcardIndex < activeFlashcardItems.length - 1) {
-                      setFlashcardIndex(flashcardIndex + 1);
-                      setIsCurrentCardFlipped(false);
-                    }
+                    handleToggleMastery(items[flashcardIndex].id, 'REVIEWING');
+                    if (flashcardIndex < items.length - 1) setFlashcardIndex(flashcardIndex + 1);
+                    setIsCurrentCardFlipped(false);
                   }}
-                  className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold transition-all cursor-pointer"
+                  className="px-3 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold cursor-pointer"
                 >
-                  Cần ôn lại
+                  Cần ôn
                 </button>
-
                 <button
                   onClick={() => {
-                    handleToggleMastery(currentFlashcard.id, 'MASTERED');
-                    if (flashcardIndex < activeFlashcardItems.length - 1) {
-                      setFlashcardIndex(flashcardIndex + 1);
-                      setIsCurrentCardFlipped(false);
-                    }
+                    handleToggleMastery(items[flashcardIndex].id, 'MASTERED');
+                    if (flashcardIndex < items.length - 1) setFlashcardIndex(flashcardIndex + 1);
+                    setIsCurrentCardFlipped(false);
                   }}
-                  className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm"
                 >
                   Đã thuộc ✓
                 </button>
               </div>
 
-              {/* Điều hướng Trước / Sau */}
               <div className="flex items-center gap-1">
                 <button
                   disabled={flashcardIndex === 0}
@@ -936,17 +1117,17 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     setFlashcardIndex(flashcardIndex - 1);
                     setIsCurrentCardFlipped(false);
                   }}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 disabled:opacity-30"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <button
-                  disabled={flashcardIndex === activeFlashcardItems.length - 1}
+                  disabled={flashcardIndex === items.length - 1}
                   onClick={() => {
                     setFlashcardIndex(flashcardIndex + 1);
                     setIsCurrentCardFlipped(false);
                   }}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 disabled:opacity-30"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -956,7 +1137,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         </div>
       )}
 
-      {/* 6. MODAL THÊM MỤC MỚI VÀO SỔ TAY */}
+      {/* 7. MODAL THÊM MỚI MỤC VÀO SỔ TAY */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
@@ -967,14 +1148,13 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700:text-slate-200"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateSubmit} className="p-6 space-y-4 overflow-y-auto">
-              {/* Phân Loại & Cấp Độ */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-600 block mb-1.5">
@@ -1010,7 +1190,6 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 </div>
               </div>
 
-              {/* Tiêu đề / Từ chính */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1.5">
                   Từ / Hán Tự / Mẫu Ngữ Pháp <span className="text-red-500">*</span>
@@ -1025,21 +1204,19 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 />
               </div>
 
-              {/* Phiên âm */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1.5">
-                  Phiên Âm (Hiragana / Âm Hán Việt / Romaji)
+                  Phiên Âm (Hiragana / Hán Việt)
                 </label>
                 <input
                   type="text"
                   value={formData.reading || ''}
                   onChange={(e) => setFormData({ ...formData, reading: e.target.value })}
                   placeholder="Ví dụ: いちごいちえ, NHẤT KỲ NHẤT HỘI"
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-800"
                 />
               </div>
 
-              {/* Nghĩa Tiếng Việt */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1.5">
                   Ý Nghĩa Tiếng Việt <span className="text-red-500">*</span>
@@ -1049,28 +1226,11 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                   rows={2}
                   value={formData.meaningVi}
                   onChange={(e) => setFormData({ ...formData, meaningVi: e.target.value })}
-                  placeholder="Nhập ý nghĩa chi tiết tiếng Việt..."
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nhập nghĩa tiếng Việt..."
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-800"
                 />
               </div>
 
-              {/* Cấu trúc (nếu là ngữ pháp) */}
-              {formData.itemType === 'GRAMMAR' && (
-                <div>
-                  <label className="text-xs font-bold text-slate-600 block mb-1.5">
-                    Cấu Trúc Ngữ Pháp
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.structure || ''}
-                    onChange={(e) => setFormData({ ...formData, structure: e.target.value })}
-                    placeholder="Ví dụ: V-ru / N + に際して"
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
-
-              {/* Ví dụ Tiếng Nhật & Dịch */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-600 block">
                   Câu Ví Dụ Minh Họa
@@ -1079,53 +1239,36 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                   type="text"
                   value={formData.exampleJp || ''}
                   onChange={(e) => setFormData({ ...formData, exampleJp: e.target.value })}
-                  placeholder="Câu ví dụ tiếng Nhật..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-800"
+                  placeholder="Ví dụ tiếng Nhật..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm"
                 />
                 <input
                   type="text"
                   value={formData.exampleVi || ''}
                   onChange={(e) => setFormData({ ...formData, exampleVi: e.target.value })}
-                  placeholder="Dịch câu ví dụ sang tiếng Việt..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-800"
+                  placeholder="Dịch nghĩa câu ví dụ..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm"
                 />
               </div>
 
-              {/* Ghi chú & Thẻ Tags */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-600 block mb-1.5">
-                    Ghi Chú Cá Nhân / Mẹo Nhớ
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.note || ''}
-                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                    placeholder="Mẹo nhớ, cách dùng..."
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-600 block mb-1.5">
-                    Thẻ Phân Loại (Tags)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.tags || ''}
-                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                    placeholder="E.g. giao tiếp, thi cử"
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 block mb-1.5">
+                  Ghi Chú Cá Nhân / Mẹo Nhớ
+                </label>
+                <input
+                  type="text"
+                  value={formData.note || ''}
+                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                  placeholder="Mẹo nhớ, lưu ý..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm"
+                />
               </div>
 
-              {/* Submit Button */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-100:bg-slate-800"
+                  className="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-100"
                 >
                   Hủy Bỏ
                 </button>
@@ -1142,277 +1285,166 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           </div>
         </div>
       )}
-      {/* 8. MODAL CHI TIẾT SỔ TAY (FULL DETAIL) */}
+
+      {/* 8. MODAL CHI TIẾT SỔ TAY */}
       {isDetailModalOpen && selectedNotebookItem && (
         (() => {
-        let noteText = selectedNotebookItem.note || '';
-        const metaMatch = noteText.match(/<!-- META: ([\s\S]*?) -->/);
-        let metaData: any = null;
-        if (metaMatch && metaMatch[1]) {
-          try { metaData = JSON.parse(metaMatch[1]); } catch(e) {}
-        }
-        
-        if (metaData) {
-          if (metaData.correctIndex === null || metaData.correctIndex === undefined) {
-             metaData.correctIndex = (metaData.userAnswer === 1) ? 0 : 1; 
+          let noteText = selectedNotebookItem.note || '';
+          const metaMatch = noteText.match(/<!-- META: ([\s\S]*?) -->/);
+          let metaData: any = null;
+          if (metaMatch && metaMatch[1]) {
+            try {
+              metaData = JSON.parse(metaMatch[1]);
+            } catch (e) {}
           }
-          if (metaData.correctIndex === 0 && selectedNotebookItem.exampleJp?.includes('しそう')) metaData.correctIndex = 1;
-          if (metaData.correctIndex === 0 && selectedNotebookItem.exampleJp?.includes('しぜん')) metaData.correctIndex = 0;
-          if (selectedNotebookItem.exampleJp?.includes('じしん')) metaData.correctIndex = 2;
-        }
 
-        noteText = noteText.replace(new RegExp('<!-- META:[\\s\\S]*?-->', 'g'), '').trim();
+          noteText = noteText.replace(new RegExp('<!-- META:[\\s\\S]*?-->', 'g'), '').trim();
 
-        let finalNote = noteText.split('\n').filter((line: string) => {
-          const l = line.trim();
-          if (l.startsWith('💡 Giải thích đáp án') && l.replace('💡 Giải thích đáp án & Bẫy thi:', '').trim() === '') return false;
-          if (l.startsWith('🎯 Trọng tâm') && l.replace('🎯 Trọng tâm:', '').trim() === '') return false;
-          if (l.startsWith('💡 Mẹo phòng thi') && l.replace('💡 Mẹo phòng thi:', '').trim() === '') return false;
-          return l.length > 0;
-        }).join('\n');
-
-        // --- AUTO MOCK FOR DEMONSTRATION ---
-        if (selectedNotebookItem.exampleJp?.includes('じしん') && !finalNote) {
-              finalNote = `💡 **Giải thích đáp án & Phân tích từ vựng:**
-Đáp án đúng là **3. 自身 (jishin)**: Bản thân, chính mình.
-
-Phân tích các đáp án:
-- 1. 新自身: Không có từ này trong tiếng Nhật.
-- 2. 自文: Sai Kanji. Từ đúng phải là 自分 (jibun - bản thân), chữ 文 (văn) không ghép thành từ có nghĩa trong trường hợp này.
-- 4. 自身方: Hậu tố 方 (cách làm, vị) không ghép với 自身.
-
-🎯 **Ngữ pháp trong câu:**
-- **〜ために**: Để / Cho mục đích (将来のために - Cho tương lai)
-- **〜ておく**: Làm ~ sẵn / Chuẩn bị sẵn (深めておく - Đào sâu kiến thức sẵn)
-- **〜ことが大切です**: Việc ~ là quan trọng`;
-        }
-        if (selectedNotebookItem.exampleJp?.includes('しそう') && !finalNote) {
-              finalNote = `💡 **Giải thích đáp án & Phân tích từ vựng:**
-Đáp án đúng là **2. 思想 (shisou)**: Tư tưởng.
-
-Phân tích các đáp án:
-- 1. 思文: Không có từ này.
-- 3. 思想方: Không có từ này.
-- 4. 新思想 (shin-shisou): Tư tưởng mới (Tuy có nghĩa nhưng không phù hợp văn cảnh hội nghị bàn về tư tưởng chung).
-
-🎯 **Ngữ pháp trong câu:**
-- **〜に関して (にかんして)**: Về vấn đề ~ / Liên quan đến ~
-- **Thể bị động (話し合われました)**: Được thảo luận (話し合う -> 話し合われる)`;
-        }
-
-        // Hide empty note fields
-        const noteLines = noteText.split('\n').filter((line: string) => {
-          const l = line.trim();
-          if (l.startsWith('💡 Giải thích đáp án') && l.replace('💡 Giải thích đáp án & Bẫy thi:', '').trim() === '') return false;
-          if (l.startsWith('🎯 Trọng tâm') && l.replace('🎯 Trọng tâm:', '').trim() === '') return false;
-          if (l.startsWith('💡 Mẹo phòng thi') && l.replace('💡 Mẹo phòng thi:', '').trim() === '') return false;
-          return l.length > 0;
-        });
-        
-
-        return (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setIsDetailModalOpen(false); setIsAnalyzingAi(false); setAiAnalysisResult(null); }} />
-            <div className="relative bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col animate-fadeIn">
-              <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {getItemTypeBadge(selectedNotebookItem.itemType)}
-                  <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(selectedNotebookItem.level)}`}>
-                    {selectedNotebookItem.level}
-                  </span>
-                  {selectedNotebookItem.tags?.includes('Thi_thử') || selectedNotebookItem.tags?.includes('Câu_sai') ? (
-                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">🎯 Từ Đề Thi</span>
-                  ) : (
-                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">📚 Từ Bài Học</span>
-                  )}
+          return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  setIsAnalyzingAi(false);
+                  setAiAnalysisResult(null);
+                }}
+              />
+              <div className="relative bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col animate-fadeIn">
+                <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {getItemTypeBadge(selectedNotebookItem.itemType)}
+                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(selectedNotebookItem.level)}`}>
+                      {selectedNotebookItem.level}
+                    </span>
+                    {selectedNotebookItem.tags?.includes('Thi_thử') || selectedNotebookItem.tags?.includes('Câu_sai') ? (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                        🎯 Từ Đề Thi
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        📚 Từ Bài Học
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsDetailModalOpen(false);
+                      setIsAnalyzingAi(false);
+                      setAiAnalysisResult(null);
+                    }}
+                    className="p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => { setIsDetailModalOpen(false); setIsAnalyzingAi(false); setAiAnalysisResult(null); }}
-                  className="p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="p-6 space-y-6">
-                {/* Tiêu đề & Phát âm */}
-                {(() => {
-                  const isFromExam = selectedNotebookItem.tags?.includes('Thi_thử') || selectedNotebookItem.tags?.includes('Câu_sai');
-                  const mainText = isFromExam ? (selectedNotebookItem.exampleJp || selectedNotebookItem.title) : selectedNotebookItem.title;
-                  const speakText = isFromExam ? mainText : selectedNotebookItem.title;
 
-                  return (
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        {isFromExam && (
-                          <div className="text-[11px] text-slate-500 font-bold mb-1 uppercase tracking-wider" dangerouslySetInnerHTML={{ __html: selectedNotebookItem.title }} />
-                        )}
-                        
-                    <style>{`
-                      .ruby-text ruby { ruby-align: center; }
-                      .ruby-text rt { font-size: 0.5em; color: #64748b; font-weight: 600; transform: translateY(0.15em); letter-spacing: 0; }
-                    `}</style>
-                    <h2 
- className="text-[20px] font-bold text-slate-900 leading-relaxed ruby-text whitespace-pre-wrap tracking-wide"
-                          dangerouslySetInnerHTML={{ __html: formatText(mainText) }}
-                        />
-                        {!isFromExam && selectedNotebookItem.reading && (
-                          <div className="text-slate-500 font-medium text-lg mt-1">
-                            {selectedNotebookItem.reading}
-                          </div>
-                        )}
+                <div className="p-6 space-y-6">
+                  <div>
+                    <h2
+                      className="text-2xl font-bold text-slate-900 leading-relaxed whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{ __html: formatText(selectedNotebookItem.exampleJp || selectedNotebookItem.title) }}
+                    />
+                    {selectedNotebookItem.reading && (
+                      <div className="text-slate-500 font-medium text-base mt-1">
+                        {selectedNotebookItem.reading}
                       </div>
-                      {selectedNotebookItem.itemType !== 'NOTE' && !selectedNotebookItem.tags?.includes('Thi_thử') && !selectedNotebookItem.tags?.includes('Câu_sai') && (
-                        <button
-                          onClick={() => speakJapanese(speakText)}
-                          title="Phát âm"
-                          className="p-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors cursor-pointer shrink-0 mt-1"
-                        >
-                          <Volume2 className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                                {/* Ví dụ (cho Từ Bài Học) */}
-                {(() => {
-                  const isFromExam = selectedNotebookItem.tags?.includes('Thi_thử') || selectedNotebookItem.tags?.includes('Câu_sai');
-                  if (!isFromExam && selectedNotebookItem.exampleJp) {
-                    return (
-                      <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 text-slate-800 text-base leading-relaxed mt-4">
-                        <div className="font-bold text-blue-900 mb-2 text-xs uppercase tracking-wider">Ví dụ / Câu mẫu:</div>
-                        <div dangerouslySetInnerHTML={{ __html: selectedNotebookItem.exampleJp }} />
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-
-{/* Nghĩa Tiếng Việt / Câu hỏi */}
-                {selectedNotebookItem.meaningVi && (
-                  <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-slate-800 text-base leading-relaxed">
-                    <div className="font-bold text-indigo-900 mb-2 text-xs uppercase tracking-wider">Ý nghĩa / Dịch nghĩa:</div>
-                    <div dangerouslySetInnerHTML={{ __html: selectedNotebookItem.meaningVi }} />
+                    )}
                   </div>
-                )}
 
-                {/* Phần Các Lựa Chọn (Options) */}
-                {metaData && metaData.options && metaData.options.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="font-bold text-slate-900 text-sm">Các đáp án trong đề thi:</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {metaData.options.map((opt: string, idx: number) => {
-                        const isCorrect = idx === Number(metaData.correctIndex);
-                        const isUserAnswer = idx === Number(metaData.userAnswer);
-                        const isWrong = isUserAnswer && !isCorrect;
+                  {/* Nghĩa Tiếng Việt */}
+                  {selectedNotebookItem.meaningVi && (
+                    <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-slate-800 text-base leading-relaxed">
+                      <div className="font-bold text-indigo-900 mb-2 text-xs uppercase tracking-wider">
+                        Ý nghĩa / Dịch nghĩa:
+                      </div>
+                      <div dangerouslySetInnerHTML={{ __html: selectedNotebookItem.meaningVi }} />
+                    </div>
+                  )}
 
-                        return (
-                          <div 
-                            key={idx}
-                            className={`p-3.5 rounded-xl border-2 ${
-                              isCorrect 
-                                ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm' 
-                                : isWrong 
-                                ? 'bg-rose-50 border-rose-300 text-rose-900 shadow-sm' 
-                                : 'bg-slate-50 border-slate-200 text-slate-700'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                                isCorrect ? 'bg-emerald-200 text-emerald-800' : isWrong ? 'bg-rose-200 text-rose-800' : 'bg-slate-200 text-slate-600'
-                              }`}>
-                                {idx + 1}
-                              </span>
-                              <span className="text-[15px] font-medium leading-tight" dangerouslySetInnerHTML={{ __html: opt }} />
-                              {isCorrect && <Check className="w-5 h-5 text-emerald-600 ml-auto shrink-0" />}
-                              {isWrong && <X className="w-5 h-5 text-rose-600 ml-auto shrink-0" />}
+                  {/* Options nếu có */}
+                  {metaData && metaData.options && metaData.options.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="font-bold text-slate-900 text-sm">Các phương án lựa chọn:</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {metaData.options.map((opt: string, idx: number) => {
+                          const isCorrect = idx === Number(metaData.correctIndex);
+                          const isUserAnswer = idx === Number(metaData.userAnswer);
+                          const isWrong = isUserAnswer && !isCorrect;
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`p-3.5 rounded-xl border-2 ${
+                                isCorrect
+                                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                  : isWrong
+                                  ? 'bg-rose-50 border-rose-300 text-rose-900'
+                                  : 'bg-slate-50 border-slate-200 text-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                                  isCorrect ? 'bg-emerald-200 text-emerald-800' : isWrong ? 'bg-rose-200 text-rose-800' : 'bg-slate-200 text-slate-600'
+                                }`}>
+                                  {idx + 1}
+                                </span>
+                                <span className="text-[15px] font-medium leading-tight" dangerouslySetInnerHTML={{ __html: opt }} />
+                                {isCorrect && <Check className="w-5 h-5 text-emerald-600 ml-auto shrink-0" />}
+                                {isWrong && <X className="w-5 h-5 text-rose-600 ml-auto shrink-0" />}
+                              </div>
+                              {isUserAnswer && !isCorrect && (
+                                <div className="text-xs font-bold text-rose-600 mt-1.5 ml-9">❌ Bạn đã chọn nhầm</div>
+                              )}
+                              {isCorrect && (
+                                <div className="text-xs font-bold text-emerald-600 mt-1.5 ml-9">✅ Đáp án đúng</div>
+                              )}
                             </div>
-                            {isUserAnswer && !isCorrect && (
-                              <div className="text-xs font-bold text-rose-600 mt-1.5 ml-9">❌ Bạn đã chọn nhầm đáp án này</div>
-                            )}
-                            {isCorrect && (
-                              <div className="text-xs font-bold text-emerald-600 mt-1.5 ml-9">✅ Đáp án đúng</div>
-                            )}
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Cấu trúc ngữ pháp */}
-                {selectedNotebookItem.structure && (
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
-                    <div className="font-bold mb-2 flex items-center gap-1.5">
-                      <BookOpen className="w-4 h-4" /> Cấu trúc ngữ pháp trọng tâm:
+                  {/* Cấu trúc ngữ pháp */}
+                  {selectedNotebookItem.structure && (
+                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
+                      <div className="font-bold mb-2 flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4" /> Cấu trúc ngữ pháp trọng tâm:
+                      </div>
+                      <code className="bg-white/60 px-2 py-1 rounded-md text-base" dangerouslySetInnerHTML={{ __html: selectedNotebookItem.structure }} />
                     </div>
-                    <code className="bg-white/60 px-2 py-1 rounded-md text-base" dangerouslySetInnerHTML={{ __html: selectedNotebookItem.structure }} />
-                  </div>
-                )}
+                  )}
 
-                                {/* Ghi chú / Giải thích chi tiết */}
-                {finalNote ? (
-                  <div className="p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 shadow-sm mt-6">
-                    <div className="text-slate-800 text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
-                      <div dangerouslySetInnerHTML={{ __html: finalNote.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 font-bold">$1</strong>') }} />
+                  {/* Ghi chú / Giải thích chi tiết */}
+                  {noteText ? (
+                    <div className="p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 shadow-sm">
+                      <div className="text-slate-800 text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
+                        <div dangerouslySetInnerHTML={{ __html: noteText.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 font-bold">$1</strong>') }} />
+                      </div>
                     </div>
-                  </div>
-                ) : aiAnalysisResult ? (
-                  <div className="p-5 rounded-2xl bg-indigo-50/80 border border-indigo-100 text-slate-800 text-sm leading-relaxed whitespace-pre-wrap shadow-inner animate-fadeIn">
-                    <div className="font-bold text-indigo-900 mb-2 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4" /> AI Phân Tích Chi Tiết:
-                    </div>
-                    <div dangerouslySetInnerHTML={{ __html: aiAnalysisResult }} />
-                  </div>
-                ) : (
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 text-center flex flex-col items-center">
-                    <div className="text-slate-500 font-medium mb-4 text-sm">Chưa có giải thích chi tiết và phân tích ngữ pháp cho câu hỏi này.</div>
-                    <button 
-                      onClick={() => {
-                        setIsAnalyzingAi(true);
-                        setTimeout(() => {
-                          setAiAnalysisResult("<strong>💡 Đáp án đúng là 1 (自然 - shizen)</strong><br/><br/>🎯 <strong>Trọng tâm:</strong> Từ vựng Kanji N3.<br/>- 自然 (しぜん): Tự nhiên, thiên nhiên.<br/>- Bạn đã chọn <strong>自然方</strong> (しぜんかた) là một từ không tồn tại trong tiếng Nhật. Hậu tố 方 thường dùng ghép với động từ (như やり方 - cách làm) chứ không ghép với danh từ 自然.<br/><br/>💡 <strong>Mẹo phòng thi:</strong> Hãy cẩn thận với những từ Kanji ghép không có nghĩa thực tế. Nếu không chắc chắn, hãy loại trừ những từ có cách ghép bất thường.");
-                          setIsAnalyzingAi(false);
-                          
-                          // Mocking correct index update for visual demonstration
-                          if (metaData) {
-                            metaData.correctIndex = 0; // Option 1
-                          }
-                        }, 2000);
-                      }}
-                      disabled={isAnalyzingAi}
-                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-bold transition-all text-sm shadow-md"
-                    >
-                      {isAnalyzingAi ? (
-                         <span className="flex items-center gap-2">
-                           <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                           Đang phân tích dữ liệu...
-                         </span>
-                      ) : (
-                         <><Sparkles className="w-4 h-4" /> Yêu cầu AI Phân Tích chi tiết</>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              <div className="sticky bottom-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-t border-slate-100 flex justify-end">
-                 <button
-                    onClick={() => { setIsDetailModalOpen(false); setIsAnalyzingAi(false); setAiAnalysisResult(null); }}
+                  ) : null}
+                </div>
+
+                <div className="sticky bottom-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setIsDetailModalOpen(false);
+                      setIsAnalyzingAi(false);
+                      setAiAnalysisResult(null);
+                    }}
                     className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 active:scale-95 transition-all cursor-pointer shadow-md"
-                 >
+                  >
                     Đóng
-                 </button>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()
+          );
+        })()
       )}
 
-
-      {/* 7. MODAL PHÂN TÍCH CHUYÊN SÂU NGỮ PHÁP BẰNG AI */}
+      {/* 9. MODAL PHÂN TÍCH NGỮ PHÁP AI */}
       {selectedGrammar && (
         <GrammarDetailModal
           isOpen={isGrammarModalOpen}
@@ -1423,8 +1455,8 @@ Phân tích các đáp án:
           onSpeak={speakJapanese}
         />
       )}
-    
-      {/* MODAL XÁC NHẬN XÓA */}
+
+      {/* 10. MODAL XÁC NHẬN XÓA */}
       {itemToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col gap-6 animate-in zoom-in-95 duration-200">
@@ -1434,19 +1466,19 @@ Phân tích các đáp án:
               </div>
               <h3 className="text-xl font-black text-slate-900">Xóa khỏi Sổ tay?</h3>
               <p className="text-sm font-semibold text-slate-500">
-                Bạn có chắc chắn muốn xóa mục <span className="text-slate-800 font-bold font-japanese">"{itemToDelete.title}"</span>? Hành động này không thể hoàn tác.
+                Bạn có chắc chắn muốn xóa mục <span className="text-slate-800 font-bold">"{itemToDelete.title}"</span>? Hành động này không thể hoàn tác.
               </p>
             </div>
             <div className="flex gap-3 w-full">
               <button
                 onClick={() => setItemToDelete(null)}
-                className="flex-1 py-3 px-4 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors"
+                className="flex-1 py-3 px-4 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={confirmDelete}
-                className="flex-1 py-3 px-4 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm transition-all shadow-md shadow-rose-200 active:scale-95"
+                className="flex-1 py-3 px-4 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm transition-all shadow-md shadow-rose-200 active:scale-95 cursor-pointer"
               >
                 Xóa ngay
               </button>
@@ -1454,6 +1486,6 @@ Phân tích các đáp án:
           </div>
         </div>
       )}
-</div>
+    </div>
   );
 };

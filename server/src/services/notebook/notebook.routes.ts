@@ -11,17 +11,18 @@ notebookRouter.use(authenticateToken);
 
 /**
  * @route   GET /api/notebook
- * @desc    Lấy danh sách các mục trong sổ tay (có hỗ trợ filter: itemType, level, masteryStatus, search)
+ * @desc    Lấy danh sách các mục trong sổ tay (có hỗ trợ filter: itemType, level, section, masteryStatus, search)
  */
 notebookRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) throw new Error('Unauthorized');
-    const { itemType, level, masteryStatus, search, tags, page, limit } = req.query;
+    const { itemType, level, section, masteryStatus, search, tags, page, limit } = req.query;
 
     const items = await NotebookService.getItems(userId, {
       itemType: itemType ? String(itemType) : undefined,
       level: level ? String(level) : undefined,
+      section: section ? String(section) : undefined,
       masteryStatus: masteryStatus ? String(masteryStatus) : undefined,
       search: search ? String(search) : undefined,
       tags: tags ? String(tags) : undefined,
@@ -32,6 +33,21 @@ notebookRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
     res.json(ResponseFormatter.success(items, { service: 'notebook-service' }));
   } catch (error: any) {
     res.status(500).json(ResponseFormatter.error('Lỗi khi lấy danh sách sổ tay', error.message, 'notebook-service'));
+  }
+});
+
+/**
+ * @route   GET /api/notebook/hub-summary
+ * @desc    Lấy tổng hợp ma trận thông minh theo từng Level (N5 -> N1) và các nhóm ôn tập cho Phương án 4
+ */
+notebookRouter.get('/hub-summary', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) throw new Error('Unauthorized');
+    const summary = await NotebookService.getHubSummary(userId);
+    res.json(ResponseFormatter.success(summary, { service: 'notebook-service' }));
+  } catch (error: any) {
+    res.status(500).json(ResponseFormatter.error('Lỗi khi lấy tổng hợp sổ tay thông minh', error.message, 'notebook-service'));
   }
 });
 
@@ -128,11 +144,6 @@ notebookRouter.patch('/:id/mastery', async (req: AuthenticatedRequest, res: Resp
 });
 
 /**
- * @route   DELETE /api/notebook/:id
- * @desc    Xóa một mục khỏi sổ tay
- */
-
-/**
  * @route   DELETE /api/notebook/by-title
  * @desc    Xóa mục khỏi sổ tay bằng title và itemType
  */
@@ -147,6 +158,11 @@ notebookRouter.delete('/by-title', async (req: AuthenticatedRequest, res: Respon
     res.status(500).json(ResponseFormatter.error('Lỗi khi xóa mục sổ tay theo title', error.message, 'notebook-service'));
   }
 });
+
+/**
+ * @route   DELETE /api/notebook/:id
+ * @desc    Xóa một mục khỏi sổ tay
+ */
 notebookRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -159,7 +175,6 @@ notebookRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-
 /**
  * @route   GET /api/notebook/due
  * @desc    Lấy danh sách các thẻ đến hạn ôn tập (Due Cards)
@@ -169,7 +184,12 @@ notebookRouter.get('/due', async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) throw new Error('Unauthorized');
     const limit = req.query.limit ? Number(req.query.limit) : 200;
-    const items = await NotebookService.getDueCards(userId, limit, req.query.itemType ? String(req.query.itemType) : undefined, req.query.level ? String(req.query.level) : undefined);
+    const items = await NotebookService.getDueCards(
+      userId,
+      limit,
+      req.query.itemType ? String(req.query.itemType) : undefined,
+      req.query.level ? String(req.query.level) : undefined
+    );
     res.json(ResponseFormatter.success(items, { service: 'notebook-service' }));
   } catch (error: any) {
     res.status(500).json(ResponseFormatter.error('Lỗi khi lấy thẻ ôn tập', error.message, 'notebook-service'));
@@ -196,7 +216,6 @@ notebookRouter.post('/:id/review', async (req: AuthenticatedRequest, res: Respon
     res.status(500).json(ResponseFormatter.error('Lỗi khi lưu kết quả ôn tập', error.message, 'notebook-service'));
   }
 });
-
 
 /**
  * @route   POST /api/notebook/:id/mnemonic

@@ -4,6 +4,7 @@ import {
   CreateNotebookItemInput,
   UpdateNotebookItemInput,
   NotebookStats,
+  NotebookHubSummary,
   MasteryStatus
 } from './notebook.types';
 
@@ -26,15 +27,17 @@ function getAuthHeaders(): HeadersInit {
 
 export class NotebookApi {
   /**
-   * Lấy danh sách các mục trong sổ tay từ CSDL MySQL
+   * Lấy danh sách các mục trong sổ tay từ CSDL MySQL (hỗ trợ phân nhóm section cho Phương án 4)
    */
   static async getItems(filters: NotebookFilterParams = {}): Promise<NotebookItem[]> {
     const params = new URLSearchParams();
     if (filters.itemType && filters.itemType !== 'ALL') params.append('itemType', filters.itemType);
     if (filters.level && filters.level !== 'ALL') params.append('level', filters.level);
+    if (filters.section && filters.section !== 'all') params.append('section', filters.section);
     if (filters.masteryStatus && filters.masteryStatus !== 'ALL') params.append('masteryStatus', filters.masteryStatus);
     if (filters.search) params.append('search', filters.search);
     if (filters.tags) params.append('tags', filters.tags);
+    if (filters.limit) params.append('limit', String(filters.limit));
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
     const res = await fetch(`${API_BASE_URL}/notebook${queryString}`, {
@@ -47,6 +50,22 @@ export class NotebookApi {
 
     const data = await res.json();
     return data.data || [];
+  }
+
+  /**
+   * Lấy ma trận tổng hợp thông minh theo từng Level (N5 -> N1) và các nhóm ôn tập (Redis cache siêu tốc < 2ms)
+   */
+  static async getHubSummary(): Promise<NotebookHubSummary> {
+    const res = await fetch(`${API_BASE_URL}/notebook/hub-summary`, {
+      headers: getAuthHeaders(), credentials: 'include', cache: 'no-store'
+    });
+
+    if (!res.ok) {
+      throw new Error('Không thể tải tổng hợp sổ tay thông minh');
+    }
+
+    const json = await res.json();
+    return json.data;
   }
 
   /**
@@ -71,8 +90,6 @@ export class NotebookApi {
       };
     }
 
-    // Map backend format (totalItems, masteredItems, learningItems, dueItems, studyStreak)
-    // to frontend format (total, masteredCount, learningCount, reviewingCount, masteryRate, studyStreak)
     const total = data.totalItems || 0;
     const masteredCount = data.masteredItems || 0;
     const masteryRate = total > 0 ? Math.round((masteredCount / total) * 100) : 0;
@@ -151,7 +168,6 @@ export class NotebookApi {
   /**
    * Xóa mục khỏi sổ tay
    */
-  
   static async deleteItemByTitle(itemType: string, title: string): Promise<{ success: boolean }> {
     const params = new URLSearchParams({ itemType, title });
     const res = await fetch(`${API_BASE_URL}/notebook/by-title?${params.toString()}`, {
@@ -165,7 +181,8 @@ export class NotebookApi {
     const data = await res.json();
     return data.data;
   }
-static async deleteItem(id: string): Promise<boolean> {
+
+  static async deleteItem(id: string): Promise<boolean> {
     const res = await fetch(`${API_BASE_URL}/notebook/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders(), credentials: 'include', cache: 'no-store'
@@ -215,7 +232,6 @@ static async deleteItem(id: string): Promise<boolean> {
     }
   }
 
-
   static async generateMnemonic(id: string): Promise<NotebookItem | null> {
     try {
       const response = await fetch(`${API_BASE_URL}/notebook/${id}/mnemonic`, {
@@ -230,5 +246,4 @@ static async deleteItem(id: string): Promise<boolean> {
       return null;
     }
   }
-
 }
