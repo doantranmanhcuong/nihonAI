@@ -227,6 +227,7 @@ const LEVEL_CURRICULA: Record<
 
 
 const generateKanjiQuestions = (kanjis: any[], count: number): CompQuizQuestion[] => {
+  if (!kanjis || kanjis.length === 0) return [];
 
   const generated: CompQuizQuestion[] = [];
 
@@ -574,7 +575,7 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
                 if (!isCharInLesson) {
 
-                  const firstChar = targetLesson.kanjis[0].character;
+                  const firstChar = targetLesson?.kanjis?.[0]?.character; if (!firstChar) return;
 
                   setSelectedKanjiChar(firstChar);
 
@@ -1342,7 +1343,7 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
                             if (!les.kanjis.some((k: any) => k.character === selectedKanjiChar)) {
 
-                              const firstChar = les.kanjis[0].character;
+                              const firstChar = les?.kanjis?.[0]?.character; if (!firstChar) return;
 
                               setSelectedKanjiChar(firstChar);
 
