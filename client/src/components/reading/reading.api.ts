@@ -1,8 +1,6 @@
 import { ReadingArticle, QuotaStatus, ReadingQuiz, NewsFeedItem } from './reading.types';
 
-const API_BASE = typeof window !== 'undefined'
-  ? '/api/reading'
-  : 'http://localhost:5000/api/reading';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api') + '/reading';
 
 export class ReadingApi {
   /**
