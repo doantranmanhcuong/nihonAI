@@ -33,6 +33,7 @@ import {
   RotateCw,
 
   ChevronRight,
+  ChevronDown,
 
   ChevronLeft,
 
@@ -1007,7 +1008,7 @@ export const GrammarStudio: React.FC<GrammarStudioProps> = ({ onNavigateToReadin
 
           {/* CỘT TRÁI (4 cột): Cây thư mục bài học */}
 
-          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2 max-h-[820px] overflow-y-auto sticky top-[80px]">
+          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2 lg:max-h-[820px] lg:overflow-y-auto lg:sticky lg:top-[80px]">
 
             <div className="flex items-center justify-between px-2 py-1 text-xs text-slate-500 font-semibold border-b border-slate-100 pb-2">
 
@@ -1062,17 +1063,15 @@ export const GrammarStudio: React.FC<GrammarStudioProps> = ({ onNavigateToReadin
                     <button
 
                       onClick={() => {
-
-                        setSelectedFolderId(folder.id);
-
-                        setSearchTerm('');
-
-                        if (itemsInThisFolder.length > 0) {
-
-                          setSelectedItemId(itemsInThisFolder[0].id);
-
+                        if (isSelectedFolder) {
+                          setSelectedFolderId(''); // Thu gọn thư mục
+                        } else {
+                          setSelectedFolderId(folder.id);
+                          setSearchTerm('');
+                          if (itemsInThisFolder.length > 0) {
+                            setSelectedItemId(itemsInThisFolder[0].id);
+                          }
                         }
-
                       }}
 
                       className={`w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between cursor-pointer border ${
@@ -1100,6 +1099,7 @@ export const GrammarStudio: React.FC<GrammarStudioProps> = ({ onNavigateToReadin
                         )}
 
                         <span className="text-xs truncate">{folder.title}</span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${isSelectedFolder ? 'rotate-180 text-indigo-600' : ''}`} />
 
                       </div>
 
@@ -1197,7 +1197,7 @@ export const GrammarStudio: React.FC<GrammarStudioProps> = ({ onNavigateToReadin
 
             
 
-            <div className="lg:col-span-8 flex flex-col gap-4">
+            <div id="grammar-detail-section" className="lg:col-span-8 flex flex-col gap-4">
 
               {activeFolder?.isReview ? (
 

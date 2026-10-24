@@ -66,6 +66,8 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
 
   // Hướng dẫn 6 bước
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [isCrawling, setIsCrawling] = useState<boolean>(false);
+  const [crawlStatus, setCrawlStatus] = useState<string | null>(null);
 
   const sampleArticleText = `最近の日本社会で最も目立つ変化の一つは、一人で暮らす人が急速に増えていることです。統計によると、全世帯のうち単身世帯が占める割合はすでに三分の一を超えており、今後も増え続けると見られています。一人でご飯を食べたり、一人で映画を見たり、一人で旅行に出かけたりする姿は、もう特別なことではありません。以前は一人で何かをする人を気の毒に思う視線が多かったのですが、最近の若い世代はむしろ一人だけの時間を楽しむことを自然な生活スタイルとして受け入れています。
 
@@ -98,6 +100,26 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
   useEffect(() => {
     fetchLibrary();
   }, []);
+
+  const handleTriggerCrawl = async () => {
+    try {
+      setIsCrawling(true);
+      setCrawlStatus('Đang cào bài báo mới nhất...');
+      const res = await ReadingApi.triggerNewsCrawl();
+      if (res && res.success) {
+        setCrawlStatus('✅ Đã cập nhật xong bài báo mới!');
+        await fetchLibrary();
+      } else {
+        setCrawlStatus('⚠️ ' + (res?.message || 'Chưa có thêm bài mới'));
+      }
+    } catch (err: any) {
+      setCrawlStatus('❌ Lỗi: ' + (err?.message || 'Không thể cào báo'));
+    } finally {
+      setIsCrawling(false);
+      setTimeout(() => setCrawlStatus(null), 5000);
+    }
+  };
+
 
   // Xử lý cào bài báo từ input URL
   const handleImportFromUrl = async () => {
@@ -220,9 +242,25 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
         </div>
 
         {/* Tab Switcher hiện đại dạng Segmented Control */}
-                  <div className="flex items-center bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shrink-0 overflow-x-auto">
-            
-          </div>
+                  
+        {/* Nút Kích hoạt cào báo mới */}
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          {crawlStatus && (
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700 animate-in fade-in">
+              {crawlStatus}
+            </span>
+          )}
+          <button
+            onClick={handleTriggerCrawl}
+            disabled={isCrawling}
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            title="Kích hoạt cào tin tức báo Nhật mới nhất hôm nay"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isCrawling ? 'animate-spin' : ''}`} />
+            <span>{isCrawling ? 'Đang cào bài...' : 'Cập nhật báo hôm nay'}</span>
+          </button>
+        </div>
+
       </div>
 
               {/* 2. THANH ĐIỀU KHIỂN & LỌC THÔNG MINH */}

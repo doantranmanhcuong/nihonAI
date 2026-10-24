@@ -61,6 +61,7 @@ import {
   Award,
 
   ChevronRight,
+  ChevronDown,
 
   ChevronLeft,
 
@@ -1231,7 +1232,7 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
           {/* CỘT TRÁI (4 cột): THANH DỌC CÂY THƯ MỤC GIÁO TRÌNH & BÀI HỌC */}
 
-          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2 max-h-[820px] overflow-y-auto sticky top-[80px]">
+          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-4 shadow-2xs flex flex-col gap-2 lg:max-h-[820px] lg:overflow-y-auto lg:sticky lg:top-[80px]">
 
             {/* Header Thanh Dọc: Giáo trình đang chọn & Bộ chuyển đổi giáo trình */}
 
@@ -1336,23 +1337,18 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
                       <button
 
                         onClick={() => {
-
-                          setSelectedLessonNumber(les.lesson);
-
-                          if (les.kanjis && les.kanjis.length > 0) {
-
-                            if (!les.kanjis.some((k: any) => k.character === selectedKanjiChar)) {
-
-                              const firstChar = les?.kanjis?.[0]?.character; if (!firstChar) return;
-
-                              setSelectedKanjiChar(firstChar);
-
-                              fetchKanjiDetails(firstChar);
-
+                          if (isSelectedFolder) {
+                            setSelectedLessonNumber(0); // Thu gọn thư mục
+                          } else {
+                            setSelectedLessonNumber(les.lesson);
+                            if (les.kanjis && les.kanjis.length > 0) {
+                              if (!les.kanjis.some((k: any) => k.character === selectedKanjiChar)) {
+                                const firstChar = les?.kanjis?.[0]?.character; if (!firstChar) return;
+                                setSelectedKanjiChar(firstChar);
+                                fetchKanjiDetails(firstChar);
+                              }
                             }
-
                           }
-
                         }}
 
                         className={`w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between cursor-pointer border ${
@@ -1380,6 +1376,7 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
                           )}
 
                           <span className="text-xs truncate">{shortTitle}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${isSelectedFolder ? 'rotate-180 text-indigo-600' : ''}`} />
 
                         </div>
 

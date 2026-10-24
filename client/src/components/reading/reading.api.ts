@@ -327,4 +327,18 @@ export class ReadingApi {
     const json = await res.json();
     return json.data;
   }
+  /**
+   * Kích hoạt cào báo và chuyển hóa tự động các bài báo mới
+   */
+  static async triggerNewsCrawl(): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/news/trigger-crawl`, {
+        method: 'POST'
+      });
+      return await res.json();
+    } catch (err: any) {
+      console.warn('[ReadingApi] triggerNewsCrawl error:', err);
+      return { success: false, message: err?.message };
+    }
+  }
 }

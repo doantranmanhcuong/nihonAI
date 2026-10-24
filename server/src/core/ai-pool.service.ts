@@ -16,7 +16,10 @@ export class GeminiPoolService {
       process.env.GEMINI_KEY_BACKUP_1,
       process.env.GEMINI_KEY_BACKUP_2,
       process.env.GEMINI_API_KEY
-    ].filter(k => !!k) as string[];
+    ]
+      .filter((k): k is string => !!k)
+      .map(k => String(k).replace(/^["']|["']$/g, '').trim())
+      .filter(k => k.length > 0);
     
     // De-duplicate keys
     this.keys = [...new Set(this.keys)];

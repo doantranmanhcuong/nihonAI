@@ -288,7 +288,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* CỘT TRÁI (4 cột): Cây thư mục */}
             <div className="lg:col-span-4 flex flex-col gap-4">
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex flex-col gap-4 sticky top-24 max-h-[calc(100vh-8rem)]">
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex flex-col gap-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)]">
                 
                 <div className="grid grid-cols-5 gap-1 sm:gap-1.5 w-full">
                   {LEVELS.map((lvl) => (
@@ -337,7 +337,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
                     return (
                       <button
                         key={folder.lesson}
-                        onClick={() => handleSelectLesson(folder.lesson)}
+                        onClick={() => isSelectedFolder ? setSelectedLesson(0) : handleSelectLesson(folder.lesson)}
                         className={`w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between cursor-pointer border ${
                           isSelectedFolder
                             ? 'bg-indigo-50 border-indigo-300 ring-1 ring-indigo-300/50 shadow-xs'
@@ -351,6 +351,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
                             <Folder className={`w-4 h-4 shrink-0 ${folder.isReview ? 'text-amber-500' : 'text-slate-400'}`} />
                           )}
                           <span className="text-xs truncate">{folder.title}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${isSelectedFolder ? "rotate-180 text-indigo-600" : ""}`} />
                         </div>
                         <span
                           className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
@@ -369,7 +370,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
             </div>
 
             {/* CỘT PHẢI (8 cột): Nội dung học */}
-            <div className="lg:col-span-8 flex flex-col gap-4">
+            <div id="vocab-detail-section" className="lg:col-span-8 flex flex-col gap-4">
               {lessonData?.lesson && lessonData.lesson > 9000 ? (
                 <div className="w-full">
                   <ComprehensiveQuizDashboard 

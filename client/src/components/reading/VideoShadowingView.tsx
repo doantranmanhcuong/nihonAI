@@ -1,7 +1,7 @@
 "use client";
 import { useAuth } from "@/context/AuthContext";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   ArrowLeft,
   Play,
@@ -133,6 +133,22 @@ export const VideoShadowingView: React.FC<VideoShadowingViewProps> = ({
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   const playerId = "yt-shadowing-embed-player";
+
+  // Cuộn câu thoại đang phát mà KHÔNG bao giờ làm giật/lùi màn hình trên điện thoại
+  const scrollActiveSentenceIntoView = useCallback((idx: number) => {
+    const container = transcriptContainerRef.current;
+    const el = document.getElementById('transcript-sentence-' + idx);
+    if (!el || !container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+
+    if (elRect.top < containerRect.top || elRect.bottom > containerRect.bottom) {
+      const targetScroll = el.offsetTop - container.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+      container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+    }
+  }, []);
+
 
   // Siêu dữ liệu (Metadata)
   const title = lesson?.title || article?.title || "Bài luyện Shadowing Video";
@@ -439,13 +455,7 @@ export const VideoShadowingView: React.FC<VideoShadowingViewProps> = ({
           hasPausedCurrentRef.current = false;
           setIsSentenceCompleted(false);
 
-          // Smoothly scroll active sentence into view in transcript
-          const el = document.getElementById(
-            `transcript-sentence-${matchedIdx}`,
-          );
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }
+          scrollActiveSentenceIntoView(matchedIdx);
         }
       } catch (e) {}
     }, 50);
@@ -608,10 +618,7 @@ export const VideoShadowingView: React.FC<VideoShadowingViewProps> = ({
       speakSentence(target);
     }
 
-    const el = document.getElementById(`transcript-sentence-${idx}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
+    scrollActiveSentenceIntoView(idx);
   };
 
   useEffect(() => {
