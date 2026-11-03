@@ -7,7 +7,7 @@ export class NotebookService {
   static async getItems(userId: string | undefined, filters: any) {
     if (!userId) throw new Error('Unauthorized');
     
-    const cacheKey = `notebook:v2:${userId}:items:${JSON.stringify(filters)}`;
+    const cacheKey = `notebook:v3:${userId}:items:${JSON.stringify(filters)}`;
     const { data } = await RedisService.getOrSet(
       cacheKey,
       async () => {
@@ -23,7 +23,7 @@ export class NotebookService {
           andConditions.push({ tags: { contains: filters.tags } });
         }
 
-        // Section handling (Hỗ trợ phân nhóm linh hoạt cho Phương án 4)
+        // Section handling (Đồng bộ 100% với bộ đếm getHubSummary)
         if (filters.section && filters.section !== 'all') {
           if (filters.section === 'due') {
             andConditions.push({ nextReviewAt: { lte: new Date() } });
@@ -36,34 +36,12 @@ export class NotebookService {
             });
           } else if (filters.section === 'vocab') {
             andConditions.push({ itemType: 'VOCAB' });
-            andConditions.push({
-              OR: [
-                { tags: null },
-                {
-                  AND: [
-                    { tags: { not: { contains: 'Câu_sai' } } },
-                    { tags: { not: { contains: 'Thi_thử' } } }
-                  ]
-                }
-              ]
-            });
           } else if (filters.section === 'kanji') {
             andConditions.push({ itemType: 'KANJI' });
           } else if (filters.section === 'grammar') {
             andConditions.push({ itemType: 'GRAMMAR' });
           } else if (filters.section === 'note') {
             andConditions.push({ itemType: 'NOTE' });
-            andConditions.push({
-              OR: [
-                { tags: null },
-                {
-                  AND: [
-                    { tags: { not: { contains: 'Câu_sai' } } },
-                    { tags: { not: { contains: 'Thi_thử' } } }
-                  ]
-                }
-              ]
-            });
           }
         } else if (filters.itemType && filters.itemType !== 'ALL') {
           andConditions.push({ itemType: filters.itemType });
@@ -97,7 +75,7 @@ export class NotebookService {
   static async getHubSummary(userId: string | undefined): Promise<NotebookHubSummary> {
     if (!userId) throw new Error('Unauthorized');
 
-    const cacheKey = `notebook:v2:${userId}:hub-summary`;
+    const cacheKey = `notebook:v3:${userId}:hub-summary`;
     const { data } = await RedisService.getOrSet(
       cacheKey,
       async () => {
@@ -216,7 +194,7 @@ export class NotebookService {
   static async getStats(userId: string | undefined) {
     if (!userId) throw new Error('Unauthorized');
     
-    const cacheKey = `notebook:v2:${userId}:stats`;
+    const cacheKey = `notebook:v3:${userId}:stats`;
     const { data } = await RedisService.getOrSet(
       cacheKey,
       async () => {
@@ -281,7 +259,7 @@ export class NotebookService {
       return existing;
     }
 
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
     return await prisma.notebookItem.create({
       data: {
         ...data,
@@ -295,7 +273,7 @@ export class NotebookService {
     const item = await prisma.notebookItem.findFirst({ where: { id, userId } });
     if (!item) throw new Error('Not found or unauthorized');
 
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
     return await prisma.notebookItem.update({
       where: { id },
       data
@@ -307,7 +285,7 @@ export class NotebookService {
     const item = await prisma.notebookItem.findFirst({ where: { id, userId } });
     if (!item) throw new Error('Not found or unauthorized');
 
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
     return await prisma.notebookItem.update({
       where: { id },
       data: { masteryStatus }
@@ -324,7 +302,7 @@ export class NotebookService {
     await prisma.notebookItem.deleteMany({
       where: { itemType, title, userId }
     });
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
     return { success: true };
   }
 
@@ -336,7 +314,7 @@ export class NotebookService {
     await prisma.notebookItem.delete({
       where: { id }
     });
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
     return { success: true };
   }
 
@@ -351,7 +329,7 @@ export class NotebookService {
     articleId?: string;
   }) {
     if (!data.userId) throw new Error('Unauthorized');
-    await RedisService.delPrefix(`notebook:v2:${data.userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${data.userId}:`);
     return await prisma.notebookItem.create({
       data: {
         userId: data.userId,
@@ -433,7 +411,7 @@ export class NotebookService {
       }
     });
 
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
 
     // Handle User Streak logic
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -488,7 +466,7 @@ Yêu cầu: Viết ngắn gọn dưới 50 chữ, thú vị, trực diện.`;
     const result = await GeminiPoolService.generateContent(process.env.GEMINI_MODEL || 'gemini-flash-latest', prompt);
     const text = result.response.text();
 
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
     return await prisma.notebookItem.update({
       where: { id },
       data: {
@@ -611,7 +589,7 @@ Trả về đúng định dạng JSON sau (tiếng Việt chuẩn):
     const newNote = `${cleanNoteText}\n<!-- META: ${JSON.stringify(updatedMeta)} -->`;
     const newStructure = parsed.grammarFormula || item.structure;
 
-    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    await RedisService.delPrefix(`notebook:v3:${userId}:`);
     return await prisma.notebookItem.update({
       where: { id },
       data: {

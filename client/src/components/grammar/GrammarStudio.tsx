@@ -206,14 +206,18 @@ export const GrammarStudio: React.FC<GrammarStudioProps> = ({ onNavigateToReadin
     setBookmarkedIds((prev) => ({ ...prev, [item.id]: !isBookmarked }));
 
     if (!isBookmarked) {
+      const currLabel = item.curriculum === 'MINNA' ? 'Minna no Nihongo' : item.curriculum === 'SHINKANZEN' ? 'Shinkanzen Master' : 'Soumatome';
       NotebookApi.createItem({
         itemType: 'GRAMMAR',
         title: item.grammarPoint,
+        reading: item.reading || '',
         meaningVi: item.meaningVi,
         level: item.level,
         structure: item.structure,
         exampleJp: item.examples[0]?.japanese || '',
-        exampleVi: item.examples[0]?.vietnamese || ''
+        exampleVi: item.examples[0]?.vietnamese || '',
+        note: item.nuance ? `💡 Sắc thái & Cách dùng: ${item.nuance}` : undefined,
+        tags: `${currLabel} • ${item.lessonTitle || item.category}`
       }).catch(e => {
         console.warn('Lỗi lưu ngữ pháp:', e);
         setBookmarkedIds((prev) => ({ ...prev, [item.id]: false }));

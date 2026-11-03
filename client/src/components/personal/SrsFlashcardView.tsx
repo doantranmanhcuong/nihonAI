@@ -247,23 +247,32 @@ export const SrsFlashcardView: React.FC<SrsFlashcardViewProps> = ({ onBack, item
               {/* MẶT TRƯỚC */}
               <div className="absolute inset-0 backface-hidden bg-white rounded-3xl shadow-xl flex flex-col items-center justify-center p-8 border border-slate-200">
                 <span className="absolute top-4 left-4 text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full uppercase tracking-wider border border-indigo-100">
-                  {currentCard.itemType}
+                  {currentCard.tags?.includes('Thi_thử') || currentCard.tags?.includes('Câu_sai') ? `🎯 ${currentCard.title}` : currentCard.itemType}
                 </span>
                 <span className="absolute top-4 right-4 text-xs font-bold text-slate-400">
                   {currentCard.level}
                 </span>
 
                 <button
-                  onClick={(e) => handleSpeak(e, currentCard.title)}
-                  className="absolute top-1/4 p-3 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition-colors cursor-pointer"
+                  onClick={(e) => handleSpeak(e, (currentCard.exampleJp || currentCard.title).replace(/<[^>]+>/g, ''))}
+                  className="absolute top-14 p-3 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition-colors cursor-pointer"
                   title="Phát âm tiếng Nhật"
                 >
                   <Volume2 className="w-6 h-6" />
                 </button>
 
-                <h2 className="text-4xl sm:text-5xl font-black font-japanese text-slate-800 text-center mb-4 leading-tight mt-12">
-                  {currentCard.title}
-                </h2>
+                <h2
+                  className={`${
+                    (currentCard.tags?.includes('Thi_thử') || currentCard.tags?.includes('Câu_sai'))
+                      ? 'text-xl sm:text-2xl'
+                      : 'text-3xl sm:text-5xl'
+                  } font-black font-japanese text-slate-800 text-center mb-4 leading-relaxed mt-12`}
+                  dangerouslySetInnerHTML={{
+                    __html: (currentCard.tags?.includes('Thi_thử') || currentCard.tags?.includes('Câu_sai'))
+                      ? (currentCard.exampleJp || currentCard.title)
+                      : currentCard.title
+                  }}
+                />
 
                 {!isFlipped && (
                   <p className="absolute bottom-6 text-slate-400 text-xs font-semibold animate-pulse">
@@ -277,7 +286,7 @@ export const SrsFlashcardView: React.FC<SrsFlashcardViewProps> = ({ onBack, item
                 <div className="w-full flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-slate-400">{currentCard.level}</span>
                   <button
-                    onClick={(e) => handleSpeak(e, currentCard.reading || currentCard.title)}
+                    onClick={(e) => handleSpeak(e, (currentCard.reading || currentCard.title).replace(/<[^>]+>/g, ''))}
                     className="p-2 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition-colors cursor-pointer"
                     title="Phát âm"
                   >
@@ -286,25 +295,34 @@ export const SrsFlashcardView: React.FC<SrsFlashcardViewProps> = ({ onBack, item
                 </div>
 
                 {currentCard.reading && (
-                  <p className="text-xl text-indigo-600 font-bold mb-2 font-japanese">{currentCard.reading}</p>
+                  <p className="text-base text-indigo-600 font-bold mb-2 font-japanese">{currentCard.reading}</p>
                 )}
 
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-800 text-center mb-4">
-                  {currentCard.meaningVi}
-                </h2>
+                <h2
+                  className="text-lg sm:text-2xl font-black text-slate-800 text-center mb-4"
+                  dangerouslySetInnerHTML={{ __html: (currentCard.meaningVi || '').replace(/^\[.*?\]\s*/, '') }}
+                />
 
-                {currentCard.exampleJp && (
+                {currentCard.exampleJp && !(currentCard.tags?.includes('Thi_thử') || currentCard.tags?.includes('Câu_sai')) && (
                   <div className="w-full p-4 bg-slate-50 rounded-2xl mb-4 text-center border border-slate-100">
-                    <p className="text-slate-800 font-semibold mb-1 font-japanese">{currentCard.exampleJp}</p>
+                    <p className="text-slate-800 font-semibold mb-1 font-japanese" dangerouslySetInnerHTML={{ __html: currentCard.exampleJp }} />
                     {currentCard.exampleVi && <p className="text-slate-500 text-xs">{currentCard.exampleVi}</p>}
                   </div>
                 )}
 
-                {/* AI Mnemonic */}
+                {/* AI Mnemonic / Giải thích đã lọc sạch META */}
                 {currentCard.note ? (
-                  <div className="w-full p-3 bg-purple-50 text-purple-800 rounded-2xl text-xs flex items-start gap-2 border border-purple-100 mb-2">
+                  <div className="w-full p-3.5 bg-purple-50 text-purple-900 rounded-2xl text-xs flex items-start gap-2 border border-purple-100 mb-2 leading-relaxed whitespace-pre-wrap">
                     <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                    <p>{currentCard.note}</p>
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: currentCard.note
+                          .replace(/<!-- META:[\s\S]*?-->/g, '')
+                          .replace(/Mẫu ngữ pháp trọng tâm:\s*Cấu trúc câu chuẩn đề thi JLPT\s*•\s*Lưu ý thể liên kết, quan hệ nhân quả và sắc thái câu\.?/gi, '')
+                          .replace(/Từ vựng & Hán tự cốt lõi:.*?•\s*Mẹo nhận diện âm On\/Kun và ngữ cảnh chuẩn xác\.?/gi, '')
+                          .trim()
+                      }}
+                    />
                   </div>
                 ) : (
                   <button

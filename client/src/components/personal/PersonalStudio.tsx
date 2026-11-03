@@ -129,10 +129,28 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
     setLoading(true);
     setErrorMsg(null);
     try {
+      // Đồng bộ bộ lọc: Với các tab Từ vựng / Hán tự / Ngữ pháp / Ghi chú, truyền trực tiếp itemType để khớp 100% với số đếm trên tab (kể cả thẻ từ Đề thi)
+      const itemTypeFromSection =
+        selectedSection === 'vocab'
+          ? 'VOCAB'
+          : selectedSection === 'kanji'
+          ? 'KANJI'
+          : selectedSection === 'grammar'
+          ? 'GRAMMAR'
+          : selectedSection === 'note'
+          ? 'NOTE'
+          : undefined;
+
+      const sectionParam =
+        selectedSection === 'due' || selectedSection === 'mistakes'
+          ? selectedSection
+          : undefined;
+
       const [itemsData, summaryData, statsData] = await Promise.all([
         NotebookApi.getItems({
           level: selectedLevel !== 'ALL' ? selectedLevel : undefined,
-          section: selectedSection !== 'all' ? selectedSection : undefined,
+          itemType: itemTypeFromSection as any,
+          section: sectionParam,
           masteryStatus: selectedStatus !== 'ALL' ? selectedStatus : undefined,
           search: searchQuery.trim() ? searchQuery.trim() : undefined,
           limit: 150
@@ -383,6 +401,105 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       case 'NOTE':
         return <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Ghi chú</span>;
     }
+  };
+
+  // Trích xuất thông minh Nhãn nguồn gốc (Đề thi số mấy / Giáo trình nào), Từ khóa trọng tâm ngắn gọn và Tóm tắt lỗi sai
+  const getSmartCardDisplay = (item: NotebookItem) => {
+    const rawNote = item.note || '';
+    const metaMatch = rawNote.match(/<!-- META: ([\s\S]*?) -->/);
+    let metaData: any = null;
+    if (metaMatch && metaMatch[1]) {
+      try {
+        metaData = JSON.parse(metaMatch[1]);
+      } catch {}
+    }
+
+    const cleanNote = rawNote
+      .replace(/<!-- META:[\s\S]*?-->/g, '')
+      .replace(/Mẫu ngữ pháp trọng tâm:\s*Cấu trúc câu chuẩn đề thi JLPT\s*•\s*Lưu ý thể liên kết, quan hệ nhân quả và sắc thái câu\.?/gi, '')
+      .replace(/Từ vựng & Hán tự cốt lõi:.*?•\s*Mẹo nhận diện âm On\/Kun và ngữ cảnh chuẩn xác\.?/gi, '')
+      .trim();
+
+    const isFromExam = Boolean(item.tags?.includes('Thi_thử') || item.tags?.includes('Câu_sai') || metaData);
+    const hasOptions = Array.isArray(metaData?.options) && metaData.options.length > 0;
+    const correctOpt = hasOptions && metaData.correctIndex !== undefined ? metaData.options[metaData.correctIndex] : '';
+    const userOpt = hasOptions && metaData.userAnswer !== undefined && metaData.userAnswer !== null ? metaData.options[metaData.userAnswer] : '';
+
+    // 1. Nhãn nguồn gốc cụ thể (Đề thi số mấy / Câu mấy HOẶC Giáo trình nào / Bài mấy)
+    let sourceBadgeText = '';
+    let subCategoryBadge = '';
+
+    if (isFromExam) {
+      const titleMatch = (item.title || '').match(/^\[(.*?)\]\s*(Câu\s*\d+)\s*:\s*(.*)$/i);
+      const rawBracket = metaData?.examTitle || (titleMatch ? titleMatch[1] : `Đề thi ${item.level}`);
+      const questionNo = metaData?.orderNumber ? `Câu ${metaData.orderNumber}` : (titleMatch ? titleMatch[2] : '');
+      const examLabel = /^N\d$/i.test(rawBracket.trim()) ? `Đề thi ${rawBracket.trim().toUpperCase()}` : rawBracket.trim();
+      sourceBadgeText = questionNo ? `🎯 ${examLabel} • ${questionNo}` : `🎯 ${examLabel}`;
+      subCategoryBadge = metaData?.subTypeLabel || item.reading || (titleMatch ? titleMatch[3] : '') || (item.itemType === 'GRAMMAR' ? 'Ngữ pháp' : 'Từ vựng');
+    } else {
+      const tagParts = (item.tags || '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t && !t.startsWith('JLPT_') && t !== 'Thi_thử' && t !== 'Câu_sai');
+
+      const curriculumTag = tagParts.find((t) =>
+        /minna|tango|mimikara|shinkanzen|soumatome|dokkai|bài|giáo trình|tra cứu/i.test(t)
+      );
+      const posTag = tagParts.find((t) => t !== curriculumTag);
+
+      if (curriculumTag) {
+        sourceBadgeText = `📘 ${curriculumTag}`;
+      } else if (item.itemType === 'VOCAB') {
+        const defaultBook = item.level === 'N5' || item.level === 'N4' ? 'Giáo trình Minna / Tango' : 'Giáo trình Tango / Mimikara';
+        sourceBadgeText = `📘 ${defaultBook} ${item.level}`;
+      } else if (item.itemType === 'GRAMMAR') {
+        const defaultBook = item.level === 'N5' || item.level === 'N4' ? 'Giáo trình Minna' : 'Giáo trình Shinkanzen';
+        sourceBadgeText = `📗 ${defaultBook} ${item.level}`;
+      } else if (item.itemType === 'KANJI') {
+        sourceBadgeText = `📙 Hán tự JLPT ${item.level}`;
+      } else {
+        sourceBadgeText = `📒 Sổ tay Mẹo & Ghi chú ${item.level}`;
+      }
+      subCategoryBadge = posTag || '';
+    }
+
+    // 2. Tiêu đề ngắn gọn (Từ khóa trọng tâm / Cấu trúc ngữ pháp thay vì nguyên câu dài ngoằng)
+    let compactHeadline = item.title;
+    let compactSubHeadline = item.reading || '';
+
+    if (isFromExam) {
+      const fullQ = item.exampleJp || metaData?.question || '';
+      const boldMatch = fullQ.match(/\*\*(.*?)\*\*/);
+      const quotedInNote = cleanNote.match(/「([^」]+)」/g);
+
+      if (boldMatch && boldMatch[1]) {
+        // Câu từ vựng có từ in đậm **時刻** -> hiển thị "時刻 ➔ じこく"
+        compactHeadline = correctOpt ? `${boldMatch[1]} ➔ ${correctOpt}` : boldMatch[1];
+      } else if (metaData?.aiDetailed?.grammarFormula) {
+        compactHeadline = metaData.aiDetailed.grammarFormula.split('•')[0].trim();
+      } else if (quotedInNote && quotedInNote.length > 0) {
+        compactHeadline = quotedInNote.slice(0, 2).join(' ➔ ');
+      } else if (correctOpt) {
+        compactHeadline = `Đáp án: ${correctOpt}`;
+      }
+      compactSubHeadline = stripHtmlForSpeech(fullQ);
+    }
+
+    const cleanMeaningVi = (item.meaningVi || '').replace(/^\[.*?\]\s*/, '').trim();
+
+    return {
+      isFromExam,
+      metaData,
+      cleanNote,
+      hasOptions,
+      correctOpt,
+      userOpt,
+      sourceBadgeText,
+      subCategoryBadge,
+      compactHeadline,
+      compactSubHeadline,
+      cleanMeaningVi
+    };
   };
 
   if (!isAuthenticated) {
@@ -811,87 +928,134 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto" />
           <div className="space-y-1">
             <h3 className="text-lg font-bold text-slate-800">
-              Không có nội dung nào trong danh mục này ({selectedLevel} - {selectedSection.toUpperCase()})
+              Không có nội dung nào phù hợp với bộ lọc hiện tại ({selectedLevel})
             </h3>
             <p className="text-sm text-slate-500 max-w-md mx-auto">
-              Bạn có thể thêm mục mới bằng tay hoặc các câu hỏi làm sai từ Đề Thi Thử sẽ tự động đổ vào đây.
+              {selectedStatus !== 'ALL' || searchQuery.trim()
+                ? 'Bạn đang bật bộ lọc trạng thái SRS hoặc từ khóa tìm kiếm. Hãy bấm nút bên dưới để xem lại toàn bộ danh mục.'
+                : 'Bạn có thể thêm mục mới bằng tay hoặc lưu từ vựng, ngữ pháp, câu hỏi làm sai từ Đề Thi Thử.'}
             </p>
           </div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all cursor-pointer shadow-md shadow-blue-500/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm mục mới ngay</span>
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {(selectedStatus !== 'ALL' || searchQuery.trim() || selectedSection !== 'all') && (
+              <button
+                onClick={() => {
+                  setSelectedStatus('ALL');
+                  setSearchQuery('');
+                  if (selectedSection === 'due') setSelectedSection('all');
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-all cursor-pointer"
+              >
+                <RotateCw className="w-4 h-4" />
+                <span>Đặt lại bộ lọc hiển thị</span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all cursor-pointer shadow-md shadow-blue-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Thêm mục mới ngay</span>
+            </button>
+          </div>
         </div>
       ) : isCompactMode ? (
-        /* CHẾ ĐỘ THU GỌN (COMPACT ACCORDION LIST) */
+        /* CHẾ ĐỘ THU GỌN (COMPACT ACCORDION LIST - THIẾT KẾ GỌN GÀNG, RÕ NGUỒN ĐỀ THI / GIÁO TRÌNH) */
         <div className="bg-white rounded-3xl p-3 sm:p-5 shadow-sm border border-slate-200/80 divide-y divide-slate-100">
           {items.map((item) => {
-            const isFromExam = Boolean(item.tags?.includes('Thi_thử') || item.tags?.includes('Câu_sai'));
+            const cardInfo = getSmartCardDisplay(item);
             const isExpanded = !!expandedCards[item.id];
             const isMastered = item.masteryStatus === 'MASTERED';
             const isReviewing = item.masteryStatus === 'REVIEWING';
 
             return (
-              <div key={item.id} className="py-3 px-2 sm:px-3 hover:bg-slate-50/80 rounded-2xl transition-all">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+              <div key={item.id} className="py-3.5 px-2 sm:px-3.5 hover:bg-slate-50/80 rounded-2xl transition-all">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                  <div className="flex items-start sm:items-center gap-2.5 flex-1 min-w-0">
                     <button
                       onClick={() => toggleCardExpand(item.id)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors mt-0.5 sm:mt-0"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors mt-0.5 sm:mt-0 shrink-0 cursor-pointer"
+                      title={isExpanded ? 'Thu gọn' : 'Mở rộng xem nhanh'}
                     >
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* CỤM NHÃN PHÂN LOẠI: CẤP ĐỘ + NGUỒN (ĐỀ SỐ MẤY / GIÁO TRÌNH NÀO) + LOẠI */}
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                       <span className={`px-2 py-0.5 text-[11px] font-bold rounded-lg border ${getLevelColor(item.level)}`}>
                         {item.level}
                       </span>
-                      {isFromExam ? (
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                          🎯 Đề Thi
+                      {getItemTypeBadge(item.itemType)}
+                      <span
+                        className={`px-2 py-0.5 text-[11px] font-bold rounded-lg border ${
+                          cardInfo.isFromExam
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                        }`}
+                      >
+                        {cardInfo.sourceBadgeText}
+                      </span>
+                      {cardInfo.subCategoryBadge && (
+                        <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-100 text-slate-600">
+                          {cardInfo.subCategoryBadge}
                         </span>
-                      ) : (
-                        getItemTypeBadge(item.itemType)
                       )}
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
+                    {/* NỘI DUNG CHÍNH: TỪ KHÓA TRỌNG TÂM NGẮN GỌN + NGHĨA 1 DÒNG */}
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => {
+                        setSelectedNotebookItem(item);
+                        setIsDetailModalOpen(true);
+                      }}
+                    >
+                      <div className="flex items-baseline gap-2 min-w-0">
                         <span
-                          className="font-bold text-slate-900 text-sm sm:text-base cursor-pointer hover:text-blue-600 truncate"
-                          dangerouslySetInnerHTML={{ __html: item.title }}
-                          onClick={() => {
-                            setSelectedNotebookItem(item);
-                            setIsDetailModalOpen(true);
-                          }}
+                          className="font-black text-slate-900 text-sm sm:text-[15px] hover:text-blue-600 truncate shrink-0 max-w-[260px] sm:max-w-[340px]"
+                          dangerouslySetInnerHTML={{ __html: cardInfo.compactHeadline }}
                         />
-                        {item.reading && (
-                          <span className="text-xs text-slate-400 hidden sm:inline truncate">
-                            {item.reading}
+                        {cardInfo.compactSubHeadline && (
+                          <span className="text-xs text-slate-400 truncate hidden sm:inline">
+                            • {cardInfo.compactSubHeadline}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 truncate" dangerouslySetInnerHTML={{ __html: item.meaningVi }} />
+                      <p
+                        className="text-xs text-slate-600 truncate mt-0.5"
+                        dangerouslySetInnerHTML={{ __html: cardInfo.cleanMeaningVi }}
+                      />
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    {/* Audio */}
-                    {!isFromExam && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          speakJapanese(item.title);
-                        }}
-                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
-                        title="Phát âm tiếng Nhật"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
+                  {/* CỤM NÚT BÊN PHẢI: TÓM TẮT ĐÁP ÁN NHANH + LOA + SRS + CHI TIẾT */}
+                  <div className="flex items-center flex-wrap gap-2 shrink-0 self-end lg:self-center">
+                    {cardInfo.isFromExam && cardInfo.correctOpt && (
+                      <div className="hidden xl:flex items-center gap-1.5 text-[11px]">
+                        {cardInfo.userOpt && cardInfo.userOpt !== cardInfo.correctOpt && (
+                          <span
+                            className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-semibold max-w-[130px] truncate"
+                            dangerouslySetInnerHTML={{ __html: `❌ ${cardInfo.userOpt}` }}
+                          />
+                        )}
+                        <span
+                          className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold max-w-[140px] truncate"
+                          dangerouslySetInnerHTML={{ __html: `✅ ${cardInfo.correctOpt}` }}
+                        />
+                      </div>
                     )}
+
+                    {/* Audio cho cả từ vựng lẫn câu đề thi */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        speakJapanese(stripHtmlForSpeech(item.exampleJp || item.title));
+                      }}
+                      className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      title="Phát âm tiếng Nhật"
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </button>
 
                     {/* Toggle SRS */}
                     <button
@@ -899,29 +1063,30 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                         const nextStatus = item.masteryStatus === 'LEARNING' ? 'REVIEWING' : item.masteryStatus === 'REVIEWING' ? 'MASTERED' : 'LEARNING';
                         handleToggleMastery(item.id, nextStatus as any);
                       }}
-                      className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
                         isMastered ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : isReviewing ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-sky-50 text-sky-700 border-sky-200'
                       }`}
                     >
                       {isMastered ? 'Đã thuộc ✓' : isReviewing ? 'Cần ôn ↺' : 'Đang học'}
                     </button>
 
-                    {/* Chi tiết */}
+                    {/* Chi tiết 4 tầng */}
                     <button
                       onClick={() => {
                         setSelectedNotebookItem(item);
                         setIsDetailModalOpen(true);
                       }}
-                      className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 transition-colors"
-                      title="Xem chi tiết"
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Xem giải thích 4 tầng & AI"
                     >
-                      <ArrowUpRight className="w-4 h-4" />
+                      <span>Giải thích</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>
 
                     {/* Xóa */}
                     <button
                       onClick={() => setItemToDelete({ id: item.id, title: item.title })}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                       title="Xóa mục"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -929,27 +1094,78 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                   </div>
                 </div>
 
-                {/* KHỐI NỘI DUNG MỞ RỘNG (KHI EXPANDED TRONG COMPACT MODE) */}
+                {/* KHỐI NỘI DUNG MỞ RỘNG (KHI EXPANDED TRONG COMPACT MODE - ĐÃ ĐỒNG BỘ 4 ĐÁP ÁN & GIẢI THÍCH SẠCH) */}
                 {isExpanded && (
-                  <div className="mt-3 pt-3 border-t border-slate-100 text-xs sm:text-sm text-slate-700 space-y-2 bg-slate-50/50 p-3 rounded-xl animate-fadeIn">
+                  <div className="mt-3 pt-3 border-t border-slate-100 text-xs sm:text-sm text-slate-700 space-y-2.5 bg-slate-50/70 p-3.5 rounded-2xl animate-fadeIn">
                     {item.exampleJp && (
-                      <div className="text-slate-900 font-medium whitespace-pre-wrap">
-                        <strong className="text-slate-500 font-bold block text-[11px]">Nội dung câu / Ví dụ:</strong>
-                        <div dangerouslySetInnerHTML={{ __html: formatText(item.exampleJp) }} />
+                      <div className="text-slate-900 font-medium whitespace-pre-wrap flex items-start justify-between gap-2">
+                        <div>
+                          <strong className="text-slate-500 font-bold block text-[11px] uppercase tracking-wider mb-0.5">
+                            {cardInfo.isFromExam ? 'Câu hỏi gốc trong đề thi:' : 'Câu ví dụ tiếng Nhật:'}
+                          </strong>
+                          <div className="text-sm sm:text-base font-bold" dangerouslySetInnerHTML={{ __html: formatText(item.exampleJp) }} />
+                        </div>
+                        <button
+                          onClick={() => speakJapanese(stripHtmlForSpeech(item.exampleJp || ''))}
+                          className="p-1.5 rounded-lg bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 shrink-0 cursor-pointer"
+                          title="Nghe câu tiếng Nhật"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
-                    {item.exampleVi && (
-                      <div className="text-slate-600">
-                        <strong className="text-slate-500 font-bold block text-[11px]">Dịch nghĩa câu:</strong>
-                        <div dangerouslySetInnerHTML={{ __html: item.exampleVi }} />
+
+                    {cardInfo.hasOptions && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
+                        {cardInfo.metaData.options.map((opt: string, idx: number) => {
+                          const isCorrect = idx === Number(cardInfo.metaData.correctIndex);
+                          const isUserPick = cardInfo.metaData.userAnswer !== null && cardInfo.metaData.userAnswer !== undefined && idx === Number(cardInfo.metaData.userAnswer);
+                          const optVi = Array.isArray(cardInfo.metaData.optionsVi) ? cardInfo.metaData.optionsVi[idx] : '';
+                          return (
+                            <div
+                              key={idx}
+                              className={`p-2 rounded-xl border text-xs flex flex-col justify-between ${
+                                isCorrect
+                                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                                  : isUserPick
+                                  ? 'bg-rose-50 border-rose-300 text-rose-900 font-semibold'
+                                  : 'bg-white border-slate-200 text-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-black">{idx + 1}.</span>
+                                <span dangerouslySetInnerHTML={{ __html: opt }} />
+                                {isCorrect && <span className="ml-auto text-emerald-600 font-bold">✓</span>}
+                                {!isCorrect && isUserPick && <span className="ml-auto text-rose-600 font-bold">✕</span>}
+                              </div>
+                              {optVi && <div className="text-[11px] text-slate-500 mt-1 font-normal">Nghĩa: {optVi}</div>}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
-                    {item.note && (
-                      <div className="text-indigo-900 bg-indigo-50/80 p-2.5 rounded-lg border border-indigo-100">
-                        <strong className="text-indigo-700 font-bold block text-[11px] mb-1">Mẹo / Phân tích bẫy thi:</strong>
-                        <div dangerouslySetInnerHTML={{ __html: item.note.replace(/<!-- META:[\s\S]*?-->/g, '').trim().replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+
+                    {cardInfo.cleanNote && (
+                      <div className="text-indigo-950 bg-indigo-50/80 p-3 rounded-xl border border-indigo-100 leading-relaxed whitespace-pre-wrap">
+                        <strong className="text-indigo-700 font-bold block text-[11px] uppercase tracking-wider mb-1">
+                          💡 Giải thích & Mẹo ghi nhớ:
+                        </strong>
+                        <div dangerouslySetInnerHTML={{ __html: cardInfo.cleanNote.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                       </div>
                     )}
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => {
+                          setSelectedNotebookItem(item);
+                          setIsDetailModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-all"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Mở bảng Phân tích chuyên sâu 4 tầng & AI</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -957,10 +1173,10 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           })}
         </div>
       ) : (
-        /* CHẾ ĐỘ XEM THẺ LƯỚI (GRID CARDS CHUYÊN NGHIỆP) */
+        /* CHẾ ĐỘ XEM THẺ LƯỚI (GRID CARDS CHUYÊN NGHIỆP - RÕ NGUỒN ĐỀ THI / GIÁO TRÌNH & TÓM TẮT ĐÁP ÁN) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.map((item) => {
-            const isFromExam = Boolean(item.tags?.includes('Thi_thử') || item.tags?.includes('Câu_sai'));
+            const cardInfo = getSmartCardDisplay(item);
             const isMastered = item.masteryStatus === 'MASTERED';
             const isReviewing = item.masteryStatus === 'REVIEWING';
 
@@ -970,19 +1186,13 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 className="group relative bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-200/80 hover:border-blue-300 flex flex-col h-full"
               >
                 <div className="flex-1 flex flex-col">
-                  {/* Header thẻ: Badge, Level, SRS toggle, Delete */}
+                  {/* Header thẻ: Level + Loại + Nguồn cụ thể + SRS toggle + Delete */}
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <div className="flex items-center flex-wrap gap-1.5">
-                      {isFromExam ? (
-                        <span className="px-2.5 py-0.5 text-xs font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                          🎯 Đề Thi
-                        </span>
-                      ) : (
-                        getItemTypeBadge(item.itemType)
-                      )}
                       <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(item.level)}`}>
                         {item.level}
                       </span>
+                      {getItemTypeBadge(item.itemType)}
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -1015,15 +1225,36 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     </div>
                   </div>
 
-                  {/* Tiêu đề tiếng Nhật */}
-                  <div className="space-y-1 mb-3">
+                  {/* Hàng nhãn Nguồn gốc cụ thể (Đề thi số mấy / Giáo trình nào) */}
+                  <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                    <span
+                      className={`px-2.5 py-0.5 text-[11px] font-bold rounded-lg border ${
+                        cardInfo.isFromExam
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      }`}
+                    >
+                      {cardInfo.sourceBadgeText}
+                    </span>
+                    {cardInfo.subCategoryBadge && (
+                      <span className="px-2 py-0.5 text-[11px] font-semibold rounded-lg bg-slate-100 text-slate-600">
+                        {cardInfo.subCategoryBadge}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Tiêu đề tiếng Nhật & Từ khóa trọng tâm */}
+                  <div className="space-y-1.5 mb-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        {isFromExam ? (
+                        {cardInfo.isFromExam ? (
                           <>
-                            <div className="text-[11px] text-slate-500 font-bold mb-1 uppercase tracking-wider" dangerouslySetInnerHTML={{ __html: item.title }} />
+                            <div
+                              className="inline-block px-2.5 py-1 rounded-xl bg-teal-50 text-teal-900 border border-teal-200 text-xs font-black mb-1.5"
+                              dangerouslySetInnerHTML={{ __html: `🎯 Trọng tâm: ${cardInfo.compactHeadline}` }}
+                            />
                             <h3
-                              className="text-base font-bold text-slate-900 line-clamp-3 cursor-pointer hover:text-blue-600 transition-colors leading-relaxed whitespace-pre-wrap"
+                              className="text-[15px] font-bold text-slate-900 line-clamp-2 cursor-pointer hover:text-blue-600 transition-colors leading-relaxed whitespace-pre-wrap"
                               dangerouslySetInnerHTML={{ __html: formatText(item.exampleJp || item.meaningVi || item.title) }}
                               onClick={() => {
                                 setSelectedNotebookItem(item);
@@ -1046,26 +1277,40 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                         )}
                       </div>
 
-                      {!isFromExam && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            speakJapanese(item.title);
-                          }}
-                          title="Phát âm tiếng Nhật chuẩn"
-                          className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors cursor-pointer shrink-0 mt-1"
-                        >
-                          <Volume2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          speakJapanese(stripHtmlForSpeech(item.exampleJp || item.title));
+                        }}
+                        title="Phát âm tiếng Nhật chuẩn"
+                        className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors cursor-pointer shrink-0 mt-1"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
                     </div>
+
+                    {/* Nếu là câu sai từ đề thi: hiển thị tóm tắt Bạn chọn vs Đáp án đúng */}
+                    {cardInfo.isFromExam && cardInfo.correctOpt && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {cardInfo.userOpt && cardInfo.userOpt !== cardInfo.correctOpt && (
+                          <span
+                            className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold"
+                            dangerouslySetInnerHTML={{ __html: `❌ Chọn: ${cardInfo.userOpt}` }}
+                          />
+                        )}
+                        <span
+                          className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold"
+                          dangerouslySetInnerHTML={{ __html: `✅ Đúng: ${cardInfo.correctOpt}` }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Nghĩa tiếng Việt */}
-                  {item.meaningVi && (
+                  {cardInfo.cleanMeaningVi && (
                     <div
-                      className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-600 font-medium mb-4 line-clamp-2 cursor-pointer hover:bg-slate-100 transition-colors"
-                      dangerouslySetInnerHTML={{ __html: item.meaningVi }}
+                      className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs sm:text-sm text-slate-600 font-medium mb-4 line-clamp-2 cursor-pointer hover:bg-slate-100 transition-colors"
+                      dangerouslySetInnerHTML={{ __html: cardInfo.cleanMeaningVi }}
                       onClick={() => {
                         setSelectedNotebookItem(item);
                         setIsDetailModalOpen(true);
@@ -1085,7 +1330,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     className="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 hover:text-blue-700 text-slate-600 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Xem giải thích chi tiết</span>
+                    <span>Xem giải thích chi tiết (4 tầng & AI)</span>
                   </button>
                 </div>
               </div>
@@ -1118,35 +1363,52 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 onClick={() => setIsCurrentCardFlipped(!isCurrentCardFlipped)}
                 className="w-full h-full cursor-pointer flex flex-col items-center justify-center space-y-4"
               >
-                {!isCurrentCardFlipped ? (
-                  <>
-                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-                      Mặt Trước • Bấm để lật
-                    </span>
-                    <h2
-                      className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight"
-                      dangerouslySetInnerHTML={{ __html: items[flashcardIndex]?.title || '' }}
-                    />
-                    {items[flashcardIndex]?.reading && (
-                      <p className="text-sm text-slate-500">{items[flashcardIndex]?.reading}</p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                      Mặt Sau • Ý Nghĩa & Ví Dụ
-                    </span>
-                    <div
-                      className="text-xl font-bold text-slate-800"
-                      dangerouslySetInnerHTML={{ __html: items[flashcardIndex]?.meaningVi || '' }}
-                    />
-                    {items[flashcardIndex]?.exampleJp && (
-                      <p className="text-xs text-slate-500 max-w-md italic mt-2">
-                        {items[flashcardIndex]?.exampleJp}
-                      </p>
-                    )}
-                  </>
-                )}
+                {(() => {
+                  const fcItem = items[flashcardIndex];
+                  const fcInfo = fcItem ? getSmartCardDisplay(fcItem) : null;
+                  if (!fcItem || !fcInfo) return null;
+
+                  return !isCurrentCardFlipped ? (
+                    <>
+                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                        {fcInfo.sourceBadgeText} • Bấm để lật
+                      </span>
+                      <h2
+                        className={`${
+                          fcInfo.isFromExam ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'
+                        } font-black text-slate-900 tracking-tight leading-relaxed`}
+                        dangerouslySetInnerHTML={{
+                          __html: fcInfo.isFromExam ? formatText(fcItem.exampleJp || fcItem.title) : fcItem.title
+                        }}
+                      />
+                      {fcItem.reading && (
+                        <p className="text-sm text-slate-500">{fcItem.reading}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                        Mặt Sau • Ý Nghĩa & Giải Thích
+                      </span>
+                      {fcInfo.isFromExam && fcInfo.correctOpt && (
+                        <div
+                          className="text-lg font-black text-emerald-700 bg-emerald-50 px-4 py-1.5 rounded-xl border border-emerald-200"
+                          dangerouslySetInnerHTML={{ __html: `✅ Đáp án: ${fcInfo.correctOpt}` }}
+                        />
+                      )}
+                      <div
+                        className="text-lg sm:text-xl font-bold text-slate-800"
+                        dangerouslySetInnerHTML={{ __html: fcInfo.cleanMeaningVi }}
+                      />
+                      {fcInfo.cleanNote && (
+                        <div
+                          className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 max-w-md text-left whitespace-pre-wrap leading-relaxed"
+                          dangerouslySetInnerHTML={{ __html: fcInfo.cleanNote.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1445,26 +1707,36 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
               <div className="relative bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col animate-fadeIn">
                 {/* HEADER MODAL */}
                 <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
-                  <div className="flex items-center flex-wrap gap-2">
-                    {getItemTypeBadge(selectedNotebookItem.itemType)}
-                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(selectedNotebookItem.level)}`}>
-                      {selectedNotebookItem.level}
-                    </span>
-                    {selectedNotebookItem.tags?.includes('Thi_thử') || selectedNotebookItem.tags?.includes('Câu_sai') ? (
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                        🎯 Từ Đề Thi
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        📚 Từ Bài Học
-                      </span>
-                    )}
-                    {aiDetailed && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" /> Đã phân tích AI
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    const modalCardInfo = getSmartCardDisplay(selectedNotebookItem);
+                    return (
+                      <div className="flex items-center flex-wrap gap-2">
+                        {getItemTypeBadge(selectedNotebookItem.itemType)}
+                        <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(selectedNotebookItem.level)}`}>
+                          {selectedNotebookItem.level}
+                        </span>
+                        <span
+                          className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${
+                            modalCardInfo.isFromExam
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                          }`}
+                        >
+                          {modalCardInfo.sourceBadgeText}
+                        </span>
+                        {modalCardInfo.subCategoryBadge && (
+                          <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-600">
+                            {modalCardInfo.subCategoryBadge}
+                          </span>
+                        )}
+                        {aiDetailed && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Đã phân tích AI
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <button
                     onClick={() => {
                       setIsDetailModalOpen(false);

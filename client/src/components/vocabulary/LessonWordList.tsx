@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 
 interface LessonWordListProps {
   words: FlashcardWordItem[];
+  sourceLabel?: string;
   onNavigateToKanji?: (character: string) => void;
   onStartFlashcard: () => void;
   onStartQuiz: () => void;
@@ -28,6 +29,7 @@ interface LessonWordListProps {
 
 export const LessonWordList: React.FC<LessonWordListProps> = ({
   words,
+  sourceLabel,
   onNavigateToKanji,
   onStartFlashcard,
   onStartQuiz,
@@ -75,7 +77,7 @@ export const LessonWordList: React.FC<LessonWordListProps> = ({
           reading: item.reading || '',
           meaningVi: item.meaningVi,
           level: item.jlptLevel || 'N5',
-          tags: item.partOfSpeech || '',
+          tags: [sourceLabel, item.partOfSpeech].filter(Boolean).join(','),
           exampleJp: item.exampleJp || '',
           exampleVi: item.exampleVi || ''
         });
@@ -116,7 +118,7 @@ export const LessonWordList: React.FC<LessonWordListProps> = ({
             reading: w.reading || '',
             meaningVi: w.meaningVi,
             level: w.jlptLevel || 'N5',
-            tags: w.partOfSpeech || '',
+            tags: [sourceLabel, w.partOfSpeech].filter(Boolean).join(','),
             exampleJp: w.exampleJp || '',
             exampleVi: w.exampleVi || ''
           }).catch(e => console.warn('Lỗi lưu từ', w.word, e))

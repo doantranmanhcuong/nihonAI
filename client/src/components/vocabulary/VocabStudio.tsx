@@ -443,6 +443,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
                       {lessonStudyMode === 'list' && (
                         <LessonWordList
                           words={lessonData.words}
+                          sourceLabel={`${CURRICULUMS.find(c => c.id === lessonData.curriculum)?.label || lessonData.curriculum} • ${lessonData.lessonTitle || `Bài ${lessonData.lesson}`}`}
                           onNavigateToKanji={onNavigateToKanji}
                           onStartFlashcard={() => setLessonStudyMode('flashcard')}
                           onStartQuiz={() => setLessonStudyMode('quiz')}

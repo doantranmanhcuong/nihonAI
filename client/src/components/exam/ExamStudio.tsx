@@ -1625,9 +1625,13 @@ const handleConfirmStartRealExam = () => {
     for (const q of wrongQuestions) {
       try {
         const itemType = q.section === 'grammar' ? 'GRAMMAR' : (q.section === 'vocab' ? 'VOCAB' : 'NOTE');
+        const shortExamTitle = (examResult.examTitle || `Đề thi ${examResult.level}`).replace(/^Đề thi chính thức\s*/i, '').trim();
         
         const metaStr = q.options && q.options.length > 0 ? `\n<!-- META: ${JSON.stringify({
           questionId: q.questionId,
+          examId: examResult.examId,
+          examTitle: shortExamTitle,
+          orderNumber: q.orderNumber,
           question: q.question,
           passage: q.passage || null,
           options: q.options,
@@ -1642,9 +1646,9 @@ const handleConfirmStartRealExam = () => {
 
         await NotebookApi.createItem({
           itemType: itemType as any,
-          title: `[${examResult.level}] Câu ${q.orderNumber}: ${q.subTypeLabel || 'Câu làm sai'}`,
+          title: `[${shortExamTitle}] Câu ${q.orderNumber}: ${q.subTypeLabel || 'Câu làm sai'}`,
           reading: q.subTypeLabel,
-          meaningVi: `[Đề thi ${examResult.level}] ${q.questionVi || q.question}`,
+          meaningVi: `[${shortExamTitle}] ${q.questionVi || q.question}`,
           level: examResult.level,
           structure: extractCleanStructureForNotebook(q),
           exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
@@ -1655,7 +1659,7 @@ const handleConfirmStartRealExam = () => {
             q.studyTips ? `💡 Mẹo phòng thi: ${q.studyTips}` : '',
             metaStr
           ].filter(Boolean).join('\n'),
-          tags: `JLPT_${examResult.level},Thi_thử,Câu_sai`,
+          tags: `JLPT_${examResult.level},Thi_thử,Câu_sai,${shortExamTitle}`,
           masteryStatus: 'LEARNING'
         });
         successCount++;
@@ -1678,9 +1682,13 @@ const handleConfirmStartRealExam = () => {
     }
     try {
       const itemType = q.section === 'grammar' ? 'GRAMMAR' : (q.section === 'vocab' ? 'VOCAB' : 'NOTE');
+      const shortExamTitle = (examResult.examTitle || `Đề thi ${examResult.level}`).replace(/^Đề thi chính thức\s*/i, '').trim();
 
       const metaStr = q.options && q.options.length > 0 ? `\n<!-- META: ${JSON.stringify({
         questionId: q.questionId,
+        examId: examResult.examId,
+        examTitle: shortExamTitle,
+        orderNumber: q.orderNumber,
         question: q.question,
         passage: q.passage || null,
         options: q.options,
@@ -1695,9 +1703,9 @@ const handleConfirmStartRealExam = () => {
 
       await NotebookApi.createItem({
         itemType: itemType as any,
-        title: `[${examResult.level}] Câu ${q.orderNumber}: ${q.subTypeLabel || 'Câu làm sai'}`,
+        title: `[${shortExamTitle}] Câu ${q.orderNumber}: ${q.subTypeLabel || 'Câu làm sai'}`,
         reading: q.subTypeLabel,
-        meaningVi: `[Đề thi ${examResult.level}] ${q.questionVi || q.question}`,
+        meaningVi: `[${shortExamTitle}] ${q.questionVi || q.question}`,
         level: examResult.level,
         structure: extractCleanStructureForNotebook(q),
         exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
@@ -1708,7 +1716,7 @@ const handleConfirmStartRealExam = () => {
           q.studyTips ? `💡 Mẹo phòng thi: ${q.studyTips}` : '',
           metaStr
         ].filter(Boolean).join('\n'),
-        tags: `JLPT_${examResult.level},Thi_thử,Câu_sai`,
+        tags: `JLPT_${examResult.level},Thi_thử,Câu_sai,${shortExamTitle}`,
         masteryStatus: 'LEARNING'
       });
       setSavedSingleNotebookIds((prev) => ({ ...prev, [q.questionId]: true }));
