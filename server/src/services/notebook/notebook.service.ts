@@ -496,4 +496,128 @@ Yêu cầu: Viết ngắn gọn dưới 50 chữ, thú vị, trực diện.`;
       }
     });
   }
+
+  // --- AI DEEP EXPLANATION FOR NOTEBOOK ITEM (AUTO-PERSISTED) ---
+  static async analyzeItemWithAI(id: string, userId: string | undefined) {
+    if (!userId) throw new Error('Unauthorized');
+    const item = await prisma.notebookItem.findFirst({ where: { id, userId } });
+    if (!item) throw new Error('Not found or unauthorized');
+
+    const rawNote = item.note || '';
+    const metaMatch = rawNote.match(/<!-- META: ([\s\S]*?) -->/);
+    let metaData: any = {};
+    if (metaMatch && metaMatch[1]) {
+      try {
+        metaData = JSON.parse(metaMatch[1]);
+      } catch {
+        metaData = {};
+      }
+    }
+
+    const cleanNoteText = rawNote.replace(/<!-- META:[\s\S]*?-->/g, '').trim();
+    const stripHtml = (s: string) => (s || '').replace(/<rt>.*?<\/rt>/g, '').replace(/<rp>.*?<\/rp>/g, '').replace(/<\/?[^>]+(>|$)/g, '').trim();
+
+    const hasOptions = Array.isArray(metaData?.options) && metaData.options.length > 0;
+    const isStarQuestion = (item.exampleJp || metaData?.question || item.title || '').includes('★');
+
+    const optionsPrompt = hasOptions
+      ? metaData.options
+          .map((opt: string, idx: number) => {
+            const optVi = Array.isArray(metaData.optionsVi) && metaData.optionsVi[idx] ? ` (${metaData.optionsVi[idx]})` : '';
+            return `Phương án ${idx + 1}: ${stripHtml(opt)}${optVi}`;
+          })
+          .join('\n')
+      : '';
+
+    const userChoicePrompt =
+      hasOptions && metaData.userAnswer !== undefined && metaData.userAnswer !== null
+        ? `Học viên đã chọn nhầm: Phương án ${Number(metaData.userAnswer) + 1} (${stripHtml(metaData.options[metaData.userAnswer] || '')})`
+        : '';
+
+    const correctChoicePrompt =
+      hasOptions && metaData.correctIndex !== undefined && metaData.correctIndex !== null
+        ? `Đáp án đúng: Phương án ${Number(metaData.correctIndex) + 1} (${stripHtml(metaData.options[metaData.correctIndex] || '')})`
+        : '';
+
+    const prompt = hasOptions
+      ? `Bạn là Giáo sư Ngôn ngữ học tiếng Nhật và Chuyên gia luyện thi JLPT. Hãy giải thích chuyên sâu, cặn kẽ và dễ hiểu câu hỏi trong Sổ tay cá nhân sau đây cho học viên Việt Nam:
+- Cấp độ: ${item.level || 'N3'} (${item.itemType})
+- Tiêu đề / Dạng bài: ${stripHtml(item.title)}
+- Câu hỏi tiếng Nhật: ${stripHtml(item.exampleJp || metaData.question || item.title)}
+- Dịch nghĩa câu: ${stripHtml(item.meaningVi)}
+- Các lựa chọn:
+${optionsPrompt}
+- ${correctChoicePrompt}
+- ${userChoicePrompt}
+- Ghi chú hiện có: ${cleanNoteText}
+
+Trả về đúng định dạng JSON sau (tiếng Việt chuẩn, trình bày rõ ràng):
+{
+  "completedSentence": "${isStarQuestion ? 'Thứ tự ghép đúng cả 4 vị trí dấu ★ (VD: [4] 社内は ➔ [3] ★ もとより ➔ [1] 取引先からも ➔ [2] 厚い信頼を寄せられ) kèm câu hoàn chỉnh' : 'Câu tiếng Nhật hoàn chỉnh đã lắp đáp án đúng (kèm Hiragana trong ngoặc cho từ khóa)'}",
+  "grammarFormula": "Công thức ngữ pháp hoặc Từ vựng cốt lõi đóng khung ngắn gọn (VD: N + はもとより = Không những N1 mà ngay cả N2), KHÔNG chép lại cả câu dài.",
+  "explanation": "Giải thích chi tiết vì sao đáp án đúng hoàn toàn khớp về mặt ngữ pháp, ngữ nghĩa và ngữ cảnh của câu.",
+  "trapAnalysis": "Chỉ rõ nguyên nhân vì sao phương án học viên đã chọn lại sai (do nhầm Hán tự đồng âm, sai cấu trúc kết hợp hay sai sắc thái).",
+  "optionBreakdowns": [
+    "Phương án 1: [Từ/Cấu trúc] (Cách đọc Hiragana) — Nghĩa tiếng Việt & giải thích ngắn gọn",
+    "Phương án 2: [Từ/Cấu trúc] (Cách đọc Hiragana) — Nghĩa tiếng Việt & giải thích ngắn gọn",
+    "Phương án 3: [Từ/Cấu trúc] (Cách đọc Hiragana) — Nghĩa tiếng Việt & giải thích ngắn gọn",
+    "Phương án 4: [Từ/Cấu trúc] (Cách đọc Hiragana) — Nghĩa tiếng Việt & giải thích ngắn gọn"
+  ],
+  "studyTips": "Mẹo nhận diện nhanh trong 5 giây ở phòng thi JLPT và 1 câu ví dụ ngắn dễ nhớ."
+}`
+      : `Bạn là Giáo sư Ngôn ngữ học tiếng Nhật. Hãy phân tích chuyên sâu mục kiến thức trong Sổ tay cá nhân sau đây:
+- Loại: ${item.itemType} (Cấp độ ${item.level || 'N3'})
+- Mục từ / Cấu trúc: ${stripHtml(item.title)}
+- Cách đọc: ${item.reading || ''}
+- Ý nghĩa: ${stripHtml(item.meaningVi)}
+- Câu ví dụ: ${stripHtml(item.exampleJp || '')} (${stripHtml(item.exampleVi || '')})
+
+Trả về đúng định dạng JSON sau (tiếng Việt chuẩn):
+{
+  "completedSentence": "Câu ví dụ chuẩn JLPT ứng dụng trực tiếp mục từ/cấu trúc này kèm cách đọc Hiragana và dịch nghĩa",
+  "grammarFormula": "Công thức kết hợp (Cách chia + Mẫu câu) hoặc Từ loại + Hán tự cốt lõi",
+  "explanation": "Giải thích sâu sắc thái ý nghĩa, ngữ cảnh sử dụng (văn nói/văn viết, trang trọng/thân mật).",
+  "trapAnalysis": "Phân biệt với các từ/cấu trúc dễ nhầm lẫn tương tự trong đề thi JLPT.",
+  "optionBreakdowns": [],
+  "studyTips": "Mẹo ghi nhớ nhanh (Mnemonic) và lưu ý bẫy thường gặp trong đề thi."
+}`;
+
+    const aiRes = await GeminiPoolService.generateContent(
+      process.env.GEMINI_MODEL || 'gemini-flash-latest',
+      prompt,
+      {
+        responseMimeType: 'application/json',
+        temperature: 0.2
+      }
+    );
+
+    const rawText = aiRes.response.text().trim();
+    const cleanJson = rawText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+    const parsed = JSON.parse(cleanJson);
+
+    const updatedMeta = {
+      ...metaData,
+      aiDetailed: {
+        completedSentence: parsed.completedSentence || '',
+        grammarFormula: parsed.grammarFormula || '',
+        explanation: parsed.explanation || '',
+        trapAnalysis: parsed.trapAnalysis || '',
+        optionBreakdowns: Array.isArray(parsed.optionBreakdowns) ? parsed.optionBreakdowns : [],
+        studyTips: parsed.studyTips || '',
+        analyzedAt: new Date().toISOString()
+      }
+    };
+
+    const newNote = `${cleanNoteText}\n<!-- META: ${JSON.stringify(updatedMeta)} -->`;
+    const newStructure = parsed.grammarFormula || item.structure;
+
+    await RedisService.delPrefix(`notebook:v2:${userId}:`);
+    return await prisma.notebookItem.update({
+      where: { id },
+      data: {
+        note: newNote,
+        structure: newStructure
+      }
+    });
+  }
 }

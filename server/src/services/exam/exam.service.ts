@@ -66,34 +66,85 @@ export function pickExpressQuestions(questions: any[]): any[] {
   return combined.slice(0, 34).map((q, idx) => ({ ...q, orderNumber: idx + 1 }));
 }
 
+function stripRubyHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/<rt>.*?<\/rt>/g, '')
+    .replace(/<rp>.*?<\/rp>/g, '')
+    .replace(/<\/?[^>]+(>|$)/g, '')
+    .replace(/\*\*/g, '')
+    .trim();
+}
+
 function extractKeyGrammar(q: any): string {
+  const opts: string[] = Array.isArray(q.options) ? q.options : [];
+  const optsVi: string[] = Array.isArray(q.optionsVi) ? q.optionsVi : [];
+  const correctOpt = stripRubyHtml(opts[q.correctIndex] || '');
+  const correctVi = optsVi[q.correctIndex] || '';
+  const quotedMatches = (q.explanation || '').match(/「([^」]+)」/g);
+  const patternStr = quotedMatches && quotedMatches.length > 0 ? quotedMatches.join(' • ') : (correctOpt ? `「${correctOpt}」` : '');
+
+  const optionContrast = opts
+    .map((o, idx) => {
+      const cleanO = stripRubyHtml(o);
+      const vi = optsVi[idx] ? ` (${optsVi[idx]})` : '';
+      return `${idx + 1}. ${cleanO}${vi}`;
+    })
+    .filter(Boolean)
+    .join(' | ');
+
   if (q.section === 'vocab') {
-    return `Từ vựng & Hán tự cốt lõi: ${q.question.replace(/\*\*/g, '').trim()} • Mẹo nhận diện âm On/Kun và ngữ cảnh chuẩn xác.`;
+    const boldMatch = (q.question || '').match(/\*\*(.*?)\*\*/);
+    const targetWord = boldMatch ? stripRubyHtml(boldMatch[1]) : correctOpt;
+    return [
+      `Từ khóa trọng tâm: ${targetWord || 'Từ vựng JLPT'}${correctVi ? ` — Nghĩa: ${correctVi}` : ''}.`,
+      optionContrast ? `Đối chiếu 4 phương án: ${optionContrast}` : ''
+    ].filter(Boolean).join('\n');
   }
   if (q.section === 'grammar') {
-    return `Mẫu ngữ pháp trọng tâm: Cấu trúc câu chuẩn đề thi JLPT • Lưu ý thể liên kết, quan hệ nhân quả và sắc thái câu.`;
+    const isStarQuestion = (q.question || '').includes('★');
+    if (isStarQuestion) {
+      return [
+        `Cấu trúc cốt lõi (Mondai 5 - Ghép câu ★): ${patternStr || `Đáp án tại ★ là 「${correctOpt}」`}${correctVi ? ` (${correctVi})` : ''}.`,
+        optionContrast ? `Các mảnh ghép: ${optionContrast}` : ''
+      ].filter(Boolean).join('\n');
+    }
+    return [
+      `Mẫu ngữ pháp trọng tâm: ${patternStr || `「${correctOpt}」`}${correctVi ? ` — ${correctVi}` : ''}.`,
+      optionContrast ? `Phân biệt các phương án: ${optionContrast}` : ''
+    ].filter(Boolean).join('\n');
   }
   if (q.section === 'reading') {
-    return `Kỹ năng Đọc hiểu then chốt: Định vị từ khóa (キーワード) trong bài đọc và đối chiếu mệnh đề chủ đề (トピックセンテンス).`;
+    return `Kỹ năng Đọc hiểu (${q.subTypeLabel || 'Dokkai'}): Đáp án đúng là [${ (q.correctIndex ?? 0) + 1 }] ${correctOpt}${correctVi ? ` (${correctVi})` : ''}. Đối chiếu trực tiếp với mệnh đề chứa từ khóa trong đoạn văn.`;
   }
   if (q.section === 'listening') {
-    return `Kỹ năng Nghe hiểu (Choukai): Nắm bắt từ khóa hành động tiếp theo (まず何をしますか), phân tích thông tin trước và sau liên từ chuyển ý.`;
+    return `Kỹ năng Nghe hiểu (${q.subTypeLabel || 'Choukai'}): Chú ý câu hỏi trọng tâm và thông tin chốt lại ở cuối hội thoại (Đáp án [${ (q.correctIndex ?? 0) + 1 }] ${correctOpt}).`;
   }
-  return 'Điểm kiến thức cốt lõi chuẩn kỳ thi JLPT.';
+  return patternStr ? `Điểm kiến thức cốt lõi: ${patternStr}` : 'Điểm kiến thức cốt lõi chuẩn kỳ thi JLPT.';
 }
 
 function extractStudyTip(q: any): string {
+  const isStarQuestion = (q.question || '').includes('★');
   if (q.section === 'vocab') {
-    return 'Loại trừ ngay các âm đục/âm ngắt đánh lừa thường gặp trong đề thi.';
+    if ((q.subTypeLabel || '').toLowerCase().includes('cách đọc') || (q.subType || '').includes('reading')) {
+      return 'Kiểm tra kỹ trường âm (おう/う), âm ngắt (っ) và âm đục (゛) của từng chữ Hán để tránh bẫy phát âm gần giống.';
+    }
+    if ((q.subTypeLabel || '').toLowerCase().includes('đồng nghĩa') || (q.subType || '').includes('paraphrase')) {
+      return 'Thay thế trực tiếp từng phương án vào câu gốc để kiểm tra độ tương thích về cả nghĩa lẫn từ loại (Danh từ / Động từ / Phó từ).';
+    }
+    return 'Xác định từ loại cần điền và cụm từ đi kèm (Collocation - 連語) đứng ngay trước/sau chỗ trống.';
   }
   if (q.section === 'grammar') {
-    return 'Xem xét kỹ trợ từ và dạng kết hợp của từ đứng ngay trước chỗ trống.';
+    if (isStarQuestion) {
+      return 'Mẹo giải bài ★ (Mondai 5): (1) Tìm mảnh ghép nối tiếp ngay sau trợ từ trước ngoặc, (2) Tìm mảnh ghép nối trực tiếp vào vị trí kết thúc ngoặc, (3) Ghép cụm cố định ở giữa.';
+    }
+    return 'Quan sát kỹ dạng chia (Thể Rư / Thể Ta / Thể Te / Danh từ + の) ngay trước chỗ trống và sắc thái vế câu phía sau.';
   }
   if (q.section === 'reading') {
-    return 'Đọc câu hỏi trước để xác định thông tin cần tìm, không dịch từng chữ một.';
+    return 'Đọc câu hỏi trước để khoanh vùng đoạn chứa từ khóa, tránh suy diễn chủ quan ngoài nội dung bài đọc.';
   }
   if (q.section === 'listening') {
-    return 'Tận dụng thời gian chuẩn bị để quan sát 4 ô hình vẽ/lựa chọn và ghi chú từ khóa.';
+    return 'Tận dụng giây nghỉ để đọc lướt 4 đáp án, đặc biệt chú ý các liên từ chuyển ý như でも、ただ、実は、やっぱり.';
   }
   return 'Đọc kỹ yêu cầu đề bài và loại trừ các phương án gây nhiễu.';
 }
@@ -416,8 +467,8 @@ export class ExamService {
         correctAnswer: q.correctIndex,
         isCorrect,
         explanation: q.explanation,
-        keyGrammarOrVocab: extractKeyGrammar(q),
-        studyTips: extractStudyTip(q),
+        keyGrammarOrVocab: extractKeyGrammar({ ...q, options: optionsList, optionsVi: optionsViList }),
+        studyTips: extractStudyTip({ ...q, options: optionsList, optionsVi: optionsViList }),
         officialSource: q.officialSource
       };
     });
@@ -548,6 +599,10 @@ export class ExamService {
     explanation: string;
     keyGrammarOrVocab: string;
     studyTips: string;
+    completedSentence?: string;
+    trapAnalysis?: string;
+    optionBreakdowns?: string[];
+    grammarFormula?: string;
     source: 'GEMINI_AI' | 'BUILTIN_EXPLANATION';
   }> {
     const targetQuestion = await prisma.jlptQuestion.findUnique({
@@ -572,35 +627,47 @@ export class ExamService {
       optionsViList = [];
     }
 
+    const isStarQuestion = (targetQuestion.question || '').includes('★');
+
     try {
       const optionsFormatted = optionsList
-        .map((opt: string, idx: number) => `Phương án ${idx + 1}: ${opt} (${optionsViList[idx] || ''})`)
+        .map((opt: string, idx: number) => `Phương án ${idx + 1}: ${stripRubyHtml(opt)} (${optionsViList[idx] || ''})`)
         .join('\n');
 
       const userChoiceStr =
         userAnswer !== null && userAnswer !== undefined
-          ? `Học viên đã chọn: Phương án ${userAnswer + 1} (${optionsList[userAnswer] || ''})`
+          ? `Học viên đã chọn sai: Phương án ${userAnswer + 1} (${stripRubyHtml(optionsList[userAnswer] || '')})`
           : 'Học viên chưa chọn đáp án.';
 
       const prompt = `Bạn là một Giáo sư Ngôn ngữ học tiếng Nhật và Giám khảo chấm thi JLPT giàu kinh nghiệm.
-Hãy phân tích cặn kẽ câu hỏi thi thử JLPT sau đây để hướng dẫn học viên Việt Nam:
+Hãy phân tích cặn kẽ câu hỏi thi thử JLPT sau đây để hướng dẫn học viên Việt Nam dễ hiểu, nhớ lâu:
 
 Cấp độ: ${targetQuestion.exam.level}
-Dạng bài: ${targetQuestion.subTypeLabel}
-Đề bài: ${targetQuestion.question}
+Dạng bài: ${targetQuestion.subTypeLabel}${isStarQuestion ? ' (Dạng bài ghép câu dấu sao ★ Mondai 5 - cần chỉ rõ thứ tự 4 mảnh ghép)' : ''}
+Đề bài: ${stripRubyHtml(targetQuestion.question)}
 Dịch nghĩa đề bài: ${targetQuestion.questionVi}
-${targetQuestion.passage ? `Đoạn văn đọc hiểu:\n${targetQuestion.passage}\n` : ''}
+${targetQuestion.passage ? `Đoạn văn đọc hiểu:\n${stripRubyHtml(targetQuestion.passage)}\n` : ''}
 Các lựa chọn:
 ${optionsFormatted}
 
-Đáp án đúng: Phương án ${targetQuestion.correctIndex + 1} (${optionsList[targetQuestion.correctIndex]})
+Đáp án đúng: Phương án ${targetQuestion.correctIndex + 1} (${stripRubyHtml(optionsList[targetQuestion.correctIndex] || '')})
 ${userChoiceStr}
+Giải thích gốc tham khảo: ${targetQuestion.explanation || ''}
 
-Yêu cầu trả về JSON theo schema sau (hoàn toàn bằng tiếng Việt chuẩn):
+Yêu cầu trả về JSON theo đúng schema sau (bằng tiếng Việt chuẩn, rõ ràng, súc tích):
 {
-  "explanation": "Giải thích chi tiết tại sao đáp án đúng lại là đáp án đó, và tại sao lựa chọn của học viên (nếu sai) lại không chính xác hoặc dễ gây nhầm lẫn.",
-  "keyGrammarOrVocab": "Tổng hợp điểm ngữ pháp / từ vựng cốt lõi cần nhớ từ câu hỏi này.",
-  "studyTips": "Mẹo làm nhanh dạng bài này trong phòng thi thật JLPT."
+  "completedSentence": "${isStarQuestion ? 'Ghi rõ thứ tự ghép đúng cả 4 vị trí (VD: Thứ tự đúng: [4] 社内は ➔ [3] ★ もとより ➔ [1] 取引先からも ➔ [2] 厚い信頼を寄せられ) kèm câu tiếng Nhật hoàn chỉnh đã ghép' : 'Câu tiếng Nhật hoàn chỉnh sau khi điền đáp án đúng (kèm cách đọc Hiragana trong ngoặc cho từ khóa chính)'}",
+  "explanation": "Giải thích chi tiết tại sao đáp án đúng lại chính xác về mặt ngữ nghĩa, ngữ cảnh và cấu trúc kết hợp.",
+  "trapAnalysis": "Phân tích trực diện tại sao phương án học viên chọn (hoặc các phương án nhiễu còn lại) lại sai (bẫy đồng âm Hán tự, sai trợ từ, sai thể kết hợp hay lệch sắc thái).",
+  "optionBreakdowns": [
+    "Phân tích Phương án 1: [Từ/Cấu trúc] (Cách đọc) — Nghĩa tiếng Việt & lý do đúng/sai ngắn gọn",
+    "Phân tích Phương án 2: [Từ/Cấu trúc] (Cách đọc) — Nghĩa tiếng Việt & lý do đúng/sai ngắn gọn",
+    "Phân tích Phương án 3: [Từ/Cấu trúc] (Cách đọc) — Nghĩa tiếng Việt & lý do đúng/sai ngắn gọn",
+    "Phân tích Phương án 4: [Từ/Cấu trúc] (Cách đọc) — Nghĩa tiếng Việt & lý do đúng/sai ngắn gọn"
+  ],
+  "grammarFormula": "Công thức ngữ pháp hoặc Từ vựng cốt lõi đóng khung ngắn gọn (VD: N + はもとより / はもちろん = Không những N1 mà ngay cả N2), tuyệt đối KHÔNG chép lại nguyên câu đề bài có chỗ trống.",
+  "keyGrammarOrVocab": "Tổng hợp điểm ngữ pháp / từ vựng cốt lõi và 1 câu ví dụ ngắn mở rộng kèm dịch nghĩa.",
+  "studyTips": "Mẹo nhận diện nhanh trong 5 giây ở phòng thi thật JLPT cho câu hỏi này."
 }`;
 
       const aiRes = await GeminiPoolService.generateContent(
@@ -617,16 +684,22 @@ Yêu cầu trả về JSON theo schema sau (hoàn toàn bằng tiếng Việt ch
 
       return {
         explanation: parsed.explanation || targetQuestion.explanation,
-        keyGrammarOrVocab: parsed.keyGrammarOrVocab || 'Điểm ngữ pháp / từ vựng trọng tâm.',
-        studyTips: parsed.studyTips || 'Ghi nhớ công thức chia thể và từ khóa nhận diện.',
+        keyGrammarOrVocab: parsed.keyGrammarOrVocab || extractKeyGrammar({ ...targetQuestion, options: optionsList, optionsVi: optionsViList }),
+        studyTips: parsed.studyTips || extractStudyTip(targetQuestion),
+        completedSentence: parsed.completedSentence || '',
+        trapAnalysis: parsed.trapAnalysis || '',
+        optionBreakdowns: Array.isArray(parsed.optionBreakdowns) ? parsed.optionBreakdowns : optionsViList,
+        grammarFormula: parsed.grammarFormula || '',
         source: 'GEMINI_AI'
       };
     } catch (err) {
       console.warn('Gemini AI explanation fallback to builtin:', err);
+      const qObj = { ...targetQuestion, options: optionsList, optionsVi: optionsViList };
       return {
         explanation: targetQuestion.explanation,
-        keyGrammarOrVocab: 'Điểm ngữ pháp / từ vựng chuẩn đề thi JLPT.',
-        studyTips: 'Đọc kỹ câu hỏi và loại trừ các phương án gây nhiễu.',
+        keyGrammarOrVocab: extractKeyGrammar(qObj),
+        studyTips: extractStudyTip(qObj),
+        optionBreakdowns: optionsList.map((opt, idx) => `${idx + 1}. ${stripRubyHtml(opt)}${optionsViList[idx] ? ` — ${optionsViList[idx]}` : ''}`),
         source: 'BUILTIN_EXPLANATION'
       };
     }

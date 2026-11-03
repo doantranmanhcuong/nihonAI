@@ -47,6 +47,7 @@ import {
 import { GrammarDetailModal } from '../reading/GrammarDetailModal';
 import { ReadingGrammarItem, DetailedGrammarInfo } from '../reading/reading.types';
 import { ReadingApi } from '../reading/reading.api';
+import { ExamApi } from '../exam/exam.api';
 import { SrsFlashcardView } from './SrsFlashcardView';
 
 interface PersonalStudioProps {
@@ -200,16 +201,89 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       .replace(/【?★】?/g, '<span class="inline-flex items-center justify-center w-6 h-6 bg-amber-100 text-amber-600 rounded-full mx-1 text-sm">★</span>');
   };
 
+  // Làm sạch chuỗi tiếng Nhật (bỏ thẻ ruby/rt, khoảng trống ___, dấu ★) trước khi đọc TTS
+  const stripHtmlForSpeech = (html: string) => {
+    if (!html) return '';
+    return html
+      .replace(/<rt>.*?<\/rt>/g, '')
+      .replace(/<rp>.*?<\/rp>/g, '')
+      .replace(/<\/?[^>]+(>|$)/g, '')
+      .replace(/\[.*?\]/g, '')
+      .replace(/[（(][\s_＿★＊*]+[)）]/g, ' ')
+      .replace(/[_＿★]/g, ' ')
+      .replace(/\*\*/g, '')
+      .trim();
+  };
+
   // 1-Chạm đổi trạng thái SRS
   const handleToggleMastery = async (id: string, newStatus: MasteryStatus) => {
     try {
       const updated = await NotebookApi.toggleMastery(id, newStatus);
       setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
+      setSelectedNotebookItem((prev) => (prev && prev.id === id ? { ...prev, ...updated } : prev));
       NotebookApi.getHubSummary().then((s) => setHubSummary(s)).catch(() => {});
       NotebookApi.getStats().then((s) => setStats(s)).catch(() => {});
     } catch (err) {
       console.error('Lỗi cập nhật trạng thái:', err);
       alert('Không thể lưu trạng thái vào CSDL.');
+    }
+  };
+
+  // Phân tích chuyên sâu mục sổ tay với AI và tự động lưu vĩnh viễn vào CSDL
+  const handleAnalyzeNotebookItemWithAI = async (item: NotebookItem, metaData: any, cleanNoteText: string) => {
+    if (isAnalyzingAi) return;
+    setIsAnalyzingAi(true);
+    try {
+      // 1. Ưu tiên gọi API /api/notebook/:id/analyze (tự động phân tích + lưu CSDL trên server)
+      const analyzedItem = await NotebookApi.analyzeWithAI(item.id);
+      if (analyzedItem) {
+        setSelectedNotebookItem(analyzedItem);
+        setItems((prev) => prev.map((it) => (it.id === item.id ? analyzedItem : it)));
+        setIsAnalyzingAi(false);
+        return;
+      }
+
+      // 2. Dự phòng (Fallback): Nếu câu hỏi có questionId từ Đề thi, gọi ExamApi.explainWithAI và lưu lại bằng NotebookApi.updateItem
+      if (metaData?.questionId) {
+        const aiRes = await ExamApi.explainWithAI(
+          metaData.questionId,
+          metaData.userAnswer !== undefined ? metaData.userAnswer : null
+        );
+        if (aiRes) {
+          const updatedMeta = {
+            ...metaData,
+            aiDetailed: {
+              completedSentence: aiRes.completedSentence || '',
+              grammarFormula: aiRes.grammarFormula || aiRes.keyGrammarOrVocab || '',
+              explanation: aiRes.explanation || '',
+              trapAnalysis: aiRes.trapAnalysis || '',
+              optionBreakdowns: aiRes.optionBreakdowns || [],
+              studyTips: aiRes.studyTips || '',
+              analyzedAt: new Date().toISOString()
+            }
+          };
+          const newNote = `${cleanNoteText}\n<!-- META: ${JSON.stringify(updatedMeta)} -->`;
+          const updatedItem = await NotebookApi.updateItem(item.id, {
+            note: newNote,
+            structure: aiRes.grammarFormula || item.structure || undefined
+          });
+          setSelectedNotebookItem(updatedItem);
+          setItems((prev) => prev.map((it) => (it.id === item.id ? updatedItem : it)));
+          setIsAnalyzingAi(false);
+          return;
+        }
+      }
+
+      // 3. Dự phòng tạo Mẹo nhớ AI cho từ vựng/ngữ pháp thông thường
+      const mnemonicItem = await NotebookApi.generateMnemonic(item.id);
+      if (mnemonicItem) {
+        setSelectedNotebookItem(mnemonicItem);
+        setItems((prev) => prev.map((it) => (it.id === item.id ? mnemonicItem : it)));
+      }
+    } catch (err) {
+      console.error('Lỗi khi phân tích chuyên sâu với AI:', err);
+    } finally {
+      setIsAnalyzingAi(false);
     }
   };
 
@@ -873,7 +947,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     {item.note && (
                       <div className="text-indigo-900 bg-indigo-50/80 p-2.5 rounded-lg border border-indigo-100">
                         <strong className="text-indigo-700 font-bold block text-[11px] mb-1">Mẹo / Phân tích bẫy thi:</strong>
-                        <div dangerouslySetInnerHTML={{ __html: item.note.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                        <div dangerouslySetInnerHTML={{ __html: item.note.replace(/<!-- META:[\s\S]*?-->/g, '').trim().replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                       </div>
                     )}
                   </div>
@@ -1286,7 +1360,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         </div>
       )}
 
-      {/* 8. MODAL CHI TIẾT SỔ TAY */}
+      {/* 8. MODAL CHI TIẾT SỔ TAY (NÂNG CẤP 4 TẦNG PHÂN TÍCH CHUYÊN SÂU & AI AUTO-SAVE) */}
       {isDetailModalOpen && selectedNotebookItem && (
         (() => {
           let noteText = selectedNotebookItem.note || '';
@@ -1300,6 +1374,64 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
 
           noteText = noteText.replace(new RegExp('<!-- META:[\\s\\S]*?-->', 'g'), '').trim();
 
+          const aiDetailed = metaData?.aiDetailed || null;
+          const mainJpText = selectedNotebookItem.exampleJp || selectedNotebookItem.title || '';
+          const isStarQuestion = mainJpText.includes('★') || (metaData?.question || '').includes('★');
+          const hasOptions = Array.isArray(metaData?.options) && metaData.options.length > 0;
+          const correctOptText = hasOptions && metaData.correctIndex !== undefined ? metaData.options[metaData.correctIndex] : '';
+          const userOptText = hasOptions && metaData.userAnswer !== undefined && metaData.userAnswer !== null ? metaData.options[metaData.userAnswer] : '';
+
+          // 1. Khắc phục triệt để lỗi lặp lại câu đề bài trong ô "Cấu trúc ngữ pháp trọng tâm" (kể cả dữ liệu cũ đã lưu trong DB)
+          const rawStructure = (selectedNotebookItem.structure || '').trim();
+          const isDuplicateQuestionStructure =
+            !rawStructure ||
+            rawStructure === (selectedNotebookItem.exampleJp || '').trim() ||
+            rawStructure === (selectedNotebookItem.title || '').trim() ||
+            rawStructure === (metaData?.question || '').trim() ||
+            rawStructure.includes('___') ||
+            rawStructure.includes('★');
+
+          let effectiveStructure = '';
+          if (aiDetailed?.grammarFormula) {
+            effectiveStructure = aiDetailed.grammarFormula;
+          } else if (!isDuplicateQuestionStructure) {
+            effectiveStructure = rawStructure;
+          } else {
+            // Trích xuất mẫu câu nằm trong dấu 「...」 từ phần giải thích hoặc lấy đáp án đúng
+            const quotedMatches = noteText.match(/「([^」]+)」/g);
+            if (quotedMatches && quotedMatches.length > 0) {
+              effectiveStructure = quotedMatches.join(' • ');
+            } else if (correctOptText) {
+              const optVi = Array.isArray(metaData?.optionsVi) ? metaData.optionsVi[metaData.correctIndex] : '';
+              effectiveStructure = `「${correctOptText}」${optVi ? ` — ${optVi}` : ''}`;
+            }
+          }
+
+          // 2. Tự động tái tạo Câu hoàn chỉnh sau khi lắp đáp án đúng (nếu chưa có aiDetailed.completedSentence)
+          let autoCompletedSentence = aiDetailed?.completedSentence || '';
+          if (!autoCompletedSentence && hasOptions && correctOptText && !isStarQuestion) {
+            const blankRegex = /([（(][\s_＿*＊]+[)）]|[_＿]{2,})/;
+            if (blankRegex.test(mainJpText)) {
+              autoCompletedSentence = mainJpText.replace(
+                blankRegex,
+                `<strong class="text-emerald-700 underline decoration-2 underline-offset-4 px-1">${correctOptText}</strong>`
+              );
+            }
+          }
+
+          // 3. Làm sạch các câu văn mẫu rập khuôn cũ trong noteText để hiển thị rõ ràng, tách bạch từng ý
+          const cleanedLines = noteText
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) =>
+              line
+                .replace(/Mẫu ngữ pháp trọng tâm:\s*Cấu trúc câu chuẩn đề thi JLPT\s*•\s*Lưu ý thể liên kết, quan hệ nhân quả và sắc thái câu\.?/gi, '')
+                .replace(/Từ vựng & Hán tự cốt lõi:.*?•\s*Mẹo nhận diện âm On\/Kun và ngữ cảnh chuẩn xác\.?/gi, '')
+                .trim()
+            )
+            .filter((line) => line && line !== '🎯 Trọng tâm:' && line !== '💡 Mẹo phòng thi:');
+
           return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <div
@@ -1311,8 +1443,9 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 }}
               />
               <div className="relative bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col animate-fadeIn">
-                <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                {/* HEADER MODAL */}
+                <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center flex-wrap gap-2">
                     {getItemTypeBadge(selectedNotebookItem.itemType)}
                     <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getLevelColor(selectedNotebookItem.level)}`}>
                       {selectedNotebookItem.level}
@@ -1326,6 +1459,11 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                         📚 Từ Bài Học
                       </span>
                     )}
+                    {aiDetailed && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> Đã phân tích AI
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => {
@@ -1333,71 +1471,154 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                       setIsAnalyzingAi(false);
                       setAiAnalysisResult(null);
                     }}
-                    className="p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                    className="p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors cursor-pointer shrink-0"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="p-6 space-y-6">
-                  <div>
-                    <h2
-                      className="text-2xl font-bold text-slate-900 leading-relaxed whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{ __html: formatText(selectedNotebookItem.exampleJp || selectedNotebookItem.title) }}
-                    />
-                    {selectedNotebookItem.reading && (
-                      <div className="text-slate-500 font-medium text-base mt-1">
-                        {selectedNotebookItem.reading}
-                      </div>
-                    )}
+                <div className="p-6 space-y-5">
+                  {/* TẦNG 1: CÂU HỎI GỐC & NÚT NGHE PHÁT ÂM (TTS) */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      {selectedNotebookItem.reading && (
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          {selectedNotebookItem.reading}
+                        </div>
+                      )}
+                      <h2
+                        className="text-xl sm:text-2xl font-bold text-slate-900 leading-relaxed whitespace-pre-wrap"
+                        dangerouslySetInnerHTML={{ __html: formatText(mainJpText) }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => speakJapanese(stripHtmlForSpeech(autoCompletedSentence || mainJpText))}
+                      title="Nghe phát âm câu tiếng Nhật"
+                      className="p-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200/60 transition-all cursor-pointer shrink-0 active:scale-95"
+                    >
+                      <Volume2 className="w-5 h-5" />
+                    </button>
                   </div>
 
-                  {/* Nghĩa Tiếng Việt */}
-                  {selectedNotebookItem.meaningVi && (
-                    <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-slate-800 text-base leading-relaxed">
-                      <div className="font-bold text-indigo-900 mb-2 text-xs uppercase tracking-wider">
-                        Ý nghĩa / Dịch nghĩa:
+                  {/* KHỐI HIỂN THỊ CÂU HOÀN CHỈNH HOẶC THỨ TỰ GHÉP DẤU ★ (MONDAI 5) */}
+                  {(autoCompletedSentence || isStarQuestion) && (
+                    <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          {isStarQuestion ? 'Đáp án vị trí ★ & Thứ tự ghép câu (Mondai 5):' : 'Câu hoàn chỉnh sau khi điền đáp án đúng:'}
+                        </span>
+                        {autoCompletedSentence && (
+                          <button
+                            onClick={() => speakJapanese(stripHtmlForSpeech(autoCompletedSentence))}
+                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 bg-white/80 px-2 py-0.5 rounded-lg border border-emerald-200 cursor-pointer"
+                          >
+                            <Volume2 className="w-3.5 h-3.5" /> Nghe câu chuẩn
+                          </button>
+                        )}
                       </div>
-                      <div dangerouslySetInnerHTML={{ __html: selectedNotebookItem.meaningVi }} />
+                      {autoCompletedSentence ? (
+                        <div
+                          className="text-base font-bold text-slate-900 leading-relaxed whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{ __html: formatText(autoCompletedSentence) }}
+                        />
+                      ) : (
+                        <div className="text-sm text-emerald-900 font-medium">
+                          Mảnh ghép chính xác tại vị trí <span className="inline-flex items-center justify-center w-5 h-5 bg-amber-100 text-amber-700 rounded-full font-bold text-xs mx-0.5">★</span> là phương án <strong>[{Number(metaData?.correctIndex) + 1}]</strong>:{' '}
+                          <span className="font-bold underline decoration-emerald-500" dangerouslySetInnerHTML={{ __html: correctOptText }} />.
+                          <span className="text-xs text-emerald-700 block mt-1">
+                            👉 Bấm nút <strong>"✨ Phân tích chuyên sâu với AI"</strong> bên dưới để xem thứ tự ghép đầy đủ cả 4 ô trống!
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Options nếu có */}
-                  {metaData && metaData.options && metaData.options.length > 0 && (
+                  {/* NGHĨA TIẾNG VIỆT */}
+                  {selectedNotebookItem.meaningVi && (
+                    <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 text-slate-800 text-sm sm:text-base leading-relaxed">
+                      <div className="font-bold text-indigo-900 mb-1.5 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Languages className="w-4 h-4 text-indigo-600" />
+                        Ý nghĩa / Dịch nghĩa câu:
+                      </div>
+                      <div dangerouslySetInnerHTML={{ __html: selectedNotebookItem.meaningVi.replace(/^\[Đề thi N\d\]\s*/i, '') }} />
+                    </div>
+                  )}
+
+                  {/* TẦNG 2: CÁC PHƯƠNG ÁN LỰA CHỌN KÈM GIẢI NGHĨA & LOA TỪNG ĐÁP ÁN */}
+                  {hasOptions && (
                     <div className="space-y-3">
-                      <div className="font-bold text-slate-900 text-sm">Các phương án lựa chọn:</div>
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-slate-900 text-sm">
+                          Phân tích 4 phương án lựa chọn:
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          Bấm biểu tượng 🔊 để nghe từng đáp án
+                        </span>
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {metaData.options.map((opt: string, idx: number) => {
                           const isCorrect = idx === Number(metaData.correctIndex);
-                          const isUserAnswer = idx === Number(metaData.userAnswer);
+                          const isUserAnswer = metaData.userAnswer !== null && metaData.userAnswer !== undefined && idx === Number(metaData.userAnswer);
                           const isWrong = isUserAnswer && !isCorrect;
+                          const optionVi = Array.isArray(metaData.optionsVi) ? metaData.optionsVi[idx] : '';
+                          const aiOptionBreakdown = Array.isArray(aiDetailed?.optionBreakdowns) ? aiDetailed.optionBreakdowns[idx] : '';
 
                           return (
                             <div
                               key={idx}
-                              className={`p-3.5 rounded-xl border-2 ${
+                              className={`p-3.5 rounded-2xl border-2 transition-all flex flex-col justify-between ${
                                 isCorrect
-                                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                  ? 'bg-emerald-50/90 border-emerald-400 text-emerald-950 shadow-sm'
                                   : isWrong
-                                  ? 'bg-rose-50 border-rose-300 text-rose-900'
-                                  : 'bg-slate-50 border-slate-200 text-slate-700'
+                                  ? 'bg-rose-50/90 border-rose-300 text-rose-950'
+                                  : 'bg-slate-50/80 border-slate-200 text-slate-700'
                               }`}
                             >
-                              <div className="flex items-center gap-3">
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                                  isCorrect ? 'bg-emerald-200 text-emerald-800' : isWrong ? 'bg-rose-200 text-rose-800' : 'bg-slate-200 text-slate-600'
-                                }`}>
-                                  {idx + 1}
-                                </span>
-                                <span className="text-[15px] font-medium leading-tight" dangerouslySetInnerHTML={{ __html: opt }} />
-                                {isCorrect && <Check className="w-5 h-5 text-emerald-600 ml-auto shrink-0" />}
-                                {isWrong && <X className="w-5 h-5 text-rose-600 ml-auto shrink-0" />}
+                              <div>
+                                <div className="flex items-center gap-2.5">
+                                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                                    isCorrect ? 'bg-emerald-600 text-white' : isWrong ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-700'
+                                  }`}>
+                                    {idx + 1}
+                                  </span>
+                                  <span className="text-[15px] font-bold leading-snug flex-1" dangerouslySetInnerHTML={{ __html: opt }} />
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      speakJapanese(stripHtmlForSpeech(opt));
+                                    }}
+                                    title="Nghe phát âm phương án này"
+                                    className="p-1.5 rounded-lg hover:bg-black/5 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer shrink-0"
+                                  >
+                                    <Volume2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  {isCorrect && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                                  {isWrong && <X className="w-4 h-4 text-rose-600 shrink-0" />}
+                                </div>
+
+                                {/* Hiển thị nghĩa tiếng Việt hoặc giải thích chi tiết của từng phương án */}
+                                {(aiOptionBreakdown || optionVi) && (
+                                  <div className="mt-2 ml-8 text-xs text-slate-600 bg-white/70 px-2.5 py-1.5 rounded-lg border border-black/5 leading-relaxed">
+                                    {aiOptionBreakdown ? (
+                                      <span>{aiOptionBreakdown.replace(/^Ph(ương án|ân tích Phương án)\s*\d+\s*:\s*/i, '')}</span>
+                                    ) : (
+                                      <span>Nghĩa: <strong>{optionVi}</strong></span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                              {isUserAnswer && !isCorrect && (
-                                <div className="text-xs font-bold text-rose-600 mt-1.5 ml-9">❌ Bạn đã chọn nhầm</div>
-                              )}
-                              {isCorrect && (
-                                <div className="text-xs font-bold text-emerald-600 mt-1.5 ml-9">✅ Đáp án đúng</div>
+
+                              {(isWrong || isCorrect) && (
+                                <div className="mt-2 ml-8 flex items-center gap-1.5">
+                                  {isWrong && (
+                                    <span className="text-[11px] font-bold text-rose-600">❌ Bạn đã chọn nhầm</span>
+                                  )}
+                                  {isCorrect && (
+                                    <span className="text-[11px] font-bold text-emerald-700">✅ Đáp án đúng</span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
@@ -1406,34 +1627,143 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     </div>
                   )}
 
-                  {/* Cấu trúc ngữ pháp */}
-                  {selectedNotebookItem.structure && (
-                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
-                      <div className="font-bold mb-2 flex items-center gap-1.5">
-                        <BookOpen className="w-4 h-4" /> Cấu trúc ngữ pháp trọng tâm:
+                  {/* TẦNG 3: CÔNG THỨC NGỮ PHÁP / TỪ KHÓA TRỌNG TÂM (ĐÃ KHẮC PHỤC LỖI LẶP CÂU HỎI) */}
+                  {effectiveStructure && (
+                    <div className="p-4 rounded-2xl bg-teal-50/80 border border-teal-200 text-teal-950 text-sm">
+                      <div className="font-bold mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-wider text-teal-800">
+                        <BookOpen className="w-4 h-4 text-teal-600" />
+                        {selectedNotebookItem.itemType === 'VOCAB' ? 'Từ vựng & Cách đọc trọng tâm:' : 'Công thức / Cấu trúc ngữ pháp cốt lõi:'}
                       </div>
-                      <code className="bg-white/60 px-2 py-1 rounded-md text-base" dangerouslySetInnerHTML={{ __html: selectedNotebookItem.structure }} />
+                      <div
+                        className="bg-white/80 px-3 py-2 rounded-xl text-sm sm:text-base font-bold text-teal-900 border border-teal-100 leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: effectiveStructure }}
+                      />
                     </div>
                   )}
 
-                  {/* Ghi chú / Giải thích chi tiết */}
-                  {noteText ? (
-                    <div className="p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 shadow-sm">
-                      <div className="text-slate-800 text-[15px] leading-relaxed whitespace-pre-wrap font-medium">
-                        <div dangerouslySetInnerHTML={{ __html: noteText.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 font-bold">$1</strong>') }} />
+                  {/* TẦNG 4: GIẢI THÍCH CHI TIẾT, PHÂN TÍCH BẪY SAI & NÚT AI CHUYÊN SÂU (TỰ ĐỘNG LƯU CSDL) */}
+                  <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/40 p-5 space-y-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm">
+                            Giải thích chi tiết & Phân tích bẫy đề thi
+                          </h4>
+                          <p className="text-[11px] text-slate-500">
+                            {aiDetailed
+                              ? 'Đã lưu bản phân tích chuyên sâu 4 tầng từ AI vào Sổ tay của bạn'
+                              : 'Bấm nút bên cạnh để AI mổ xẻ từng đáp án, bẫy sai và lưu vĩnh viễn'}
+                          </p>
+                        </div>
                       </div>
+
+                      <button
+                        type="button"
+                        disabled={isAnalyzingAi}
+                        onClick={() => handleAnalyzeNotebookItemWithAI(selectedNotebookItem, metaData, noteText)}
+                        className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-60 text-white text-xs font-bold shadow-md shadow-indigo-200/60 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0"
+                      >
+                        {isAnalyzingAi ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang phân tích & lưu...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>{aiDetailed ? 'Phân tích lại với AI' : '✨ Phân tích chuyên sâu với AI'}</span>
+                          </>
+                        )}
+                      </button>
                     </div>
-                  ) : null}
+
+                    {/* Nếu đã có dữ liệu AI chuyên sâu (aiDetailed) */}
+                    {aiDetailed ? (
+                      <div className="space-y-3 text-sm leading-relaxed">
+                        {aiDetailed.explanation && (
+                          <div className="p-3.5 rounded-xl bg-white border border-indigo-100 text-slate-800">
+                            <div className="font-bold text-indigo-700 text-xs uppercase tracking-wider mb-1">
+                              💡 Tại sao chọn đáp án đúng?
+                            </div>
+                            <div className="whitespace-pre-wrap">{aiDetailed.explanation}</div>
+                          </div>
+                        )}
+
+                        {aiDetailed.trapAnalysis && (
+                          <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-200/70 text-rose-950">
+                            <div className="font-bold text-rose-700 text-xs uppercase tracking-wider mb-1">
+                              ⚠️ Phân tích bẫy sai {userOptText ? `(Vì sao bạn nhầm sang "${stripHtmlForSpeech(userOptText)}")` : 'thường gặp'}:
+                            </div>
+                            <div className="whitespace-pre-wrap">{aiDetailed.trapAnalysis}</div>
+                          </div>
+                        )}
+
+                        {aiDetailed.studyTips && (
+                          <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/70 text-amber-950">
+                            <div className="font-bold text-amber-800 text-xs uppercase tracking-wider mb-1">
+                              🚀 Mẹo phản xạ nhanh trong phòng thi:
+                            </div>
+                            <div className="whitespace-pre-wrap">{aiDetailed.studyTips}</div>
+                          </div>
+                        )}
+                      </div>
+                    ) : cleanedLines.length > 0 ? (
+                      <div className="space-y-2.5 text-slate-800 text-[14px] leading-relaxed">
+                        {cleanedLines.map((line, i) => (
+                          <div
+                            key={i}
+                            className="p-3 rounded-xl bg-white/90 border border-slate-200/70 whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{
+                              __html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 font-bold">$1</strong>')
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 italic">
+                        Chưa có ghi chú chi tiết. Hãy bấm <strong>"✨ Phân tích chuyên sâu với AI"</strong> để tạo lời giải chi tiết!
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="sticky bottom-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-t border-slate-100 flex justify-end">
+                {/* FOOTER MODAL: CHUYỂN NHANH TRẠNG THÁI GHI NHỚ SRS & ĐÓNG */}
+                <div className="sticky bottom-0 bg-white/95 backdrop-blur-md z-10 px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-500 mr-1 hidden sm:inline">Mức độ thuộc:</span>
+                    {(
+                      [
+                        { key: 'LEARNING', label: 'Đang học', activeClass: 'bg-sky-600 text-white border-sky-600', idleClass: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100' },
+                        { key: 'REVIEWING', label: 'Cần ôn ↺', activeClass: 'bg-amber-500 text-white border-amber-500', idleClass: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
+                        { key: 'MASTERED', label: 'Đã thuộc ✓', activeClass: 'bg-emerald-600 text-white border-emerald-600', idleClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' }
+                      ] as const
+                    ).map((st) => {
+                      const isActive = selectedNotebookItem.masteryStatus === st.key;
+                      return (
+                        <button
+                          key={st.key}
+                          type="button"
+                          onClick={() => handleToggleMastery(selectedNotebookItem.id, st.key)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            isActive ? st.activeClass : st.idleClass
+                          }`}
+                        >
+                          {st.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   <button
                     onClick={() => {
                       setIsDetailModalOpen(false);
                       setIsAnalyzingAi(false);
                       setAiAnalysisResult(null);
                     }}
-                    className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 active:scale-95 transition-all cursor-pointer shadow-md"
+                    className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 active:scale-95 transition-all cursor-pointer shadow-md ml-auto"
                   >
                     Đóng
                   </button>

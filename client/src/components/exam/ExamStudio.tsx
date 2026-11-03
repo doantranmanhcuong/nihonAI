@@ -1590,6 +1590,21 @@ const handleConfirmStartRealExam = () => {
     }
   };
 
+  // Helper trích xuất cấu trúc ngữ pháp chuẩn thay vì lặp lại nguyên câu đề bài
+  const extractCleanStructureForNotebook = (q: any): string | undefined => {
+    if (q.section !== 'grammar' && q.section !== 'vocab') return undefined;
+    const quoted = (q.explanation || '').match(/「([^」]+)」/g);
+    const correctOpt = Array.isArray(q.options) ? q.options[q.correctAnswer] : '';
+    const correctOptVi = Array.isArray(q.optionsVi) ? q.optionsVi[q.correctAnswer] : '';
+    if (quoted && quoted.length > 0) {
+      return `${quoted.join(' • ')}${correctOptVi ? ` — ${correctOptVi}` : ''}`;
+    }
+    if (correctOpt) {
+      return `「${correctOpt}」${correctOptVi ? ` — ${correctOptVi}` : ''}`;
+    }
+    return undefined;
+  };
+
   // PHƯƠNG ÁN TỐI ƯU CHO NGƯỜI HỌC: 1-Click lưu toàn bộ câu sai & Ngữ pháp vào Sổ tay Cá nhân
   const handleSaveAllWrongToNotebook = async () => {
     if (!examResult) return;
@@ -1616,11 +1631,13 @@ const handleConfirmStartRealExam = () => {
           question: q.question,
           passage: q.passage || null,
           options: q.options,
+          optionsVi: (q as any).optionsVi || [],
           correctIndex: q.correctAnswer,
           userAnswer: q.userAnswer,
           explanation: q.explanation,
           section: q.section,
-          subTypeLabel: q.subTypeLabel
+          subTypeLabel: q.subTypeLabel,
+          aiDetailed: aiExplanations[q.questionId] || undefined
         })} -->` : '';
 
         await NotebookApi.createItem({
@@ -1629,7 +1646,7 @@ const handleConfirmStartRealExam = () => {
           reading: q.subTypeLabel,
           meaningVi: `[Đề thi ${examResult.level}] ${q.questionVi || q.question}`,
           level: examResult.level,
-          structure: q.section === 'grammar' ? q.question : undefined,
+          structure: extractCleanStructureForNotebook(q),
           exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
           exampleVi: q.passageVi ? `${q.passageVi}\n\n${q.questionVi}` : q.questionVi,
           note: [
@@ -1667,11 +1684,13 @@ const handleConfirmStartRealExam = () => {
         question: q.question,
         passage: q.passage || null,
         options: q.options,
+        optionsVi: (q as any).optionsVi || [],
         correctIndex: q.correctAnswer,
         userAnswer: q.userAnswer,
         explanation: q.explanation,
         section: q.section,
-        subTypeLabel: q.subTypeLabel
+        subTypeLabel: q.subTypeLabel,
+        aiDetailed: aiExplanations[q.questionId] || undefined
       })} -->` : '';
 
       await NotebookApi.createItem({
@@ -1680,10 +1699,15 @@ const handleConfirmStartRealExam = () => {
         reading: q.subTypeLabel,
         meaningVi: `[Đề thi ${examResult.level}] ${q.questionVi || q.question}`,
         level: examResult.level,
-        structure: q.section === 'grammar' ? q.question : undefined,
+        structure: extractCleanStructureForNotebook(q),
         exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
         exampleVi: q.passageVi ? `${q.passageVi}\n\n${q.questionVi}` : q.questionVi,
-        note: `💡 Giải thích: ${q.explanation}\n🎯 Trọng tâm: ${q.keyGrammarOrVocab || ''}\n💡 Mẹo: ${q.studyTips || ''}${metaStr}`,
+        note: [
+          q.explanation ? `💡 Giải thích đáp án & Bẫy thi: ${q.explanation}` : '',
+          q.keyGrammarOrVocab ? `🎯 Trọng tâm: ${q.keyGrammarOrVocab}` : '',
+          q.studyTips ? `💡 Mẹo phòng thi: ${q.studyTips}` : '',
+          metaStr
+        ].filter(Boolean).join('\n'),
         tags: `JLPT_${examResult.level},Thi_thử,Câu_sai`,
         masteryStatus: 'LEARNING'
       });

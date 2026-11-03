@@ -109,6 +109,10 @@ export interface AIExplanationResult {
   keyGrammarOrVocab?: string;
   keyKnowledge?: string;
   studyTips: string;
+  completedSentence?: string;
+  trapAnalysis?: string;
+  optionBreakdowns?: string[];
+  grammarFormula?: string;
   source: 'GEMINI_AI' | 'BUILTIN_EXPLANATION';
 }
 

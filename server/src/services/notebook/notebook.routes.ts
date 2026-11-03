@@ -231,3 +231,18 @@ notebookRouter.post('/:id/mnemonic', async (req: AuthenticatedRequest, res: Resp
     res.status(500).json(ResponseFormatter.error('Lỗi khi tạo AI Mnemonic', error.message, 'notebook-service'));
   }
 });
+
+/**
+ * @route   POST /api/notebook/:id/analyze
+ * @desc    Phân tích chuyên sâu mục sổ tay bằng Gemini AI và lưu vĩnh viễn vào CSDL
+ */
+notebookRouter.post('/:id/analyze', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) throw new Error('Unauthorized');
+    const updatedItem = await NotebookService.analyzeItemWithAI(req.params.id, userId);
+    res.json(ResponseFormatter.success(updatedItem, { service: 'notebook-service' }, 'Phân tích AI chuyên sâu thành công'));
+  } catch (error: any) {
+    res.status(500).json(ResponseFormatter.error('Lỗi khi phân tích chuyên sâu với AI', error.message, 'notebook-service'));
+  }
+});

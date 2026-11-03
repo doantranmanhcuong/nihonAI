@@ -246,4 +246,19 @@ export class NotebookApi {
       return null;
     }
   }
+
+  static async analyzeWithAI(id: string): Promise<NotebookItem | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/notebook/${id}/analyze`, {
+        method: 'POST',
+        headers: getAuthHeaders(), credentials: 'include', cache: 'no-store'
+      });
+      if (!response.ok) throw new Error('Failed to analyze notebook item with AI');
+      const data = await response.json();
+      return data.data;
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+  }
 }
