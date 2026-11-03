@@ -7,9 +7,9 @@ async function main() {
   const kanjiCount = await prisma.kanji.count();
   const vocabCount = await prisma.vocabulary.count();
 
-  console.log(Số lượng chữ Hán Kanji hiện có trong MySQL:  chữ);
-  console.log(Số lượng từ vựng Vocabulary hiện có trong MySQL:  từ);
-  console.log('=== CSDL MYSQL ĐÃ SẴN SÀNG TOÀN DIỆN (DATABASE-FIRST) ===');
+  console.log(`Số lượng chữ Hán Kanji hiện có trong CSDL: ${kanjiCount} chữ`);
+  console.log(`Số lượng từ vựng Vocabulary hiện có trong CSDL: ${vocabCount} từ`);
+  console.log('=== CSDL ĐÃ SẴN SÀNG TOÀN DIỆN (DATABASE-FIRST) ===');
 }
 
 main()
@@ -18,5 +18,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.();
+    await prisma.$disconnect();
   });

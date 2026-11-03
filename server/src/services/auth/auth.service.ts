@@ -8,9 +8,9 @@ import { mailService } from '../../core/mail.service';
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_env';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev_jwt_refresh_secret_change_in_env';
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'dummy_client_id'; 
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
-const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+const googleClient = new OAuth2Client();
 
 export interface UserResponse {
   id: string;
@@ -228,6 +228,7 @@ export class AuthService {
       try {
         const ticket = await googleClient.verifyIdToken({
           idToken: data.credential,
+          audience: GOOGLE_CLIENT_ID || undefined
         });
         const payload = ticket.getPayload();
         if (!payload || !payload.email) throw new Error('Google payload invalid');
@@ -240,8 +241,8 @@ export class AuthService {
         throw new Error('Xác thực Google ID Token thất bại: ' + err.message);
       }
     } else {
-      if (!data.email) throw new Error('Missing Google Credentials');
-      email = data.email.trim().toLowerCase();
+      throw new Error('Thiếu thông tin xác thực Google ID Token. Vui lòng đăng nhập bằng tài khoản Google để tiếp tục.');
+
     }
 
     let user = await prisma.user.findFirst({
