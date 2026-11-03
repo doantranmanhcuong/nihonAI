@@ -181,7 +181,20 @@ export const AuthModal: React.FC = () => {
 
             if (tokenResponse?.access_token) {
               try {
-                const res = await loginWithGoogle({ accessToken: tokenResponse.access_token });
+                // Nạp thông tin tài khoản người dùng trực tiếp từ Google API
+                const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
+                const googleProfile = await profileRes.json();
+
+                const res = await loginWithGoogle({
+                  accessToken: tokenResponse.access_token,
+                  email: googleProfile?.email,
+                  displayName: googleProfile?.name || googleProfile?.email?.split('@')[0],
+                  avatar: googleProfile?.picture,
+                  googleId: googleProfile?.sub
+                });
+
                 if (!res.success) {
                   setErrorMessage(res.message || 'Xác thực tài khoản Google thất bại.');
                 }
