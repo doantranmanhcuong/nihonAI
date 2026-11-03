@@ -35,13 +35,7 @@ interface AuthContextType {
   ) => Promise<{ success: boolean; message?: string; debugCode?: string }>;
   verifyEmail: (email: string, code: string) => Promise<{ success: boolean; message?: string }>;
   resendVerifyEmail: (email: string) => Promise<{ success: boolean; message?: string; debugCode?: string }>;
-  loginWithGoogle: (data: {
-    credential?: string; 
-    email?: string;
-    displayName?: string;
-    avatar?: string;
-    googleId?: string;
-  }) => Promise<{ success: boolean; message?: string }>;
+  loginWithGoogle: (data: { credential?: string; accessToken?: string; email?: string; displayName?: string; avatar?: string; googleId?: string; }) => Promise<{ success: boolean; message?: string }>;
   forgotPassword: (email: string) => Promise<{ success: boolean; message: string; debugCode?: string }>;
   resetPassword: (
     email: string,
@@ -235,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithGoogle = async (data: { credential?: string; email?: string; displayName?: string; avatar?: string; googleId?: string; }) => {
+  const loginWithGoogle = async (data: { credential?: string; accessToken?: string; email?: string; displayName?: string; avatar?: string; googleId?: string; }) => {
     try {
       const res = await authApi.post('/auth/google', data);
       if (res.data.success) {

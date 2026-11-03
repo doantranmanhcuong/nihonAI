@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -218,7 +219,7 @@ export class AuthService {
     return sanitizeUser(updatedUser);
   }
 
-  static async loginWithGoogle(data: { credential?: string, email?: string, googleId?: string, displayName?: string, avatar?: string }): Promise<AuthResult> {
+  static async loginWithGoogle(data: { credential?: string, accessToken?: string, email?: string, googleId?: string, displayName?: string, avatar?: string }): Promise<AuthResult> {
     let email = '';
     let googleId = data.googleId || '';
     let displayName = data.displayName || '';
@@ -240,9 +241,23 @@ export class AuthService {
       } catch (err: any) {
         throw new Error('Xác thực Google ID Token thất bại: ' + err.message);
       }
-    } else {
-      throw new Error('Thiếu thông tin xác thực Google ID Token. Vui lòng đăng nhập bằng tài khoản Google để tiếp tục.');
+    } else if (data.accessToken) {
+      try {
+        const res = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${data.accessToken}` }
+        });
+        const payload = res.data;
+        if (!payload || !payload.email) throw new Error('Thông tin người dùng Google không hợp lệ');
 
+        email = payload.email.toLowerCase();
+        googleId = payload.sub;
+        displayName = payload.name || email.split('@')[0];
+        avatar = payload.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName)}`;
+      } catch (err: any) {
+        throw new Error('Xác thực Google Token thất bại: ' + (err.response?.data?.error_description || err.message));
+      }
+    } else {
+      throw new Error('Thiếu thông tin xác thực Google Token. Vui lòng đăng nhập bằng tài khoản Google để tiếp tục.');
     }
 
     let user = await prisma.user.findFirst({
