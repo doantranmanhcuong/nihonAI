@@ -455,7 +455,8 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
         reading: hanViet,
         meaningVi: meaning,
         level: selectedLevel || 'N5',
-        tags: 'Kanji'
+        structure: `Âm Hán Việt: ${hanViet}`,
+        tags: `Giáo trình ${selectedCurriculum || 'Kanji'} ${selectedLevel || 'N5'},Kanji`
       }).catch(e => {
         console.warn('Lỗi lưu Kanji:', e);
         setBookmarkedKanji((prev) => ({ ...prev, [char]: false }));

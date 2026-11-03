@@ -202,22 +202,48 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
       openAuthModal('login');
       return;
     }
-    if (isSaving || isSaved) return; // For now, only support saving, not unsaving without ID
+    if (isSaving) return;
     try {
       setIsSaving(true);
-      await NotebookApi.createItem({
-        itemType: 'VOCAB',
-        title: data.word,
-        reading: data.reading || '',
-        meaningVi: data.meaningVi,
-        level: data.jlptLevel || 'N5',
-        tags: data.partOfSpeech || ''
-      });
-      setIsSaved(true);
-      alert('Đã lưu vào Sổ tay thành công!');
+      if (isSaved) {
+        await NotebookApi.deleteItemByTitle('VOCAB', data.word);
+        setIsSaved(false);
+      } else {
+        const readingFull = [
+          data.reading || '',
+          data.hanViet ? `[${data.hanViet.toUpperCase()}]` : '',
+          data.pitchAccent ? `Trọng âm: ${data.pitchAccent}` : ''
+        ].filter(Boolean).join(' • ');
+
+        const collocationsStr = aiInsight?.collocations?.length
+          ? `🔗 Cụm từ đi kèm (Collocations): ${aiInsight.collocations.map((c) => `${c.phraseJp} (${c.meaningVi})`).join(' | ')}`
+          : '';
+
+        const noteParts = [
+          collocationsStr,
+          aiInsight?.nuanceNote ? `💡 Sắc thái & Ngữ cảnh: ${aiInsight.nuanceNote}` : '',
+          aiInsight?.mistakeWarning ? `⚠️ Lưu ý tránh nhầm: ${aiInsight.mistakeWarning}` : ''
+        ].filter(Boolean);
+
+        await NotebookApi.createItem({
+          itemType: 'VOCAB',
+          title: data.word,
+          reading: readingFull,
+          meaningVi: data.meaningVi,
+          level: data.jlptLevel || 'N5',
+          structure: data.hanViet ? `Âm Hán Việt: ${data.hanViet.toUpperCase()}${data.partOfSpeech ? ` • Từ loại: ${data.partOfSpeech}` : ''}` : undefined,
+          exampleJp: data.exampleJp || aiInsight?.scenarios?.[0]?.sentenceJp || '',
+          exampleVi: data.exampleVi || aiInsight?.scenarios?.[0]?.sentenceVi || '',
+          note: noteParts.length > 0 ? noteParts.join('\n') : undefined,
+          tags: [
+            data.lesson ? `Giáo trình Từ vựng • Bài ${data.lesson}` : 'Tra cứu Từ điển JLPT',
+            data.partOfSpeech || ''
+          ].filter(Boolean).join(',')
+        });
+        setIsSaved(true);
+      }
     } catch (e) {
-      console.error(e);
-      alert('Lỗi lưu sổ tay');
+      console.error('Lỗi cập nhật sổ tay:', e);
     } finally {
       setIsSaving(false);
     }

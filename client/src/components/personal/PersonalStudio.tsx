@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Bookmark,
   Sparkles,
@@ -30,11 +30,15 @@ import {
   LayoutGrid,
   List,
   Flame,
-  ArrowUpRight
+  ArrowUpRight,
+  Headphones,
+  Square,
+  PenLine,
+  Save
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { NotebookApi } from './notebook.api';
-import { speakJapanese } from '@/utils/studyPreferences';
+import { speakJapanese, playFeedbackSound } from '@/utils/studyPreferences';
 import {
   NotebookItem,
   NotebookStats,
@@ -70,18 +74,27 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
   // Tầng 2 & 3: Phân vùng trong Level (all | due | mistakes | vocab | kanji | grammar | note)
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedSourceFilter, setSelectedSourceFilter] = useState<'ALL' | 'LESSON' | 'EXAM'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // --- CHẾ ĐỘ NGHE TỰ ĐỘNG TỪ VỰNG & NGỮ PHÁP (CHỈ ÁP DỤNG CHO TỪ VỰNG & NGỮ PHÁP GIÁO TRÌNH) ---
+  const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(false);
+  const [autoPlayItemId, setAutoPlayItemId] = useState<string | null>(null);
+  const autoPlayActiveRef = useRef<boolean>(false);
 
   // --- CHẾ ĐỘ HIỂN THỊ ĐÓNG / MỞ LINH HOẠT ---
   const [isCompactMode, setIsCompactMode] = useState<boolean>(false);
   const [expandedCards, setExpandedCards] = useState<{ [id: string]: boolean }>({});
   const [itemToDelete, setItemToDelete] = useState<{ id: string; title: string } | null>(null);
 
-  // --- CHẾ ĐỘ ÔN TẬP SRS & FLASHCARD ---
+  // --- CHẾ ĐỘ ÔN TẬP SRS, FLASHCARD & TRẮC NGHIỆM 4 ĐÁP ÁN ---
   const [isReviewingSrs, setIsReviewingSrs] = useState<boolean>(false);
   const [isFlashcardMode, setIsFlashcardMode] = useState<boolean>(false);
+  const [quickPracticeMode, setQuickPracticeMode] = useState<'flashcard' | 'quiz'>('flashcard');
   const [flashcardIndex, setFlashcardIndex] = useState<number>(0);
   const [isCurrentCardFlipped, setIsCurrentCardFlipped] = useState<boolean>(false);
+  const [selectedQuickQuizAnswer, setSelectedQuickQuizAnswer] = useState<string | null>(null);
+  const [isQuickQuizRevealed, setIsQuickQuizRevealed] = useState<boolean>(false);
 
   // --- MODAL THÊM MỚI ---
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -106,11 +119,14 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
   const [isGrammarModalOpen, setIsGrammarModalOpen] = useState<boolean>(false);
   const [isGrammarLoading, setIsGrammarLoading] = useState<boolean>(false);
 
-  // --- MODAL CHI TIẾT SỔ TAY ---
+  // --- MODAL CHI TIẾT SỔ TAY & GHI CHÚ CÁ NHÂN INLINE ---
   const [selectedNotebookItem, setSelectedNotebookItem] = useState<NotebookItem | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<string | null>(null);
+  const [personalNoteDraft, setPersonalNoteDraft] = useState<string>('');
+  const [isSavingPersonalNote, setIsSavingPersonalNote] = useState<boolean>(false);
+  const [personalNoteSavedSuccess, setPersonalNoteSavedSuccess] = useState<boolean>(false);
 
   // Đồng bộ Level mặc định theo tài khoản học viên khi đăng nhập
   useEffect(() => {
@@ -502,6 +518,237 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
     };
   };
 
+  // Thống kê số lượng theo Nguồn (Tất cả nguồn / Từ Giáo trình / Từ Đề thi) trong danh sách hiện tại
+  const sourceCounts = useMemo(() => {
+    let lessonCount = 0;
+    let examCount = 0;
+    items.forEach((it) => {
+      const info = getSmartCardDisplay(it);
+      if (info.isFromExam) examCount += 1;
+      else lessonCount += 1;
+    });
+    return {
+      all: items.length,
+      lesson: lessonCount,
+      exam: examCount
+    };
+  }, [items]);
+
+  // Danh sách hiển thị sau khi lọc theo Nguồn (Giáo trình vs Đề thi)
+  const displayedItems = useMemo(() => {
+    if (selectedSourceFilter === 'ALL') return items;
+    return items.filter((it) => {
+      const info = getSmartCardDisplay(it);
+      return selectedSourceFilter === 'EXAM' ? info.isFromExam : !info.isFromExam;
+    });
+  }, [items, selectedSourceFilter]);
+
+  // Danh sách Từ vựng & Ngữ pháp chuẩn Giáo trình dành riêng cho Chế độ Nghe tự động (Loại bỏ câu Đề thi & Mẹo ghi nhớ để tránh lỗi phát âm)
+  const autoPlayCandidates = useMemo(() => {
+    return displayedItems.filter((it) => {
+      const info = getSmartCardDisplay(it);
+      return !info.isFromExam && (it.itemType === 'VOCAB' || it.itemType === 'GRAMMAR');
+    });
+  }, [displayedItems]);
+
+  // Dừng chế độ Nghe tự động
+  const stopAutoPlayAudio = () => {
+    autoPlayActiveRef.current = false;
+    setIsAutoPlaying(false);
+    setAutoPlayItemId(null);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  // Tự động dừng khi đổi tab / bộ lọc / unmount
+  useEffect(() => {
+    return () => {
+      autoPlayActiveRef.current = false;
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isAutoPlaying) {
+      stopAutoPlayAudio();
+    }
+  }, [selectedLevel, selectedSection, selectedStatus, selectedSourceFilter]);
+
+  // Khởi chạy chế độ Nghe tự động tuần tự cho Từ vựng & Ngữ pháp
+  const startAutoPlayAudio = async () => {
+    if (isAutoPlaying) {
+      stopAutoPlayAudio();
+      return;
+    }
+    if (autoPlayCandidates.length === 0) {
+      return;
+    }
+
+    autoPlayActiveRef.current = true;
+    setIsAutoPlaying(true);
+
+    const speakUtteranceAsync = (text: string, rate = 0.92): Promise<void> => {
+      return new Promise((resolve) => {
+        if (!autoPlayActiveRef.current || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+          resolve();
+          return;
+        }
+        const clean = stripHtmlForSpeech(text);
+        if (!clean) {
+          resolve();
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.lang = 'ja-JP';
+        utterance.rate = rate;
+        const voices = window.speechSynthesis.getVoices();
+        const jpVoice = voices.find((v) => v.lang.includes('ja') || v.lang.includes('JP'));
+        if (jpVoice) utterance.voice = jpVoice;
+
+        let settled = false;
+        const finish = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
+        const safetyTimer = setTimeout(finish, 9000);
+        utterance.onend = () => {
+          clearTimeout(safetyTimer);
+          finish();
+        };
+        utterance.onerror = () => {
+          clearTimeout(safetyTimer);
+          finish();
+        };
+        window.speechSynthesis.speak(utterance);
+      });
+    };
+
+    const waitMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    for (let i = 0; i < autoPlayCandidates.length; i++) {
+      if (!autoPlayActiveRef.current) break;
+      const candidate = autoPlayCandidates[i];
+      setAutoPlayItemId(candidate.id);
+
+      // 1. Đọc từ vựng hoặc mẫu ngữ pháp chuẩn
+      await speakUtteranceAsync(candidate.title, 0.9);
+      if (!autoPlayActiveRef.current) break;
+      await waitMs(450);
+
+      // 2. Nếu có câu ví dụ tiếng Nhật ngắn gọn, đọc tiếp câu ví dụ
+      if (candidate.exampleJp && stripHtmlForSpeech(candidate.exampleJp).length <= 80) {
+        if (!autoPlayActiveRef.current) break;
+        await speakUtteranceAsync(candidate.exampleJp, 0.92);
+      }
+
+      if (!autoPlayActiveRef.current) break;
+      await waitMs(900);
+    }
+
+    stopAutoPlayAudio();
+  };
+
+  // Đồng bộ Ghi chú cá nhân khi mở Modal Chi Tiết (Modal 8)
+  useEffect(() => {
+    if (!selectedNotebookItem) {
+      setPersonalNoteDraft('');
+      setPersonalNoteSavedSuccess(false);
+      return;
+    }
+    const info = getSmartCardDisplay(selectedNotebookItem);
+    setPersonalNoteDraft(info.metaData?.personalNote || '');
+    setPersonalNoteSavedSuccess(false);
+  }, [selectedNotebookItem?.id]);
+
+  // Lưu Ghi chú cá nhân trực tiếp trong Modal 8 vào CSDL
+  const handleSavePersonalNote = async (item: NotebookItem, existingMeta: any, cleanNoteText: string) => {
+    if (isSavingPersonalNote) return;
+    setIsSavingPersonalNote(true);
+    setPersonalNoteSavedSuccess(false);
+    try {
+      const updatedMeta = {
+        ...(existingMeta || {}),
+        personalNote: personalNoteDraft.trim(),
+        personalNoteUpdatedAt: new Date().toISOString()
+      };
+      const newNote = `${cleanNoteText}\n<!-- META: ${JSON.stringify(updatedMeta)} -->`;
+      const updatedItem = await NotebookApi.updateItem(item.id, { note: newNote });
+      setSelectedNotebookItem(updatedItem);
+      setItems((prev) => prev.map((it) => (it.id === item.id ? updatedItem : it)));
+      setPersonalNoteSavedSuccess(true);
+      setTimeout(() => setPersonalNoteSavedSuccess(false), 3000);
+    } catch (err) {
+      console.error('Lỗi khi lưu ghi chú cá nhân:', err);
+    } finally {
+      setIsSavingPersonalNote(false);
+    }
+  };
+
+  // Tạo dữ liệu 4 phương án trắc nghiệm cho Modal Luyện Tập Nhanh (Modal 6)
+  const quickQuizData = useMemo(() => {
+    const currentItem = displayedItems[flashcardIndex];
+    if (!currentItem) return null;
+    const info = getSmartCardDisplay(currentItem);
+
+    // Nếu là câu hỏi từ Đề thi đã có sẵn 4 phương án tiếng Nhật
+    if (info.isFromExam && info.hasOptions && info.metaData?.options?.length >= 2 && info.correctOpt) {
+      return {
+        isExamQuestion: true,
+        promptText: currentItem.exampleJp || currentItem.title,
+        subPrompt: info.cleanMeaningVi,
+        correctAnswer: info.correctOpt,
+        options: info.metaData.options as string[]
+      };
+    }
+
+    // Nếu là Từ vựng / Hán tự / Ngữ pháp giáo trình -> Trắc nghiệm chọn nghĩa Tiếng Việt đúng
+    const correctAnswer = info.cleanMeaningVi || currentItem.meaningVi;
+    const pool = items
+      .filter((it) => it.id !== currentItem.id && it.meaningVi && it.meaningVi !== currentItem.meaningVi)
+      .map((it) => getSmartCardDisplay(it).cleanMeaningVi)
+      .filter((m) => m && m !== correctAnswer);
+
+    const uniquePool = Array.from(new Set(pool));
+    const fallbackDistractors = [
+      'Sự thay đổi, biến đổi tích cực trong công việc',
+      'Bất chấp hoàn cảnh khó khăn vẫn tiếp tục',
+      'Chuẩn bị kỹ lưỡng trước khi sự việc diễn ra',
+      'Quan điểm cá nhân đối lập với số đông'
+    ].filter((d) => d !== correctAnswer);
+
+    // Chọn 3 đáp án nhiễu ổn định theo flashcardIndex
+    const distractors: string[] = [];
+    for (let i = 0; i < uniquePool.length && distractors.length < 3; i++) {
+      const pickIdx = (flashcardIndex * 3 + i) % uniquePool.length;
+      if (!distractors.includes(uniquePool[pickIdx])) {
+        distractors.push(uniquePool[pickIdx]);
+      }
+    }
+    for (const fb of fallbackDistractors) {
+      if (distractors.length >= 3) break;
+      if (!distractors.includes(fb)) distractors.push(fb);
+    }
+
+    const allOptions = [correctAnswer, ...distractors.slice(0, 3)];
+    // Xáo trộn vị trí dựa trên id + flashcardIndex
+    const seed = (currentItem.id.charCodeAt(0) || 1) + flashcardIndex;
+    const rotatedOptions = allOptions.map((_, idx) => allOptions[(idx + seed) % allOptions.length]);
+
+    return {
+      isExamQuestion: false,
+      promptText: currentItem.title,
+      subPrompt: currentItem.reading || '',
+      correctAnswer,
+      options: rotatedOptions
+    };
+  }, [displayedItems, items, flashcardIndex]);
+
   if (!isAuthenticated) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-6 animate-fadeIn">
@@ -591,20 +838,46 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
 
           {/* CỤM NÚT HÀNH ĐỘNG GIAO DIỆN CHÍNH */}
           <div className="flex flex-wrap items-center gap-2.5">
+            {autoPlayCandidates.length > 0 && (
+              <button
+                onClick={startAutoPlayAudio}
+                title="Chỉ phát tự động Từ vựng & Ngữ pháp chuẩn Giáo trình (bỏ qua câu đề thi & mẹo ghi nhớ)"
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer ${
+                  isAutoPlaying
+                    ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse'
+                    : 'bg-emerald-400 hover:bg-emerald-300 text-slate-950'
+                }`}
+              >
+                {isAutoPlaying ? (
+                  <>
+                    <Square className="w-4 h-4 fill-white" />
+                    <span>Dừng nghe tự động</span>
+                  </>
+                ) : (
+                  <>
+                    <Headphones className="w-4 h-4" />
+                    <span>Nghe Từ vựng & Ngữ pháp ({autoPlayCandidates.length})</span>
+                  </>
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => {
-                if (items.length === 0) {
+                if (displayedItems.length === 0) {
                   alert('Không có mục nào trong danh sách hiện tại để luyện tập!');
                   return;
                 }
                 setFlashcardIndex(0);
                 setIsCurrentCardFlipped(false);
+                setSelectedQuickQuizAnswer(null);
+                setIsQuickQuizRevealed(false);
                 setIsFlashcardMode(true);
               }}
               className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <Zap className="w-4 h-4 fill-slate-950" />
-              <span>Luyện Flashcard ({items.length})</span>
+              <span>Luyện Nhanh & Quiz ({displayedItems.length})</span>
             </button>
 
             <button
@@ -880,10 +1153,37 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           </div>
         </div>
 
-        {/* HÀNG TÌM KIẾM & BỘ LỌC SRS */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500">Trạng thái:</span>
+        {/* HÀNG TÌM KIẾM, BỘ LỌC NGUỒN (GIÁO TRÌNH / ĐỀ THI), BỘ LỌC SRS & NGHE TỰ ĐỘNG */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Bộ lọc nguồn: Tất cả nguồn | Từ Giáo trình | Từ Đề thi */}
+            <div className="inline-flex items-center p-1 rounded-2xl bg-slate-100 border border-slate-200/80 gap-1">
+              {[
+                { id: 'ALL' as const, label: 'Tất cả nguồn', count: sourceCounts.all },
+                { id: 'LESSON' as const, label: '📘 Từ Giáo trình', count: sourceCounts.lesson },
+                { id: 'EXAM' as const, label: '🎯 Từ Đề thi', count: sourceCounts.exam }
+              ].map((src) => {
+                const isActive = selectedSourceFilter === src.id;
+                return (
+                  <button
+                    key={src.id}
+                    type="button"
+                    onClick={() => setSelectedSourceFilter(src.id)}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-white text-blue-700 shadow-xs border border-blue-200/60'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>{src.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'}`}>
+                      {src.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -894,6 +1194,31 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
               <option value="REVIEWING">Cần ôn lại (Reviewing)</option>
               <option value="MASTERED">Đã thành thạo (Mastered)</option>
             </select>
+
+            {/* Nút Nghe tự động (Chỉ áp dụng cho Từ vựng & Ngữ pháp chuẩn Giáo trình) */}
+            <button
+              type="button"
+              disabled={autoPlayCandidates.length === 0 && !isAutoPlaying}
+              onClick={startAutoPlayAudio}
+              title="Chế độ nghe tự động chỉ áp dụng cho Từ vựng & Ngữ pháp chuẩn Giáo trình (bỏ qua câu Đề thi & Mẹo ghi nhớ để phát âm chuẩn)"
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${
+                isAutoPlaying
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm animate-pulse'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+              }`}
+            >
+              {isAutoPlaying ? (
+                <>
+                  <Square className="w-3.5 h-3.5 fill-white" />
+                  <span>Dừng nghe tự động</span>
+                </>
+              ) : (
+                <>
+                  <Headphones className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Nghe Từ vựng & Ngữ pháp ({autoPlayCandidates.length})</span>
+                </>
+              )}
+            </button>
           </div>
 
           <div className="relative flex-1 max-w-md">
@@ -923,7 +1248,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-3" />
           <p className="text-sm text-slate-500">Đang truy xuất CSDL siêu tốc qua bộ đệm Redis...</p>
         </div>
-      ) : items.length === 0 ? (
+      ) : displayedItems.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200 p-8 space-y-4">
           <BookOpen className="w-12 h-12 text-slate-300 mx-auto" />
           <div className="space-y-1">
@@ -931,16 +1256,17 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
               Không có nội dung nào phù hợp với bộ lọc hiện tại ({selectedLevel})
             </h3>
             <p className="text-sm text-slate-500 max-w-md mx-auto">
-              {selectedStatus !== 'ALL' || searchQuery.trim()
-                ? 'Bạn đang bật bộ lọc trạng thái SRS hoặc từ khóa tìm kiếm. Hãy bấm nút bên dưới để xem lại toàn bộ danh mục.'
+              {selectedStatus !== 'ALL' || selectedSourceFilter !== 'ALL' || searchQuery.trim()
+                ? 'Bạn đang bật bộ lọc Nguồn (Giáo trình / Đề thi), trạng thái SRS hoặc từ khóa tìm kiếm. Hãy bấm nút bên dưới để xem lại toàn bộ danh mục.'
                 : 'Bạn có thể thêm mục mới bằng tay hoặc lưu từ vựng, ngữ pháp, câu hỏi làm sai từ Đề Thi Thử.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {(selectedStatus !== 'ALL' || searchQuery.trim() || selectedSection !== 'all') && (
+            {(selectedStatus !== 'ALL' || selectedSourceFilter !== 'ALL' || searchQuery.trim() || selectedSection !== 'all') && (
               <button
                 onClick={() => {
                   setSelectedStatus('ALL');
+                  setSelectedSourceFilter('ALL');
                   setSearchQuery('');
                   if (selectedSection === 'due') setSelectedSection('all');
                 }}
@@ -962,14 +1288,22 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       ) : isCompactMode ? (
         /* CHẾ ĐỘ THU GỌN (COMPACT ACCORDION LIST - THIẾT KẾ GỌN GÀNG, RÕ NGUỒN ĐỀ THI / GIÁO TRÌNH) */
         <div className="bg-white rounded-3xl p-3 sm:p-5 shadow-sm border border-slate-200/80 divide-y divide-slate-100">
-          {items.map((item) => {
+          {displayedItems.map((item) => {
             const cardInfo = getSmartCardDisplay(item);
             const isExpanded = !!expandedCards[item.id];
             const isMastered = item.masteryStatus === 'MASTERED';
             const isReviewing = item.masteryStatus === 'REVIEWING';
+            const isPlayingThis = autoPlayItemId === item.id;
 
             return (
-              <div key={item.id} className="py-3.5 px-2 sm:px-3.5 hover:bg-slate-50/80 rounded-2xl transition-all">
+              <div
+                key={item.id}
+                className={`py-3.5 px-2 sm:px-3.5 rounded-2xl transition-all ${
+                  isPlayingThis
+                    ? 'bg-emerald-50/90 ring-2 ring-emerald-400'
+                    : 'hover:bg-slate-50/80'
+                }`}
+              >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
                   <div className="flex items-start sm:items-center gap-2.5 flex-1 min-w-0">
                     <button
@@ -1175,15 +1509,20 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       ) : (
         /* CHẾ ĐỘ XEM THẺ LƯỚI (GRID CARDS CHUYÊN NGHIỆP - RÕ NGUỒN ĐỀ THI / GIÁO TRÌNH & TÓM TẮT ĐÁP ÁN) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items.map((item) => {
+          {displayedItems.map((item) => {
             const cardInfo = getSmartCardDisplay(item);
             const isMastered = item.masteryStatus === 'MASTERED';
             const isReviewing = item.masteryStatus === 'REVIEWING';
+            const isPlayingThis = autoPlayItemId === item.id;
 
             return (
               <div
                 key={item.id}
-                className="group relative bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-200/80 hover:border-blue-300 flex flex-col h-full"
+                className={`group relative bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border flex flex-col h-full ${
+                  isPlayingThis
+                    ? 'border-emerald-400 ring-2 ring-emerald-400 bg-emerald-50/30'
+                    : 'border-slate-200/80 hover:border-blue-300'
+                }`}
               >
                 <div className="flex-1 flex flex-col">
                   {/* Header thẻ: Level + Loại + Nguồn cụ thể + SRS toggle + Delete */}
@@ -1339,86 +1678,209 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         </div>
       )}
 
-      {/* 6. MODAL LUYỆN TẬP FLASHCARD NHANH */}
-      {isFlashcardMode && items.length > 0 && (
+      {/* 6. MODAL LUYỆN TẬP NHANH (CHUYỂN ĐỔI LINH HOẠT: THẺ LẬT FLASHCARD ⇄ TRẮC NGHIỆM 4 ĐÁP ÁN) */}
+      {isFlashcardMode && displayedItems.length > 0 && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
                 <h3 className="font-bold text-slate-800 text-sm sm:text-base">
-                  Luyện Flashcard ({flashcardIndex + 1}/{items.length})
+                  Luyện Nhanh ({flashcardIndex + 1}/{displayedItems.length})
                 </h3>
               </div>
+
+              {/* Chuyển đổi chế độ: Thẻ lật ⇄ Trắc nghiệm 4 đáp án */}
+              <div className="inline-flex items-center p-1 rounded-2xl bg-slate-100 border border-slate-200 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickPracticeMode('flashcard');
+                    setIsCurrentCardFlipped(false);
+                  }}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    quickPracticeMode === 'flashcard'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🎴 Thẻ lật
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickPracticeMode('quiz');
+                    setSelectedQuickQuizAnswer(null);
+                    setIsQuickQuizRevealed(false);
+                  }}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    quickPracticeMode === 'quiz'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🎯 Trắc nghiệm 4 đáp án
+                </button>
+              </div>
+
               <button
                 onClick={() => setIsFlashcardMode(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 sm:p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
-              <div
-                onClick={() => setIsCurrentCardFlipped(!isCurrentCardFlipped)}
-                className="w-full h-full cursor-pointer flex flex-col items-center justify-center space-y-4"
-              >
-                {(() => {
-                  const fcItem = items[flashcardIndex];
-                  const fcInfo = fcItem ? getSmartCardDisplay(fcItem) : null;
-                  if (!fcItem || !fcInfo) return null;
+            {quickPracticeMode === 'flashcard' ? (
+              <div className="p-6 sm:p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
+                <div
+                  onClick={() => setIsCurrentCardFlipped(!isCurrentCardFlipped)}
+                  className="w-full h-full cursor-pointer flex flex-col items-center justify-center space-y-4"
+                >
+                  {(() => {
+                    const fcItem = displayedItems[flashcardIndex];
+                    const fcInfo = fcItem ? getSmartCardDisplay(fcItem) : null;
+                    if (!fcItem || !fcInfo) return null;
 
-                  return !isCurrentCardFlipped ? (
-                    <>
-                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-                        {fcInfo.sourceBadgeText} • Bấm để lật
-                      </span>
-                      <h2
-                        className={`${
-                          fcInfo.isFromExam ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'
-                        } font-black text-slate-900 tracking-tight leading-relaxed`}
-                        dangerouslySetInnerHTML={{
-                          __html: fcInfo.isFromExam ? formatText(fcItem.exampleJp || fcItem.title) : fcItem.title
-                        }}
-                      />
-                      {fcItem.reading && (
-                        <p className="text-sm text-slate-500">{fcItem.reading}</p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                        Mặt Sau • Ý Nghĩa & Giải Thích
-                      </span>
-                      {fcInfo.isFromExam && fcInfo.correctOpt && (
-                        <div
-                          className="text-lg font-black text-emerald-700 bg-emerald-50 px-4 py-1.5 rounded-xl border border-emerald-200"
-                          dangerouslySetInnerHTML={{ __html: `✅ Đáp án: ${fcInfo.correctOpt}` }}
+                    return !isCurrentCardFlipped ? (
+                      <>
+                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                          {fcInfo.sourceBadgeText} • Bấm để lật
+                        </span>
+                        <h2
+                          className={`${
+                            fcInfo.isFromExam ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'
+                          } font-black text-slate-900 tracking-tight leading-relaxed`}
+                          dangerouslySetInnerHTML={{
+                            __html: fcInfo.isFromExam ? formatText(fcItem.exampleJp || fcItem.title) : fcItem.title
+                          }}
                         />
-                      )}
-                      <div
-                        className="text-lg sm:text-xl font-bold text-slate-800"
-                        dangerouslySetInnerHTML={{ __html: fcInfo.cleanMeaningVi }}
-                      />
-                      {fcInfo.cleanNote && (
+                        {fcItem.reading && (
+                          <p className="text-sm text-slate-500">{fcItem.reading}</p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                          Mặt Sau • Ý Nghĩa & Giải Thích
+                        </span>
+                        {fcInfo.isFromExam && fcInfo.correctOpt && (
+                          <div
+                            className="text-lg font-black text-emerald-700 bg-emerald-50 px-4 py-1.5 rounded-xl border border-emerald-200"
+                            dangerouslySetInnerHTML={{ __html: `✅ Đáp án: ${fcInfo.correctOpt}` }}
+                          />
+                        )}
                         <div
-                          className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 max-w-md text-left whitespace-pre-wrap leading-relaxed"
-                          dangerouslySetInnerHTML={{ __html: fcInfo.cleanNote.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+                          className="text-lg sm:text-xl font-bold text-slate-800"
+                          dangerouslySetInnerHTML={{ __html: fcInfo.cleanMeaningVi }}
                         />
-                      )}
+                        {fcInfo.cleanNote && (
+                          <div
+                            className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 max-w-md text-left whitespace-pre-wrap leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: fcInfo.cleanNote.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            ) : (
+              /* CHẾ ĐỘ TRẮC NGHIỆM 4 ĐÁP ÁN TƯƠNG TÁC NHANH */
+              <div className="p-5 sm:p-7 flex flex-col justify-between min-h-[320px] space-y-5">
+                {(() => {
+                  const fcItem = displayedItems[flashcardIndex];
+                  const fcInfo = fcItem ? getSmartCardDisplay(fcItem) : null;
+                  if (!fcItem || !fcInfo || !quickQuizData) return null;
+
+                  return (
+                    <>
+                      <div className="space-y-2 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-0.5 rounded-full border border-indigo-200">
+                            {fcInfo.sourceBadgeText}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => speakJapanese(stripHtmlForSpeech(fcItem.exampleJp || fcItem.title))}
+                            className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 cursor-pointer"
+                            title="Nghe phát âm"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <h2
+                          className={`${
+                            quickQuizData.isExamQuestion ? 'text-base sm:text-lg' : 'text-2xl sm:text-3xl'
+                          } font-black text-slate-900 leading-relaxed`}
+                          dangerouslySetInnerHTML={{ __html: formatText(quickQuizData.promptText) }}
+                        />
+                        {quickQuizData.subPrompt && (
+                          <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                            {quickQuizData.subPrompt}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {quickQuizData.options.map((opt, idx) => {
+                          const isCorrectOpt = opt === quickQuizData.correctAnswer;
+                          const isSelectedOpt = selectedQuickQuizAnswer === opt;
+                          let btnStyle = 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 text-slate-800';
+                          if (isQuickQuizRevealed) {
+                            if (isCorrectOpt) {
+                              btnStyle = 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold shadow-xs';
+                            } else if (isSelectedOpt) {
+                              btnStyle = 'bg-rose-50 border-rose-300 text-rose-900';
+                            } else {
+                              btnStyle = 'bg-slate-50 border-slate-200 text-slate-400 opacity-75';
+                            }
+                          }
+
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              disabled={isQuickQuizRevealed}
+                              onClick={() => {
+                                setSelectedQuickQuizAnswer(opt);
+                                setIsQuickQuizRevealed(true);
+                                playFeedbackSound(isCorrectOpt);
+                              }}
+                              className={`w-full p-3 rounded-2xl border-2 text-left text-xs sm:text-sm transition-all flex items-center justify-between gap-2 cursor-pointer ${btnStyle}`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs font-black text-slate-700 shrink-0">
+                                  {idx + 1}
+                                </span>
+                                <span className="truncate font-semibold" dangerouslySetInnerHTML={{ __html: opt }} />
+                              </div>
+                              {isQuickQuizRevealed && isCorrectOpt && (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              )}
+                              {isQuickQuizRevealed && isSelectedOpt && !isCorrectOpt && (
+                                <X className="w-4 h-4 text-rose-600 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </>
                   );
                 })()}
               </div>
-            </div>
+            )}
 
             <div className="p-4 sm:p-6 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    handleToggleMastery(items[flashcardIndex].id, 'LEARNING');
-                    if (flashcardIndex < items.length - 1) setFlashcardIndex(flashcardIndex + 1);
+                    handleToggleMastery(displayedItems[flashcardIndex].id, 'LEARNING');
+                    if (flashcardIndex < displayedItems.length - 1) setFlashcardIndex(flashcardIndex + 1);
                     setIsCurrentCardFlipped(false);
+                    setSelectedQuickQuizAnswer(null);
+                    setIsQuickQuizRevealed(false);
                   }}
                   className="px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer"
                 >
@@ -1426,9 +1888,11 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 </button>
                 <button
                   onClick={() => {
-                    handleToggleMastery(items[flashcardIndex].id, 'REVIEWING');
-                    if (flashcardIndex < items.length - 1) setFlashcardIndex(flashcardIndex + 1);
+                    handleToggleMastery(displayedItems[flashcardIndex].id, 'REVIEWING');
+                    if (flashcardIndex < displayedItems.length - 1) setFlashcardIndex(flashcardIndex + 1);
                     setIsCurrentCardFlipped(false);
+                    setSelectedQuickQuizAnswer(null);
+                    setIsQuickQuizRevealed(false);
                   }}
                   className="px-3 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold cursor-pointer"
                 >
@@ -1436,9 +1900,11 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 </button>
                 <button
                   onClick={() => {
-                    handleToggleMastery(items[flashcardIndex].id, 'MASTERED');
-                    if (flashcardIndex < items.length - 1) setFlashcardIndex(flashcardIndex + 1);
+                    handleToggleMastery(displayedItems[flashcardIndex].id, 'MASTERED');
+                    if (flashcardIndex < displayedItems.length - 1) setFlashcardIndex(flashcardIndex + 1);
                     setIsCurrentCardFlipped(false);
+                    setSelectedQuickQuizAnswer(null);
+                    setIsQuickQuizRevealed(false);
                   }}
                   className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm"
                 >
@@ -1452,18 +1918,22 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                   onClick={() => {
                     setFlashcardIndex(flashcardIndex - 1);
                     setIsCurrentCardFlipped(false);
+                    setSelectedQuickQuizAnswer(null);
+                    setIsQuickQuizRevealed(false);
                   }}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <button
-                  disabled={flashcardIndex === items.length - 1}
+                  disabled={flashcardIndex === displayedItems.length - 1}
                   onClick={() => {
                     setFlashcardIndex(flashcardIndex + 1);
                     setIsCurrentCardFlipped(false);
+                    setSelectedQuickQuizAnswer(null);
+                    setIsQuickQuizRevealed(false);
                   }}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -1999,6 +2469,52 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                         Chưa có ghi chú chi tiết. Hãy bấm <strong>"✨ Phân tích chuyên sâu với AI"</strong> để tạo lời giải chi tiết!
                       </div>
                     )}
+                  </div>
+
+                  {/* TẦNG 5: GHI CHÚ & MẸO NHỚ CÁ NHÂN INLINE (LƯU TRỰC TIẾP VÀO CSDL) */}
+                  <div className="rounded-2xl border border-amber-200/80 bg-amber-50/40 p-4 sm:p-5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <PenLine className="w-4 h-4 text-amber-600" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                          ✍️ Ghi chú & Mẹo nhớ cá nhân của riêng bạn:
+                        </span>
+                      </div>
+                      {personalNoteSavedSuccess && (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Đã lưu vào Sổ tay!
+                        </span>
+                      )}
+                    </div>
+
+                    <textarea
+                      rows={2}
+                      value={personalNoteDraft}
+                      onChange={(e) => setPersonalNoteDraft(e.target.value)}
+                      placeholder="Tự ghi lại câu thần chú, mẹo liên tưởng hoặc lỗi bạn hay mắc phải ở mục này..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-amber-200 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        disabled={isSavingPersonalNote}
+                        onClick={() => handleSavePersonalNote(selectedNotebookItem, metaData, noteText)}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      >
+                        {isSavingPersonalNote ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang lưu...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Lưu ghi chú cá nhân</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

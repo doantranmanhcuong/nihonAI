@@ -74,9 +74,14 @@ export const LessonWordList: React.FC<LessonWordListProps> = ({
         await NotebookApi.createItem({
           itemType: 'VOCAB',
           title: item.word,
-          reading: item.reading || '',
+          reading: [item.reading || '', item.hanViet ? `[${item.hanViet.toUpperCase()}]` : ''].filter(Boolean).join(' • '),
           meaningVi: item.meaningVi,
           level: item.jlptLevel || 'N5',
+          structure: [
+            item.hanViet ? `Âm Hán Việt: ${item.hanViet.toUpperCase()}` : '',
+            item.partOfSpeech ? `Từ loại: ${item.partOfSpeech}` : '',
+            item.pitchAccent ? `Trọng âm: ${item.pitchAccent}` : ''
+          ].filter(Boolean).join(' • ') || undefined,
           tags: [sourceLabel, item.partOfSpeech].filter(Boolean).join(','),
           exampleJp: item.exampleJp || '',
           exampleVi: item.exampleVi || ''
@@ -115,9 +120,14 @@ export const LessonWordList: React.FC<LessonWordListProps> = ({
           NotebookApi.createItem({
             itemType: 'VOCAB',
             title: w.word,
-            reading: w.reading || '',
+            reading: [w.reading || '', w.hanViet ? `[${w.hanViet.toUpperCase()}]` : ''].filter(Boolean).join(' • '),
             meaningVi: w.meaningVi,
             level: w.jlptLevel || 'N5',
+            structure: [
+              w.hanViet ? `Âm Hán Việt: ${w.hanViet.toUpperCase()}` : '',
+              w.partOfSpeech ? `Từ loại: ${w.partOfSpeech}` : '',
+              w.pitchAccent ? `Trọng âm: ${w.pitchAccent}` : ''
+            ].filter(Boolean).join(' • ') || undefined,
             tags: [sourceLabel, w.partOfSpeech].filter(Boolean).join(','),
             exampleJp: w.exampleJp || '',
             exampleVi: w.exampleVi || ''
