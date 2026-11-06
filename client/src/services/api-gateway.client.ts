@@ -18,11 +18,14 @@ export interface ApiResponseEnvelope<T = any> {
 class ApiGatewayClient {
   private http: AxiosInstance;
   private inFlightRequests = new Map<string, Promise<any>>();
+  private responseCache = new Map<string, { data: any; expiry: number }>();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 phút
+  private readonly MAX_CACHE_ENTRIES = 250;
 
   constructor() {
     this.http = axios.create({
       baseURL: BASE_URL,
-      timeout: 8000,
+      timeout: 15000,
       headers: {
         'Content-Type': 'application/json'
       }
@@ -58,10 +61,18 @@ class ApiGatewayClient {
   }
 
   /**
-   * Phương thức GET có chống trùng lặp request đang bay (In-flight Deduplication)
+   * Phương thức GET có bộ đệm L1 Browser Memory Cache (< 0.1ms) + chống trùng lặp request đang bay (In-flight Deduplication)
    */
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const cacheKey = `GET:${url}:${JSON.stringify(config?.params || {})}`;
+    const isCacheable = !url.startsWith('/gateway') && !url.includes('/quiz/');
+
+    if (isCacheable) {
+      const cached = this.responseCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiry) {
+        return cached.data as T;
+      }
+    }
 
     if (this.inFlightRequests.has(cacheKey)) {
       return this.inFlightRequests.get(cacheKey) as Promise<T>;
@@ -70,6 +81,17 @@ class ApiGatewayClient {
     const requestPromise = (async () => {
       try {
         const response = await this.http.get<T>(url, config);
+        const result = response.data as any;
+        if (isCacheable && result && result.success !== false) {
+          if (this.responseCache.size >= this.MAX_CACHE_ENTRIES) {
+            const oldestKey = this.responseCache.keys().next().value;
+            if (oldestKey) this.responseCache.delete(oldestKey);
+          }
+          this.responseCache.set(cacheKey, {
+            data: result,
+            expiry: Date.now() + this.CACHE_TTL_MS
+          });
+        }
         return response.data;
       } catch (err: any) {
         console.warn(`[apiGateway] GET ${url} fallback:`, err?.message || err);

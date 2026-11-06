@@ -525,103 +525,62 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
 
 
-  // Tải tóm tắt bài học & danh sách Kanji theo Giáo trình và Cấp độ
-
+  // 1A. Tải cấu trúc bài học khi đổi Giáo trình hoặc Cấp độ (Không tải lại khi chỉ bấm đổi Bài học)
   useEffect(() => {
-
     let isMounted = true;
-
-    const loadCurriculumData = async () => {
-
+    const loadSummary = async () => {
       try {
-
         setIsLoadingSummary(true);
-
-        const [sumRes, kanjiRes] = await Promise.all([
-
-          apiGateway.kanji.getCurriculumSummary(selectedCurriculum, selectedLevel),
-
-          apiGateway.kanji.getCurriculumKanjis(selectedCurriculum, selectedLevel, selectedLessonNumber)
-
-        ]);
-
-
-
-        if (isMounted) {
-
-          if (sumRes && sumRes.data) {
-
-            setCurriculumSummary(sumRes.data);
-
-            const lessons = sumRes.data.lessons || [];
-
-            if (lessons.length > 0) {
-
-              const currentLessonValid = lessons.find((l: any) => l.lesson === selectedLessonNumber);
-
-              const targetLesson = currentLessonValid || lessons[0];
-
-              if (!currentLessonValid) {
-
-                setSelectedLessonNumber(targetLesson.lesson);
-
-              }
-
-
-
-              // Chọn chữ Hán đầu tiên của bài nếu chữ hiện tại không thuộc bài
-
-              if (targetLesson.kanjis && targetLesson.kanjis.length > 0) {
-
-                const isCharInLesson = targetLesson.kanjis.some((k: any) => k.character === selectedKanjiChar);
-
-                if (!isCharInLesson) {
-
-                  const firstChar = targetLesson?.kanjis?.[0]?.character; if (!firstChar) return;
-
-                  setSelectedKanjiChar(firstChar);
-
-                  fetchKanjiDetails(firstChar);
-
-                }
-
-              }
-
+        const sumRes = await apiGateway.kanji.getCurriculumSummary(selectedCurriculum, selectedLevel);
+        if (isMounted && sumRes && sumRes.data) {
+          setCurriculumSummary(sumRes.data);
+          const lessons = sumRes.data.lessons || [];
+          if (lessons.length > 0) {
+            const currentLessonValid = lessons.find((l: any) => l.lesson === selectedLessonNumber);
+            const targetLesson = currentLessonValid || lessons[0];
+            if (!currentLessonValid) {
+              setSelectedLessonNumber(targetLesson.lesson);
             }
-
+            if (targetLesson.kanjis && targetLesson.kanjis.length > 0) {
+              const isCharInLesson = targetLesson.kanjis.some((k: any) => k.character === selectedKanjiChar);
+              if (!isCharInLesson) {
+                const firstChar = targetLesson.kanjis[0]?.character;
+                if (firstChar) {
+                  setSelectedKanjiChar(firstChar);
+                  fetchKanjiDetails(firstChar);
+                }
+              }
+            }
           }
-
-          if (kanjiRes && kanjiRes.data) {
-
-            setFlashcardKanjis(kanjiRes.data);
-
-          }
-
         }
-
       } catch (err) {
-
-        console.error('Lỗi khi tải dữ liệu giáo trình:', err);
-
+        console.error('Lỗi khi tải cấu trúc giáo trình:', err);
       } finally {
-
         if (isMounted) setIsLoadingSummary(false);
-
       }
-
     };
 
-
-
-    loadCurriculumData();
-
+    loadSummary();
     return () => {
-
       isMounted = false;
-
     };
+  }, [selectedCurriculum, selectedLevel, fetchKanjiDetails]);
 
-  }, [selectedCurriculum, selectedLevel, selectedLessonNumber, fetchKanjiDetails]);
+  // 1B. Tải danh sách Flashcard Kanji của bài học hiện tại (Không làm nháy thanh bên trái)
+  useEffect(() => {
+    let isMounted = true;
+    apiGateway.kanji
+      .getCurriculumKanjis(selectedCurriculum, selectedLevel, selectedLessonNumber)
+      .then((kanjiRes) => {
+        if (isMounted && kanjiRes && kanjiRes.data) {
+          setFlashcardKanjis(kanjiRes.data);
+        }
+      })
+      .catch((err) => console.error('Lỗi khi tải danh sách Kanji bài học:', err));
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCurriculum, selectedLevel, selectedLessonNumber]);
 
 
 

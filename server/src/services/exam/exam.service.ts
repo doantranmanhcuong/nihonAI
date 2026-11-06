@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GeminiPoolService } from '../../core/ai-pool.service';
 import { prisma } from '../../core/prisma.service';
+import { RedisService } from '../../core/redis.service';
 import {
   JLPTExam,
   JLPTLevel,
@@ -170,63 +171,72 @@ export class ExamService {
     year?: string,
     session?: string
   ): Promise<Omit<JLPTExam, 'questions'>[]> {
-    const whereClause: any = { isPublished: true };
+    const cacheKey = `exam:list:${level || 'ALL'}:${year || 'ALL'}:${session || 'ALL'}`;
+    const { data } = await RedisService.getOrSet(
+      cacheKey,
+      async () => {
+        const whereClause: any = { isPublished: true };
 
-    if (level && level !== 'ALL') {
-      whereClause.level = level.toUpperCase();
-    }
+        if (level && level !== 'ALL') {
+          whereClause.level = level.toUpperCase();
+        }
 
-    if (year && year !== 'ALL') {
-      const yearNum = parseInt(year, 10);
-      if (!isNaN(yearNum)) {
-        whereClause.year = yearNum;
-      }
-    }
+        if (year && year !== 'ALL') {
+          const yearNum = parseInt(year, 10);
+          if (!isNaN(yearNum)) {
+            whereClause.year = yearNum;
+          }
+        }
 
-    if (session && session !== 'ALL') {
-      const s = session.toUpperCase();
-      if (s === 'JULY' || s === 'VOL1') {
-        whereClause.session = { in: ['JULY', 'VOL1'] };
-      } else if (s === 'DECEMBER' || s === 'VOL2') {
-        whereClause.session = { in: ['DECEMBER', 'VOL2'] };
-      } else {
-        whereClause.session = s;
-      }
-    }
+        if (session && session !== 'ALL') {
+          const s = session.toUpperCase();
+          if (s === 'JULY' || s === 'VOL1') {
+            whereClause.session = { in: ['JULY', 'VOL1'] };
+          } else if (s === 'DECEMBER' || s === 'VOL2') {
+            whereClause.session = { in: ['DECEMBER', 'VOL2'] };
+          } else {
+            whereClause.session = s;
+          }
+        }
 
-    const exams = await prisma.jlptExam.findMany({
-      where: whereClause,
-      orderBy: [
-        { year: 'desc' },
-        { session: 'asc' },
-        { level: 'asc' }
-      ]
-    });
+        const exams = await prisma.jlptExam.findMany({
+          where: whereClause,
+          orderBy: [
+            { year: 'desc' },
+            { session: 'asc' },
+            { level: 'asc' }
+          ]
+        });
 
-    return exams.map((exam) => ({
-      id: exam.id,
-      code: exam.code,
-      title: exam.title,
-      level: exam.level as JLPTLevel,
-      year: exam.year,
-      session: exam.session,
-      edition: exam.edition,
-      description: exam.description || '',
-      durationMinutes: exam.durationMinutes,
-      expressDurationMinutes: EXPRESS_DURATIONS[exam.level] || 50,
-      fullDurationMinutes: FULL_DURATIONS[exam.level] || exam.durationMinutes,
-      expressTotalQuestions: 34,
-      fullTotalQuestions: exam.totalQuestions,
-      totalQuestions: exam.totalQuestions,
-      passingScore: exam.passingScore,
-      sectionalMinScore: exam.sectionalMinScore,
-      sections: [
-        { section: 'vocab' as ExamSectionType, title: 'Kiến thức chữ Hán & Từ vựng (文字・語彙)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.3)), maxScore: 60 },
-        { section: 'grammar' as ExamSectionType, title: 'Cấu trúc Ngữ pháp (文法)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.25)), maxScore: 60 },
-        { section: 'reading' as ExamSectionType, title: 'Đọc hiểu nội dung (読解)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.25)), maxScore: 60 },
-        { section: 'listening' as ExamSectionType, title: 'Nghe hiểu tiếng Nhật (聴解)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.2)), maxScore: 60 }
-      ]
-    }));
+        return exams.map((exam) => ({
+          id: exam.id,
+          code: exam.code,
+          title: exam.title,
+          level: exam.level as JLPTLevel,
+          year: exam.year,
+          session: exam.session,
+          edition: exam.edition,
+          description: exam.description || '',
+          durationMinutes: exam.durationMinutes,
+          expressDurationMinutes: EXPRESS_DURATIONS[exam.level] || 50,
+          fullDurationMinutes: FULL_DURATIONS[exam.level] || exam.durationMinutes,
+          expressTotalQuestions: 34,
+          fullTotalQuestions: exam.totalQuestions,
+          totalQuestions: exam.totalQuestions,
+          passingScore: exam.passingScore,
+          sectionalMinScore: exam.sectionalMinScore,
+          sections: [
+            { section: 'vocab' as ExamSectionType, title: 'Kiến thức chữ Hán & Từ vựng (文字・語彙)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.3)), maxScore: 60 },
+            { section: 'grammar' as ExamSectionType, title: 'Cấu trúc Ngữ pháp (文法)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.25)), maxScore: 60 },
+            { section: 'reading' as ExamSectionType, title: 'Đọc hiểu nội dung (読解)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.25)), maxScore: 60 },
+            { section: 'listening' as ExamSectionType, title: 'Nghe hiểu tiếng Nhật (聴解)', totalQuestions: Math.max(1, Math.round(exam.totalQuestions * 0.2)), maxScore: 60 }
+          ]
+        }));
+      },
+      1800
+    );
+
+    return data;
   }
 
   /**
@@ -242,26 +252,32 @@ export class ExamService {
     sectionFilter?: string,
     format: 'express' | 'full' = 'express'
   ): Promise<JLPTExam> {
-    let exam = await prisma.jlptExam.findUnique({
-      where: { id: examId },
-      include: {
-        questions: {
-          orderBy: { orderNumber: 'asc' }
-        }
-      }
-    });
-
-    if (!exam) {
-      // Tìm theo mã code duy nhất (e.g. JLPT_N3_2024_12)
-      exam = await prisma.jlptExam.findUnique({
-        where: { code: examId },
-        include: {
-          questions: {
-            orderBy: { orderNumber: 'asc' }
+    const { data: exam } = await RedisService.getOrSet(
+      `exam:raw:${examId}`,
+      async () => {
+        let found = await prisma.jlptExam.findUnique({
+          where: { id: examId },
+          include: {
+            questions: {
+              orderBy: { orderNumber: 'asc' }
+            }
           }
+        });
+
+        if (!found) {
+          found = await prisma.jlptExam.findUnique({
+            where: { code: examId },
+            include: {
+              questions: {
+                orderBy: { orderNumber: 'asc' }
+              }
+            }
+          });
         }
-      });
-    }
+        return found;
+      },
+      1800
+    );
 
     if (!exam) {
       throw new Error(`Không tìm thấy đề thi với mã ID hoặc Code: ${examId}`);

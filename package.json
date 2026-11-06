@@ -5,7 +5,9 @@
   "description": "Japanese Learning EdTech Platform with AI - Monorepo Root",
   "scripts": {
     "dev:server": "npm --prefix server run dev",
-    "dev:client": "npm --prefix client run dev"
+    "dev:client": "npm --prefix client run dev",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build"
   },
   "keywords": [
     "japanese",
@@ -17,8 +19,5 @@
     "prisma"
   ],
   "author": "Doan Tran Manh Cuong",
-  "license": "ISC",
-  "dependencies": {
-    "glob": "^13.0.6"
-  }
+  "license": "ISC"
 }

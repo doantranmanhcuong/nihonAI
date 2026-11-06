@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 
 class InMemoryCache {
   private store = new Map<string, { value: any; expiry: number }>();
+  private readonly MAX_ENTRIES = 500;
 
   get<T>(key: string): T | null {
     const item = this.store.get(key);
@@ -14,6 +15,10 @@ class InMemoryCache {
   }
 
   set(key: string, value: any, ttlSeconds: number): void {
+    if (this.store.size >= this.MAX_ENTRIES && !this.store.has(key)) {
+      const oldestKey = this.store.keys().next().value;
+      if (oldestKey) this.store.delete(oldestKey);
+    }
     this.store.set(key, {
       value,
       expiry: Date.now() + ttlSeconds * 1000
@@ -48,7 +53,11 @@ export class RedisService {
   static init(): void {
     if (this.client) return;
 
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      this.isConnected = false;
+      return;
+    }
     try {
       this.client = new Redis(redisUrl, {
         maxRetriesPerRequest: 1,
@@ -91,19 +100,27 @@ export class RedisService {
   }
 
   static async get<T>(key: string): Promise<{ data: T | null; cached: boolean }> {
+    // 1. L1 RAM Cache (< 0.01ms, không tốn băng thông mạng hay JSON.parse)
+    const memVal = this.memoryFallback.get<T>(key);
+    if (memVal !== null) {
+      return { data: memVal, cached: true };
+    }
+
+    // 2. L2 Remote Redis Cache
     if (this.client && this.isConnected) {
       try {
         const raw = await this.client.get(key);
         if (raw) {
-          return { data: JSON.parse(raw) as T, cached: true };
+          const parsed = JSON.parse(raw) as T;
+          this.memoryFallback.set(key, parsed, 600);
+          return { data: parsed, cached: true };
         }
       } catch (e) {
         // Fallback to memory on read error
       }
     }
 
-    const memVal = this.memoryFallback.get<T>(key);
-    return { data: memVal, cached: memVal !== null };
+    return { data: null, cached: false };
   }
 
   static async set(key: string, value: any, ttlSeconds = 3600): Promise<void> {

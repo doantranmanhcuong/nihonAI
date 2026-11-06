@@ -426,30 +426,46 @@ Trả về JSON:
    * Bộ điều phối gọi Gemini AI có fallback model tự động để tránh lỗi 503 / 404
    */
     /**
-   * Trích xuất Từ vựng và Ngữ pháp nổi bật từ văn bản bằng AI (Tốc độ cao)
+   * Trích xuất Từ vựng, Ngữ pháp nổi bật và Bản dịch từng câu từ văn bản bằng AI (Single-Pass tốc độ cao)
    */
-  static async extractVocabAndGrammar(text: string, level?: string): Promise<{vocabularies: any[], grammars: any[]}> {
+  static async extractVocabAndGrammar(
+    text: string,
+    level?: string,
+    sentencesJp?: string[]
+  ): Promise<{ vocabularies: any[]; grammars: any[]; sentenceTranslations?: string[] }> {
     const cleanText = text.trim();
-    if (!cleanText) return { vocabularies: [], grammars: [] };
+    if (!cleanText) return { vocabularies: [], grammars: [], sentenceTranslations: [] };
 
-    const cacheKey = `reading:extract_vg:${Buffer.from(cleanText.slice(0, 100) + (level||'')).toString('base64').slice(0, 48)}`;
+    const cacheKey = `reading:extract_vg_v2:${Buffer.from(cleanText.slice(0, 120) + (level || '')).toString('base64').slice(0, 48)}`;
     const { RedisService } = await import('../../core/redis.service');
     const cached = await RedisService.get<any>(cacheKey);
     if (cached.data) {
       return cached.data;
     }
 
+    const numberedSentencesBlock =
+      sentencesJp && sentencesJp.length > 0
+        ? `\nDANH SÁCH CÂU CẦN DỊCH SANG TIẾNG VIỆT (giữ nguyên thứ tự ${sentencesJp.length} câu):\n` +
+          sentencesJp.map((s, idx) => `${idx + 1}. ${s}`).join('\n')
+        : '';
+
     const prompt = `Bạn là chuyên gia phân tích ngữ liệu tiếng Nhật JLPT.
-Đọc văn bản sau và trích xuất TOÀN BỘ từ vựng trọng điểm (không giới hạn số lượng, thường 15-30 từ) (Danh từ, Động từ, Tính từ) quan trọng nhất và TOÀN BỘ mẫu ngữ pháp quan trọng (không giới hạn, thường 5-15 mẫu).
-Ưu tiên các từ vựng và ngữ pháp tương đương trình độ ${level || 'N3'}.
+Đọc văn bản sau và:
+1. Trích xuất 12-20 từ vựng trọng điểm (Danh từ, Động từ, Tính từ) và 4-8 mẫu ngữ pháp quan trọng nhất (ưu tiên trình độ ${level || 'N3'}).
+2. Dịch chính xác từng câu trong danh sách sang tiếng Việt tự nhiên, mạch lạc.
 
 VĂN BẢN:
 """
 ${cleanText}
 """
+${numberedSentencesBlock}
 
 YÊU CẦU TRẢ VỀ JSON DUY NHẤT:
 {
+  "sentenceTranslations": [
+    "Bản dịch tiếng Việt của câu 1...",
+    "Bản dịch tiếng Việt của câu 2..."
+  ],
   "vocabularies": [
     {
       "word": "từ gốc (Kanji)",
@@ -472,6 +488,7 @@ YÊU CẦU TRẢ VỀ JSON DUY NHẤT:
     try {
       const parsed = await this.executeWithModelFallback(prompt, 0.1);
       const res = {
+        sentenceTranslations: Array.isArray(parsed.sentenceTranslations) ? parsed.sentenceTranslations : [],
         vocabularies: Array.isArray(parsed.vocabularies) ? parsed.vocabularies : [],
         grammars: Array.isArray(parsed.grammars) ? parsed.grammars : []
       };
@@ -479,7 +496,7 @@ YÊU CẦU TRẢ VỀ JSON DUY NHẤT:
       return res;
     } catch (err: any) {
       console.error('Error in extractVocabAndGrammar:', err);
-      return { vocabularies: [], grammars: [] };
+      return { vocabularies: [], grammars: [], sentenceTranslations: [] };
     }
   }
 

@@ -1,7 +1,7 @@
 'use client';
-import BulkImportModal from './BulkImportModal';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import BulkImportModal from './BulkImportModal';
 import { authApi } from '@/context/AuthContext';
 import { Trash2, MonitorPlay, FileText, Search, Video, Clock, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { ReadingApi } from '../reading/reading.api';
@@ -258,6 +258,13 @@ export const AdminContentView = () => {
         </div>
       )}
 
+      <BulkImportModal
+        isOpen={showImportModal}
+        onClose={() => {
+          setShowImportModal(false);
+          fetchContent();
+        }}
+      />
     </div>
   );
 };

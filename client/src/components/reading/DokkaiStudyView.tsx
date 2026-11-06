@@ -20,7 +20,6 @@ import { ReadingApi } from './reading.api';
 import { QuickLookupPopover } from './QuickLookupPopover';
 import { DokkaiKaraokeSentence } from './DokkaiKaraokeSentence';
 import { DokkaiAudioBar } from './DokkaiAudioBar';
-import { DokkaiQuizSection } from './DokkaiQuizSection';
 import { DokkaiSidebar } from './DokkaiSidebar';
 import { GrammarDetailModal } from './GrammarDetailModal';
 import { countMoras } from './moraUtils';
@@ -801,18 +800,6 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
               ))}
             </div>
           </div>
-
-          {/* Always show Quiz section */}
-          <DokkaiQuizSection
-            quizzes={article.quizzes || []}
-            articleId={article.id}
-            sourceType={article.sourceType}
-            onAddQuizzesSuccess={(newQ) => {
-              setArticle((prev) =>
-                prev ? { ...prev, quizzes: [...(prev.quizzes || []), ...newQ] } : prev
-              );
-            }}
-          />
         </div>
 
         {/* CỘT PHẢI (5 CỘT): TỪ VỰNG TRỌNG ĐIỂM + MẪU NGỮ PHÁP MODULAR */}

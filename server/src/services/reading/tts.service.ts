@@ -6,6 +6,8 @@ import * as path from 'path';
 const execAsync = promisify(exec);
 
 export class TtsService {
+  private static edgeTtsAvailable: boolean | null = null;
+
   /**
    * Sinh file âm thanh MP3 từ danh sách câu tiếng Nhật qua Edge-TTS,
    * ghép nối file âm thanh và trả về mốc thời gian (startTimeMs, endTimeMs) cho từng câu.
@@ -26,7 +28,7 @@ export class TtsService {
     let finalMp3Buffer = Buffer.alloc(0);
     let currentOffsetMs = 0;
     let consecutiveFailures = 0;
-    let ttsAvailable = true;
+    let ttsAvailable = this.edgeTtsAvailable !== false;
 
     for (let i = 0; i < sentencesJp.length; i++) {
       const sentence = sentencesJp[i];
@@ -92,9 +94,10 @@ export class TtsService {
         currentOffsetMs += estimatedDurationMs;
 
         // Circuit breaker: Nếu lỗi 2 lần liên tiếp, dừng toàn bộ gọi edge-tts cho bài này
-        if (consecutiveFailures >= 2) {
+        if (consecutiveFailures >= 2 || (err?.message && err.message.includes('not found')) || (err?.message && err.message.includes('not recognized'))) {
           ttsAvailable = false;
-          console.warn(`[TtsService] Edge-TTS gặp sự cố liên tiếp. Kích hoạt Circuit Breaker, tự động chuyển sang tính toán mốc thời gian ước lượng cho các câu còn lại.`);
+          this.edgeTtsAvailable = false;
+          console.warn(`[TtsService] Edge-TTS không khả dụng trên môi trường này. Tự động chuyển sang tính toán mốc thời gian ước lượng (<1ms).`);
         }
       } finally {
         try {

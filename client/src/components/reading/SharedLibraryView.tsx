@@ -82,12 +82,12 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
 専門家たちは、今後単身世帯が全世帯の半分近くを占めるようになると予測しています。したがって、一人で暮らすことを個人の選択としてだけ見るのではなく、社会全体が単身者を支えるインフラを整え、新しいコミュニティの形を作っていくことが求められています。`;
 
   // 2. Tải danh sách bài đọc từ thư viện
-  const fetchLibrary = async () => {
-    if (!globalLibraryCache) {
+  const fetchLibrary = async (forceRefresh = false) => {
+    if (!globalLibraryCache || forceRefresh) {
       setIsLibraryLoading(true);
     }
     try {
-      const res = await ReadingApi.getArticles({ limit: 500 });
+      const res = await ReadingApi.getArticles({ limit: 50 });
       globalLibraryCache = res.items || [];
       setLibraryArticles(globalLibraryCache);
     } catch (err) {
@@ -108,7 +108,7 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
       const res = await ReadingApi.triggerNewsCrawl();
       if (res && res.success) {
         setCrawlStatus('✅ Đã cập nhật xong bài báo mới!');
-        await fetchLibrary();
+        await fetchLibrary(true);
       } else {
         setCrawlStatus('⚠️ ' + (res?.message || 'Chưa có thêm bài mới'));
       }
@@ -180,17 +180,18 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
 
   const categoryConfigs = [
     { id: 'ALL', label: 'Tất cả' },
-    { id: 'NHK_NEWS', label: 'Tin NHK' },
-    { id: 'EXTERNAL_NEWS', label: 'Báo chí khác' },
+    { id: 'NEWS', label: 'Báo Nhật hôm nay' },
     { id: 'AI_GENERATED', label: 'Bài đọc AI' }
   ];
 
   // Lọc bài báo theo tìm kiếm, cấp độ và trạng thái đã lưu
   const filteredLibrary = useMemo(() => {
-    let list = libraryArticles;
+    let list = [...libraryArticles];
     
     // Filter by Category
-    if (selectedCategory !== 'ALL') {
+    if (selectedCategory === 'NEWS') {
+      list = list.filter((a) => a.sourceType === 'EXTERNAL_NEWS' || a.sourceType === 'NHK_NEWS');
+    } else if (selectedCategory !== 'ALL') {
       list = list.filter((a) => a.sourceType === selectedCategory);
     }
     
@@ -236,7 +237,7 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Cập nhật 24/7 từ NHK và Livedoor News • Furigana chuẩn • Giọng đọc bản xứ & Trắc nghiệm JLPT
+              Cập nhật tự động mỗi ngày từ báo chí Nhật Bản • Furigana chuẩn • Giọng đọc bản xứ & Phân tích từ vựng - ngữ pháp
             </p>
           </div>
         </div>
@@ -367,7 +368,7 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
                             'bg-amber-500 text-white'
                           }`}>
                             {news.sourceType === 'NHK_NEWS' ? 'NHK News' : 
-                             news.sourceType === 'EXTERNAL_NEWS' ? 'Báo Trích Dẫn' : 'AI Tạo'}
+                             news.sourceType === 'EXTERNAL_NEWS' ? (news.topic?.includes('•') ? news.topic.split('•')[0].trim() : 'Báo Nhật') : 'AI Tạo'}
                           </span>
                         </div>
                       </div>
@@ -478,7 +479,7 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
                 <strong className="text-slate-900 font-bold">Shadowing từng câu</strong> — dùng nút &quot;Lặp câu&quot;, đọc thành tiếng theo giọng bản xứ để quen nhịp điệu và ngữ điệu tự nhiên.
               </li>
               <li>
-                <strong className="text-slate-900 font-bold">Làm bộ câu hỏi cuối bài TRƯỚC khi mở bản dịch</strong> — kiểm tra đúng 3 dạng câu hỏi Dokkai tiêu chuẩn của đề thi JLPT thật.
+                <strong className="text-slate-900 font-bold">Phân tích từ vựng & cấu trúc ngữ pháp trọng tâm</strong> — bấm trực tiếp vào từ hoặc mẫu câu ở cột bên phải để xem cách dùng và ví dụ thực tế trong bài.
               </li>
               <li>
                 <strong className="text-slate-900 font-bold">Mở bản dịch đối chiếu</strong> — ghi chép 10–15 từ vựng hoặc mẫu ngữ pháp trọng tâm vào sổ tay để ôn lại qua flashcard.

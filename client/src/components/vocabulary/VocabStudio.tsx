@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiGateway } from '@/services/api-gateway.client';
-import { CurriculumType } from './CurriculumSelector';
-import { LessonSummaryItem } from './LessonGridView';
 import { LessonFlashcard } from './LessonFlashcard';
 import { LessonWordList } from './LessonWordList';
-import { LessonQuiz } from './LessonQuiz';
 import { LessonListeningExercise } from './LessonListeningExercise';
 import { LessonPracticeHub } from './LessonPracticeHub';
 import { VocabSearchBar } from './VocabSearchBar';
@@ -12,6 +9,17 @@ import { VocabCardList, VocabularySummary } from './VocabCardList';
 import { VocabDetailCard, VocabularyDetailData } from './VocabDetailCard';
 import { BookOpen, Search, FolderOpen, Folder, FileText, ChevronDown , Sparkles } from 'lucide-react';
 import { ComprehensiveQuizDashboard, CompQuizQuestion } from '../shared/ComprehensiveQuizDashboard';
+
+export type CurriculumType = 'MINNA' | 'TANGO' | 'MIMIKARA' | 'SOUMATOME';
+
+export interface LessonSummaryItem {
+  lesson: number;
+  title: string;
+  topic: string;
+  wordCount: number;
+  progressPercent: number;
+  samples?: string[];
+}
 
 interface VocabStudioProps {
   onNavigateToKanji?: (character: string) => void;

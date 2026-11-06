@@ -149,4 +149,28 @@ app.listen(PORT, async () => {
 
   // Khởi chạy bộ lập lịch cào tin tức tự động hàng ngày
   ReadingCronService.initReadingNewsCron();
+
+  // Làm nóng bộ đệm L1 RAM (Cache Warmup) bất đồng bộ để phản hồi người dùng đầu tiên < 5ms
+  setTimeout(async () => {
+    try {
+      const { KanjiService } = await import('./services/kanji/kanji.service');
+      const { VocabularyService } = await import('./services/vocabulary/vocabulary.service');
+      const { ReadingService } = await import('./services/reading/reading.service');
+      const { ExamService } = await import('./services/exam/exam.service');
+
+      await Promise.allSettled([
+        KanjiService.searchKanjis(''),
+        KanjiService.getCurriculumsSummary('LOOK_AND_LEARN', 'N5'),
+        KanjiService.getCurriculumKanjis('LOOK_AND_LEARN', 'N5', 1),
+        KanjiService.getKanjiDetails('一'),
+        VocabularyService.getCourseStats(),
+        VocabularyService.getCurriculumsSummary('MINNA', 'N5'),
+        ReadingService.listArticles({ limit: 50 }),
+        ExamService.getExamList()
+      ]);
+      console.log('🔥 [CACHE WARMUP] Đã nạp sẵn Hán tự, Từ vựng, Đọc hiểu & Đề thi vào L1 RAM Cache (< 1ms).');
+    } catch (warmupErr) {
+      console.warn('⚠️ [CACHE WARMUP] Bỏ qua một số mục warmup:', warmupErr);
+    }
+  }, 1500);
 });

@@ -589,7 +589,7 @@ lessons.push({
   }
 
   /**
-   * Lấy danh sách Kanji thuộc bài học của giáo trình
+   * Lấy danh sách Kanji thuộc bài học của giáo trình (Tối ưu lọc trên RAM từ bộ đệm giáo trình, 0 truy vấn DB lặp lại)
    */
   static async getCurriculumKanjis(curriculum: string, level: string, lesson?: number): Promise<KanjiDetail[]> {
     const curUpper = curriculum.toUpperCase();
@@ -599,45 +599,54 @@ lessons.push({
     const { data } = await RedisService.getOrSet(
       cacheKey,
       async () => {
-        const dbList = await prisma.kanji.findMany({
-          where: {
-            curriculum: { contains: curUpper },
-            jlptLevel: lvlUpper
+        // Cache toàn bộ Kanji của cặp (curriculum, level) để khi bấm Bài 1, Bài 2, Bài 3... không phải gọi lại TiDB
+        const allCurKey = `kanji:curriculum-all-formatted:${curUpper}:${lvlUpper}`;
+        const { data: allFormatted } = await RedisService.getOrSet(
+          allCurKey,
+          async () => {
+            const dbList = await prisma.kanji.findMany({
+              where: {
+                curriculum: { contains: curUpper },
+                jlptLevel: lvlUpper
+              },
+              orderBy: [{ lesson: 'asc' }, { character: 'asc' }]
+            });
+
+            return dbList.map((dbKanji) => {
+              const curInfo = this.extractCurriculumLesson(dbKanji, curUpper);
+              const formatted = this.formatKanjiDetail(dbKanji, curUpper);
+              formatted.lesson = curInfo.lesson;
+              formatted.lessonTitle = curInfo.title;
+              return formatted;
+            });
           },
-          orderBy: [{ lesson: 'asc' }, { character: 'asc' }]
-        });
+          86400
+        );
 
-        let reviewFilter = null;
-          if (lesson && lesson > 9000) {
-              if (lesson === 9999) {
-                reviewFilter = { min: 1, max: 9999 };
-              } else {
-                 const summary = await this.getCurriculumsSummary(curriculum, level);
-                 const reviewNode: any = summary.lessons.find((l: any) => l.lesson === lesson);
-                 if (reviewNode && reviewNode.reviewMin && reviewNode.reviewMax) {
-                     reviewFilter = { min: reviewNode.reviewMin, max: reviewNode.reviewMax };
-                 } else {
-                     const batch = lesson - 9000;
-                     reviewFilter = { min: (batch - 1) * 3 + 1, max: batch * 3 };
-                 }
-              }
+        let reviewFilter: { min: number; max: number } | null = null;
+        if (lesson && lesson > 9000) {
+          if (lesson === 9999) {
+            reviewFilter = { min: 1, max: 9999 };
+          } else {
+            const summary = await this.getCurriculumsSummary(curriculum, level);
+            const reviewNode: any = summary.lessons.find((l: any) => l.lesson === lesson);
+            if (reviewNode && reviewNode.reviewMin && reviewNode.reviewMax) {
+              reviewFilter = { min: reviewNode.reviewMin, max: reviewNode.reviewMax };
+            } else {
+              const batch = lesson - 9000;
+              reviewFilter = { min: (batch - 1) * 3 + 1, max: batch * 3 };
             }
-
-          const result: KanjiDetail[] = [];
-          for (const dbKanji of dbList) {
-            const curInfo = this.extractCurriculumLesson(dbKanji, curUpper);
-            if (lesson) {
-              if (reviewFilter) {
-                 if (curInfo.lesson < reviewFilter.min || curInfo.lesson > reviewFilter.max) continue;
-              } else {
-                 if (curInfo.lesson !== lesson) continue;
-              }
-            }
-          const formatted = this.formatKanjiDetail(dbKanji, curUpper);
-          formatted.lesson = curInfo.lesson;
-          formatted.lessonTitle = curInfo.title;
-          result.push(formatted);
+          }
         }
+
+        const result = allFormatted.filter((k) => {
+          const kLesson = k.lesson || 1;
+          if (!lesson) return true;
+          if (reviewFilter) {
+            return kLesson >= reviewFilter.min && kLesson <= reviewFilter.max;
+          }
+          return kLesson === lesson;
+        });
 
         return result.sort((a, b) => (a.lesson || 1) - (b.lesson || 1));
       },
