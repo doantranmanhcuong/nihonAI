@@ -13,11 +13,11 @@ export class ReadingCronService {
   static initReadingNewsCron() {
     console.log('⏰ [ReadingCronService] Đã kích hoạt bộ lập lịch cào báo tự động (mỗi 6 giờ) & dọn dẹp CSDL (04:00 AM)');
 
-    // 1. Dọn dẹp các bài báo cũ (> 60 ngày) vào lúc 04:00 sáng mỗi ngày
+    // 1. Dọn dẹp các bài báo cũ (> 14 ngày) vào lúc 04:00 sáng mỗi ngày
     cron.schedule('0 4 * * *', async () => {
-      console.log('🧹 [ReadingCronService] Bắt đầu tác vụ định kỳ dọn dẹp bài báo cũ (> 60 ngày)...');
+      console.log('🧹 [ReadingCronService] Bắt đầu tác vụ định kỳ dọn dẹp bài báo cũ (> 14 ngày)...');
       try {
-        await ReadingService.cleanupStaleArticles(60);
+        await ReadingService.cleanupStaleArticles(14);
       } catch (err: any) {
         console.error('❌ [ReadingCronService] Lỗi khi dọn dẹp CSDL:', err?.message || err);
       }
@@ -32,7 +32,7 @@ export class ReadingCronService {
     // 3. Kiểm tra ngay sau khi khởi động Server (sau 8 giây để không chặn cổng khởi động)
     setTimeout(async () => {
       try {
-        await ReadingService.cleanupStaleArticles(60);
+        await ReadingService.cleanupStaleArticles(14);
         const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
         const [totalCount, recentCount] = await Promise.all([
           prisma.readingArticle.count({ where: { isPublic: true } }),

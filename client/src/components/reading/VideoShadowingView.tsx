@@ -587,10 +587,10 @@ export const VideoShadowingView: React.FC<VideoShadowingViewProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ offsetMs: syncOffsetMs })
       });
-      alert("Đã lưu đồng bộ vịnh vi?n!");
+      alert("Đã lưu đồng bộ phụ đề vĩnh viễn!");
       window.location.reload();
     } catch(e) {
-      alert("L?i luu d?ng b?");
+      alert("Lỗi khi lưu đồng bộ phụ đề");
     } finally {
       setIsSavingSync(false);
     }
@@ -1068,15 +1068,46 @@ export const VideoShadowingView: React.FC<VideoShadowingViewProps> = ({
               >
                 <SkipForward className="w-4 h-4" />
               </button>
-              {syncOffsetMs !== 0 && (
+              <div className="flex items-center gap-1 ml-1 pl-2 border-l border-slate-200">
                 <button
-                  onClick={() => setSyncOffsetMs(0)}
-                  className="text-[10px] text-rose-500 hover:underline font-bold ml-0.5 cursor-pointer"
-                  title="Đặt lại về mặc định"
+                  onClick={() => setSyncOffsetMs((prev) => prev - 500)}
+                  className="px-1.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 cursor-pointer"
+                  title="Chậm phụ đề lại 0.5 giây"
                 >
-                  Reset
+                  -0.5s
                 </button>
-              )}
+                <span className="text-[10px] font-mono font-bold text-slate-500 min-w-[36px] text-center">
+                  {syncOffsetMs === 0 ? "0.0s" : `${syncOffsetMs > 0 ? "+" : ""}${(syncOffsetMs / 1000).toFixed(1)}s`}
+                </span>
+                <button
+                  onClick={() => setSyncOffsetMs((prev) => prev + 500)}
+                  className="px-1.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 cursor-pointer"
+                  title="Nhanh phụ đề lên 0.5 giây"
+                >
+                  +0.5s
+                </button>
+                {syncOffsetMs !== 0 && (
+                  <>
+                    <button
+                      onClick={() => setSyncOffsetMs(0)}
+                      className="text-[10px] text-rose-500 hover:underline font-bold ml-0.5 cursor-pointer"
+                      title="Đặt lại về mặc định"
+                    >
+                      Reset
+                    </button>
+                    {user?.role === "ADMIN" && lesson?.id && (
+                      <button
+                        onClick={handleSaveSync}
+                        disabled={isSavingSync}
+                        className="px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold ml-1 cursor-pointer"
+                        title="Lưu độ lệch này vĩnh viễn cho mọi học viên (Admin)"
+                      >
+                        {isSavingSync ? "..." : "Lưu Sync"}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Cụm tiện ích: [Tự ngắt câu] [Lặp A-B] [Romaji] [Furigana] [Dịch] [1x] */}

@@ -57,6 +57,20 @@ export const authApi = axios.create({
   withCredentials: true,
 });
 
+// Luôn đính kèm Bearer token từ localStorage ngay cả trước khi React useEffect chạy
+authApi.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined' && !config.headers['Authorization']) {
+      const savedToken = localStorage.getItem('nihonai_token');
+      if (savedToken) {
+        config.headers['Authorization'] = `Bearer ${savedToken}`;
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -70,8 +84,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const requestInterceptor = authApi.interceptors.request.use(
       (config) => {
-        if (token) {
-          config.headers['Authorization'] = `Bearer ${token}`;
+        const activeToken = token || (typeof window !== 'undefined' ? localStorage.getItem('nihonai_token') : null);
+        if (activeToken) {
+          config.headers['Authorization'] = `Bearer ${activeToken}`;
         }
         return config;
       },
@@ -89,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (res.data.success) {
               const newToken = res.data.data.token;
               setToken(newToken);
+              localStorage.setItem('nihonai_token', newToken);
               originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
               return authApi(originalRequest);
             }
@@ -109,17 +125,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       const storedUser = localStorage.getItem(USER_KEY);
+      const savedToken = localStorage.getItem('nihonai_token');
+      if (savedToken) {
+        setToken(savedToken);
+      }
       if (storedUser) {
         setUser(JSON.parse(storedUser));
         try {
           const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
           if (res.data.success) {
             setToken(res.data.data.token);
-              localStorage.setItem('nihonai_token', res.data.data.token);
+            localStorage.setItem('nihonai_token', res.data.data.token);
             setUser(res.data.data.user);
             localStorage.setItem(USER_KEY, JSON.stringify(res.data.data.user));
           }
         } catch (error) {
+          // Nếu trình duyệt chặn third-party cookie (refresh), thử xác thực bằng Bearer token hiện có qua /auth/me
+          if (savedToken) {
+            try {
+              const meRes = await axios.get(`${API_BASE_URL}/auth/me`, {
+                headers: { Authorization: `Bearer ${savedToken}` }
+              });
+              if (meRes.data?.success && meRes.data?.data) {
+                setUser(meRes.data.data);
+                localStorage.setItem(USER_KEY, JSON.stringify(meRes.data.data));
+                setIsLoading(false);
+                return;
+              }
+            } catch {}
+          }
           console.warn('Session expired or invalid. Clearing state.');
           handleLogoutState();
         }

@@ -115,7 +115,10 @@ export class ReadingApi {
   /**
    * Dịch chính xác cụm từ được bôi đen và phân tích ngữ pháp
    */
-  static async translateSelection(text: string, contextSentence?: string): Promise<{
+  static async translateSelection(
+    text: string,
+    contextSentence?: string
+  ): Promise<{
     translation: string;
     explanation?: string;
     grammarNotes?: string;
@@ -134,7 +137,11 @@ export class ReadingApi {
   /**
    * Giải thích chuyên sâu cấu trúc ngữ pháp và phân tích câu trích dẫn
    */
-  static async explainGrammar(grammarPoint: string, sentence?: string, level?: string): Promise<{
+  static async explainGrammar(
+    grammarPoint: string,
+    sentence?: string,
+    level?: string
+  ): Promise<{
     grammarPoint: string;
     level: string;
     meaningVi: string;
@@ -159,20 +166,15 @@ export class ReadingApi {
   }
 
   /**
-   * Lấy danh sách tin tức báo chí tiếng Nhật mới nhất (NHK, Asahi, Mainichi, Yahoo JP)
+   * Lấy danh sách tin tức báo chí tiếng Nhật mới nhất
    */
   static async getLatestNews(source?: string): Promise<NewsFeedItem[]> {
     try {
-      // Thay vì lấy RSS Live chưa được cào (gây lỗi 403 / ENOTFOUND khi bấm cào),
-      // chúng ta sẽ lấy danh sách các bài báo ĐÃ CÀO SẴN từ trong DB.
-      // Filter theo sourceType = EXTERNAL_NEWS hoặc NHK_NEWS
-      
       const queryParams = new URLSearchParams({
         limit: '20'
       });
-      // Lấy các bài báo từ nguồn news
       const url = `${API_BASE}/articles?${queryParams.toString()}`;
-      
+
       const res = await fetch(url);
       if (!res.ok) {
         console.warn(`[ReadingApi] getLatestNews returned ${res.status}`);
@@ -180,11 +182,12 @@ export class ReadingApi {
       }
       const json = await res.json();
       const articles: ReadingArticle[] = json.data?.items || [];
-      
-      // Lọc thủ công nếu có source (vì API listArticles chưa hỗ trợ lọc nhiều sourceType qua query một cách hoàn hảo)
-      const newsArticles = articles.filter(a => a.sourceType === 'EXTERNAL_NEWS' || a.sourceType === 'NHK_NEWS');
-      
-      return newsArticles.map(a => ({
+
+      const newsArticles = articles.filter(
+        (a) => a.sourceType === 'EXTERNAL_NEWS' || a.sourceType === 'NHK_NEWS'
+      );
+
+      return newsArticles.map((a) => ({
         id: a.id,
         title: a.title,
         link: a.sourceUrl || '',
@@ -274,8 +277,26 @@ export class ReadingApi {
   }
 
   /**
+   * Bóc tách phụ đề YouTube qua tầng Vercel Edge (/api/yt-captions) trước khi gửi xuống Render
+   */
+  static async fetchEdgeYouTubeCaptions(url: string): Promise<any[]> {
+    try {
+      const edgeRes = await fetch(`/api/yt-captions?v=${encodeURIComponent(url)}`);
+      if (!edgeRes.ok) return [];
+      const data = await edgeRes.json();
+      if (data?.success && Array.isArray(data.snippets) && data.snippets.length > 0) {
+        return data.snippets;
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Xử lý thông minh khi người dùng nhập link YouTube tiếng Nhật:
-   * Tự động trích xuất oEmbed, bóc tách phụ đề AI và lưu MySQL/Redis
+   * 1. Tự động trích xuất phụ đề qua Vercel Edge (/api/yt-captions) nếu chưa có srtContent
+   * 2. Gửi sang Backend để Kuromoji ghép câu, gắn Furigana/Romaji + dịch nghĩa GTX miễn phí
    */
   static async processYouTubeVideo(payload: {
     url: string;
@@ -283,12 +304,24 @@ export class ReadingApi {
     category?: string;
     srtContent?: string;
     autoSync?: boolean;
+    forceRefresh?: boolean;
     rawTranscript?: any[];
   }): Promise<any> {
+    let rawTranscript = payload.rawTranscript;
+    if ((!rawTranscript || rawTranscript.length === 0) && !payload.srtContent) {
+      const edgeSnippets = await this.fetchEdgeYouTubeCaptions(payload.url);
+      if (edgeSnippets.length > 0) {
+        rawTranscript = edgeSnippets;
+      }
+    }
+
     const res = await fetch(`${SHADOWING_API_BASE}/process-youtube`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        ...payload,
+        ...(rawTranscript && rawTranscript.length > 0 ? { rawTranscript } : {})
+      })
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.message || 'Lỗi khi xử lý link YouTube');
@@ -319,14 +352,15 @@ export class ReadingApi {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('nihonai_token') || localStorage.getItem('token')}`
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(data)
     });
     if (!res.ok) throw new Error('Failed to save to notebook');
     const json = await res.json();
     return json.data;
   }
+
   /**
    * Kích hoạt cào báo và chuyển hóa tự động các bài báo mới
    */

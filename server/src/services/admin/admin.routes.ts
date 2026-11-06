@@ -6,7 +6,6 @@ import { AdminController } from './admin.controller';
 export const adminRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-
 // Toàn bộ Admin Routes đều yêu cầu Token và Role = ADMIN
 adminRouter.use(authenticateToken);
 adminRouter.use(authorizeRole(['ADMIN']));
@@ -21,12 +20,25 @@ adminRouter.put('/users/:id/status', AdminController.updateUserStatus);
 adminRouter.get('/users/:id/progress', AdminController.getUserProgress);
 adminRouter.delete('/users/:id', AdminController.deleteUser);
 
-// 3. Quản lý Content
+// 3. Quản lý Content: Shadowing, Reading, Kanji, Vocabulary
 adminRouter.get('/content/shadowing', AdminController.listShadowing);
+adminRouter.put('/content/shadowing/:id', AdminController.updateShadowing);
 adminRouter.delete('/content/shadowing/:id', AdminController.deleteShadowing);
 
 adminRouter.get('/content/reading', AdminController.listReading);
+adminRouter.post('/content/reading', AdminController.createReading);
+adminRouter.put('/content/reading/:id', AdminController.updateReading);
 adminRouter.delete('/content/reading/:id', AdminController.deleteReading);
+
+adminRouter.get('/content/kanji', AdminController.listKanji);
+adminRouter.post('/content/kanji', AdminController.createKanji);
+adminRouter.put('/content/kanji/:id', AdminController.updateKanji);
+adminRouter.delete('/content/kanji/:id', AdminController.deleteKanji);
+
+adminRouter.get('/content/vocab', AdminController.listVocab);
+adminRouter.post('/content/vocab', AdminController.createVocab);
+adminRouter.put('/content/vocab/:id', AdminController.updateVocab);
+adminRouter.delete('/content/vocab/:id', AdminController.deleteVocab);
 
 // 4. Quản lý Settings
 adminRouter.get('/settings', AdminController.getSettings);

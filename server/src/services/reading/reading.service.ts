@@ -93,9 +93,9 @@ export class ReadingService {
   }
 
   /**
-   * Dọn dẹp các bài báo cũ và bài báo bị tường rào bản quyền NHK ONE để CSDL luôn gọn gàng
+   * Dọn dẹp các bài báo cũ (> 14 ngày) và bài báo bị tường rào bản quyền NHK ONE để CSDL luôn gọn gàng
    */
-  static async cleanupStaleArticles(retentionDays = 60): Promise<{ deletedCount: number }> {
+  static async cleanupStaleArticles(retentionDays = 14): Promise<{ deletedCount: number }> {
     // 0. Luôn xóa ngay các bài báo bị dính thông báo hợp đồng thuê bao NHK ONE (放送法に基づき契約が必要です)
     const corruptedNhkArticles = await prisma.readingArticle.findMany({
       where: {
@@ -117,7 +117,7 @@ export class ReadingService {
     }
 
     const totalPublic = await prisma.readingArticle.count({ where: { isPublic: true } });
-    if (totalPublic <= 15) {
+    if (totalPublic <= 6) {
       return { deletedCount: corruptedNhkArticles.length };
     }
 

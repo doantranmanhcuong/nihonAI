@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { XCircle, UploadCloud, FileDown, CheckCircle2 } from 'lucide-react';
 import { authApi } from '@/context/AuthContext';
 
-export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [importType, setImportType] = useState('kanji');
   const [loading, setLoading] = useState(false);
@@ -17,18 +17,27 @@ export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean, 
   };
 
   const handleImport = async () => {
-    if (!file) return alert('Vui lòng chọn file Excel');
+    if (!file) return alert('Vui lòng chọn file Excel hoặc CSV');
     setLoading(true);
     setResult(null);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      
-      const res = await authApi.post(`/admin/content/import?type=${importType.toUpperCase()}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setResult({ success: true, message: res.data.message });
+
+      const res = await authApi.post(`/admin/content/import?type=${importType.toUpperCase()}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const inserted = res.data?.data?.inserted ?? 0;
+      setResult({
+        success: true,
+        message: res.data?.message || `Đã nhập thành công ${inserted} mục dữ liệu vào hệ thống!`
+      });
       setFile(null);
     } catch (err: any) {
-      setResult({ success: false, message: err.response?.data?.message || err.message });
+      setResult({
+        success: false,
+        message: err.response?.data?.message || err.message || 'Lỗi khi nhập dữ liệu'
+      });
     }
     setLoading(false);
   };
@@ -36,9 +45,11 @@ export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean, 
   const downloadTemplate = () => {
     let csv = '';
     if (importType === 'kanji') {
-      csv = 'kanji,meaning,onyomi,kunyomi,level,examples\n日,Mặt trời,にち,ひ,N5,Nhật Bản|Nhật ký';
+      csv =
+        '\uFEFFcharacter,hanViet,meaningVi,onyomi,kunyomi,jlptLevel,strokeCount,radicals\n日,NHẬT,Mặt trời / Ngày,ニチ・ジツ,ひ・か,N5,4,日\n月,NGUYỆT,Mặt trăng / Tháng,ゲツ・ガツ,つき,N5,4,月';
     } else {
-      csv = 'word,meaning,reading,level,examples\n教師,Giáo viên,きょうし,N5,Thầy giáo|Cô giáo';
+      csv =
+        '\uFEFFword,reading,hanViet,meaningVi,jlptLevel,exampleJp,exampleVi\n先生,せんせい,TIÊN SINH,Giáo viên / Thầy cô,N5,先生に質問します。,Tôi đặt câu hỏi cho thầy giáo.';
     }
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -52,7 +63,7 @@ export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean, 
       <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-lg text-slate-900">Nhập dữ liệu hàng loạt (Excel/CSV)</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-rose-500 transition-colors">
+          <button onClick={onClose} className="text-slate-400 hover:text-rose-500 transition-colors cursor-pointer">
             <XCircle size={24} />
           </button>
         </div>
@@ -60,10 +71,10 @@ export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean, 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Loại dữ liệu</label>
-            <select 
+            <select
               value={importType}
               onChange={(e) => setImportType(e.target.value)}
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 outline-none focus:border-indigo-600"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-slate-50 outline-none focus:border-indigo-600 cursor-pointer"
             >
               <option value="kanji">Kanji (Hán tự)</option>
               <option value="vocabulary">Vocabulary (Từ vựng)</option>
@@ -71,46 +82,50 @@ export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean, 
           </div>
 
           <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer relative">
-            <input 
-              type="file" 
-              accept=".xlsx, .xls, .csv" 
+            <input
+              type="file"
+              accept=".xlsx, .xls, .csv"
               onChange={handleFileChange}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
             <div className="flex flex-col items-center gap-2 pointer-events-none">
               <UploadCloud className="w-8 h-8 text-indigo-500" />
               <p className="text-sm font-medium text-slate-700">{file ? file.name : 'Kéo thả hoặc nhấn để chọn file'}</p>
-              <p className="text-xs text-slate-500 mt-1">Hỗ trợ .xlsx, .csv</p>
+              <p className="text-xs text-slate-500 mt-1">Hỗ trợ .xlsx, .xls, .csv (UTF-8)</p>
             </div>
           </div>
 
           <div className="flex justify-end">
-            <button 
+            <button
               onClick={downloadTemplate}
-              className="flex items-center gap-2 text-sm text-indigo-600 font-medium hover:text-indigo-800"
+              className="flex items-center gap-2 text-sm text-indigo-600 font-medium hover:text-indigo-800 cursor-pointer"
             >
               <FileDown size={16} /> Tải file mẫu ({importType})
             </button>
           </div>
 
           {result && (
-            <div className={`p-4 rounded-xl flex items-start gap-3 ${result.success ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+            <div
+              className={`p-4 rounded-xl flex items-start gap-3 ${
+                result.success ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+              }`}
+            >
               {result.success ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <XCircle className="w-5 h-5 shrink-0" />}
               <p className="text-sm font-medium leading-tight">{result.message}</p>
             </div>
           )}
 
           <div className="flex gap-3 pt-4">
-            <button 
+            <button
               onClick={onClose}
-              className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+              className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
             >
-              Hủy
+              Đóng
             </button>
-            <button 
+            <button
               onClick={handleImport}
               disabled={loading || !file}
-              className="flex-1 px-4 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              className="flex-1 px-4 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer"
             >
               {loading ? 'Đang xử lý...' : 'Bắt đầu Nhập'}
             </button>

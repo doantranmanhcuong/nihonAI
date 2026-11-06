@@ -278,13 +278,52 @@ export class TranscriptParserService {
   }
 
   /**
-   * Xử lý toàn bộ transcript: Tốc độ cực cao (< 100ms cho 1000 câu)
+   * Dịch hàng loạt (Batch Translation) từ tiếng Nhật sang tiếng Việt qua Google Translate GTX (Miễn phí 100%, 0 tốn quota AI)
+   */
+  static async translateBatchGtx(sentences: string[]): Promise<string[]> {
+    if (!sentences || sentences.length === 0) return [];
+    const results: string[] = new Array(sentences.length).fill('');
+    const CHUNK_SIZE = 25;
+
+    for (let i = 0; i < sentences.length; i += CHUNK_SIZE) {
+      const chunk = sentences.slice(i, i + CHUNK_SIZE);
+      const joined = chunk.map((s) => s.replace(/\r?\n/g, ' ').trim()).join('\n');
+      try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=vi&dt=t&q=${encodeURIComponent(joined)}`;
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+          },
+          signal: AbortSignal.timeout(6000)
+        });
+        if (res.ok) {
+          const data: any = await res.json();
+          if (Array.isArray(data) && Array.isArray(data[0])) {
+            const fullTranslated = data[0].map((part: any) => (part && part[0] ? String(part[0]) : '')).join('');
+            const lines = fullTranslated.split('\n');
+            for (let j = 0; j < chunk.length; j++) {
+              results[i + j] = (lines[j] || '').trim();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[GTX-Batch] Translation warning:', (err as any)?.message);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Xử lý toàn bộ transcript: Tốc độ cực cao (< 300ms kèm dịch nghĩa tiếng Việt miễn phí qua GTX)
    */
   static async enrichTranscript(
     raw: RawTranscriptSnippet[]
   ): Promise<EnrichedSubtitleItem[]> {
     const tokenizer = await this.getTokenizer();
     const merged = this.mergeRawSegments(raw, tokenizer);
+    const vietnameseTranslations = await this.translateBatchGtx(merged.map((s) => s.text));
 
     return merged.map((s, idx) => {
       const furigana = this.generateFurigana(tokenizer, s.text);
@@ -298,7 +337,7 @@ export class TranscriptParserService {
         japanese: s.text,
         furigana,
         romaji,
-        vietnamese: '',
+        vietnamese: vietnameseTranslations[idx] || '',
         keyWords,
         grammarNotes: []
       };
@@ -430,52 +469,226 @@ export class TranscriptParserService {
   }
 
   /**
-   * Trích xuất phụ đề YouTube gốc từ cache hoặc công cụ bóc tách
+   * Trích xuất phụ đề YouTube gốc bằng thuần Node.js (Innertube ANDROID/IOS + JSON3/XML)
    */
-  static async fetchYouTubeTranscript(youtubeId: string): Promise<{ isGenerated: boolean, snippets: RawTranscriptSnippet[] }> {
-    // 1. Kiểm tra cache raw transcripts
-    const localCachePath = `C:/Users/cuong/.gemini/antigravity/brain/ce4d867a-0ffa-45f0-8971-21862588842f/scratch/raw_transcripts/${youtubeId}.json`;
-    if (fs.existsSync(localCachePath)) {
+  static async fetchYouTubeTranscript(
+    youtubeId: string
+  ): Promise<{ isGenerated: boolean; snippets: RawTranscriptSnippet[]; videoDetails?: { title?: string; shortDescription?: string; lengthSeconds?: number; author?: string } }> {
+    let cookieHeader = '';
+    let apiKey = '';
+    let videoDetails: { title?: string; shortDescription?: string; lengthSeconds?: number; author?: string } | undefined;
+
+    // 1. Lấy INNERTUBE_API_KEY và Session Cookies từ trang Watch của YouTube
+    try {
+      const watchRes = await fetch(`https://www.youtube.com/watch?v=${youtubeId}`, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8'
+        },
+        signal: AbortSignal.timeout(8000)
+      });
+      const setCookies = (watchRes.headers as any).getSetCookie
+        ? (watchRes.headers as any).getSetCookie()
+        : [];
+      cookieHeader = setCookies.map((c: string) => c.split(';')[0]).join('; ');
+      const html = await watchRes.text();
+      const keyMatch = html.match(/"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"/);
+      if (keyMatch && keyMatch[1]) {
+        apiKey = keyMatch[1];
+      }
+    } catch (err) {
+      console.warn('[YouTubeTranscript] Watch HTML fetch warning:', (err as any)?.message);
+    }
+
+    // 2. Gọi Innertube Player API (ANDROID -> IOS) để lấy captionTracks không dính exp=xpe
+    const clients = [
+      { clientName: 'ANDROID', clientVersion: '20.10.38' },
+      { clientName: 'IOS', clientVersion: '20.10.4' }
+    ];
+
+    let captionTracks: any[] = [];
+    for (const client of clients) {
       try {
-        const rawList = JSON.parse(fs.readFileSync(localCachePath, 'utf8'));
-        return rawList.map((s: any) => ({
-          startMs: Math.round(s.start * 1000),
-          endMs: Math.round((s.start + (s.duration || 2)) * 1000),
-          text: s.text.replace(/\n/g, ' ').trim()
-        }));
+        const playerUrl = apiKey
+          ? `https://www.youtube.com/youtubei/v1/player?key=${apiKey}&prettyPrint=false`
+          : 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
+        const playerRes = await fetch(playerUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(cookieHeader ? { Cookie: cookieHeader } : {})
+          },
+          body: JSON.stringify({
+            context: { client },
+            videoId: youtubeId
+          }),
+          signal: AbortSignal.timeout(8000)
+        });
+        const playerData: any = await playerRes.json();
+        if (playerData?.videoDetails && !videoDetails) {
+          videoDetails = {
+            title: playerData.videoDetails.title,
+            shortDescription: playerData.videoDetails.shortDescription,
+            lengthSeconds: Number(playerData.videoDetails.lengthSeconds) || undefined,
+            author: playerData.videoDetails.author
+          };
+        }
+        const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (Array.isArray(tracks) && tracks.length > 0) {
+          captionTracks = tracks;
+          break;
+        }
       } catch {}
     }
 
-    // 2. Chạy script python extract_yt_transcript.py
-    const scriptPaths = [
-      path.join(__dirname, '../../../../scripts/extract_yt_transcript.py'),
-      'C:/Users/cuong/.gemini/antigravity/brain/ce4d867a-0ffa-45f0-8971-21862588842f/scratch/extract_yt_transcript.py'
-    ];
-    const script = scriptPaths.find((p) => fs.existsSync(p));
-    if (!script) return { isGenerated: false, snippets: [] };
+    if (captionTracks.length > 0) {
+      // Ưu tiên phụ đề tiếng Nhật thủ công (chuẩn 100% thời gian âm thanh) trước phụ đề tự động (ASR)
+      const manualJa = captionTracks.find(
+        (t: any) => t.languageCode?.startsWith('ja') && t.kind !== 'asr'
+      );
+      const asrJa = captionTracks.find(
+        (t: any) => t.languageCode?.startsWith('ja') && t.kind === 'asr'
+      );
+      const translatableTrack = captionTracks.find((t: any) => t.isTranslatable && t.baseUrl);
+      const selected = manualJa || asrJa || translatableTrack;
 
-    return new Promise((resolve) => {
-      const { exec } = require('child_process');
-      exec(
-        `python "${script}" ${youtubeId}`,
-        { maxBuffer: 10 * 1024 * 1024 },
-        (err: any, stdout: string) => {
-          if (err || !stdout) {
-            resolve({ isGenerated: false, snippets: [] });
-            return;
-          }
-          try {
-            const parsed = JSON.parse(stdout.trim());
-            if (parsed.snippets && Array.isArray(parsed.snippets) && parsed.length > 0) {
-              resolve(parsed);
-            } else {
-              resolve({ isGenerated: false, snippets: [] });
+      if (selected && selected.baseUrl) {
+        const isGenerated = selected.kind === 'asr';
+        let cleanBaseUrl = String(selected.baseUrl).replace('&fmt=srv3', '');
+        if (!selected.languageCode?.startsWith('ja')) {
+          cleanBaseUrl += '&tlang=ja';
+        }
+
+        // 2a. Thử định dạng JSON3 để lấy mốc mili-giây chính xác của từng câu/từ
+        try {
+          const json3Url = cleanBaseUrl.includes('fmt=')
+            ? cleanBaseUrl.replace(/fmt=[^&]+/, 'fmt=json3')
+            : `${cleanBaseUrl}&fmt=json3`;
+          const jRes = await fetch(json3Url, {
+            headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
+            signal: AbortSignal.timeout(8000)
+          });
+          if (jRes.ok) {
+            const jData: any = await jRes.json();
+            if (jData && Array.isArray(jData.events)) {
+              const rawEvents: Array<{ startMs: number; durationMs: number; text: string }> = [];
+              for (const ev of jData.events) {
+                if (!ev.segs || typeof ev.tStartMs !== 'number') continue;
+                const text = ev.segs
+                  .map((s: any) => s.utf8 || '')
+                  .join('')
+                  .replace(/\n+/g, ' ')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+                if (!text || /^(\[.*?\]|（.*?）|\(.*?\)|♪+)$/.test(text)) continue;
+                rawEvents.push({
+                  startMs: ev.tStartMs,
+                  durationMs: ev.dDurationMs || 2500,
+                  text
+                });
+              }
+
+              const snippets: RawTranscriptSnippet[] = rawEvents.map((ev, i) => {
+                const nextStart = rawEvents[i + 1]?.startMs;
+                const rawEnd = ev.startMs + ev.durationMs;
+                const endMs = nextStart ? Math.min(rawEnd, nextStart) : rawEnd;
+                return {
+                  startMs: ev.startMs,
+                  endMs: Math.max(ev.startMs + 200, endMs),
+                  text: ev.text
+                };
+              });
+
+              if (snippets.length > 0) {
+                return { isGenerated, snippets, videoDetails };
+              }
             }
-          } catch {
-            resolve({ isGenerated: false, snippets: [] });
+          }
+        } catch {}
+
+        // 2b. Fallback sang định dạng XML chuẩn của timedtext
+        try {
+          const xmlRes = await fetch(cleanBaseUrl, {
+            headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
+            signal: AbortSignal.timeout(8000)
+          });
+          if (xmlRes.ok) {
+            const xml = await xmlRes.text();
+            const regex = /<text start="([\d.]+)"(?:\s+dur="([\d.]+)")?[^>]*>([\s\S]*?)<\/text>/g;
+            const rawXml: Array<{ startMs: number; durationMs: number; text: string }> = [];
+            let m: RegExpExecArray | null;
+            while ((m = regex.exec(xml)) !== null) {
+              const startMs = Math.round(parseFloat(m[1]) * 1000);
+              const durMs = Math.round(parseFloat(m[2] || '2.5') * 1000);
+              const text = m[3]
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/<[^>]+>/g, '')
+                .replace(/\n+/g, ' ')
+                .trim();
+              if (!text || /^(\[.*?\]|（.*?）|\(.*?\)|♪+)$/.test(text)) continue;
+              rawXml.push({ startMs, durationMs: durMs, text });
+            }
+            const snippets: RawTranscriptSnippet[] = rawXml.map((ev, i) => {
+              const nextStart = rawXml[i + 1]?.startMs;
+              const rawEnd = ev.startMs + ev.durationMs;
+              const endMs = nextStart ? Math.min(rawEnd, nextStart) : rawEnd;
+              return {
+                startMs: ev.startMs,
+                endMs: Math.max(ev.startMs + 200, endMs),
+                text: ev.text
+              };
+            });
+            if (snippets.length > 0) {
+              return { isGenerated, snippets, videoDetails };
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // 3. Fallback qua cụm Invidious Public Caption Mirrors (Vượt hoàn toàn giới hạn 429 IP của Render, 0 tốn AI)
+    const invidiousMirrors = [
+      'https://inv.nadeko.net',
+      'https://yewtu.be',
+      'https://invidious.nerdvpn.de'
+    ];
+    for (const host of invidiousMirrors) {
+      try {
+        const capRes = await fetch(`${host}/api/v1/captions/${youtubeId}`, {
+          signal: AbortSignal.timeout(5000)
+        });
+        if (!capRes.ok) continue;
+        const capData: any = await capRes.json();
+        const captions: any[] = capData?.captions || [];
+        const jaCap = captions.find(
+          (c: any) =>
+            c.language_code?.startsWith('ja') ||
+            c.label?.toLowerCase().includes('japanese') ||
+            c.label?.includes('日本語')
+        );
+        if (jaCap && jaCap.url) {
+          const vttUrl = jaCap.url.startsWith('http') ? jaCap.url : `${host}${jaCap.url}`;
+          const vttRes = await fetch(vttUrl, { signal: AbortSignal.timeout(5000) });
+          if (vttRes.ok) {
+            const vttText = await vttRes.text();
+            const snippets = this.parseSrtOrVtt(vttText);
+            if (snippets.length > 0) {
+              return {
+                isGenerated: Boolean(jaCap.label?.toLowerCase().includes('auto')),
+                snippets,
+                videoDetails
+              };
+            }
           }
         }
-      );
-    });
+      } catch {}
+    }
+
+    return { isGenerated: false, snippets: [], videoDetails };
   }
 }

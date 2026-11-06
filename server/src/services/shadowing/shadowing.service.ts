@@ -41,29 +41,22 @@ export class ShadowingService {
       include: { subtitles: true }
     });
 
-    if (!lesson) throw new Error("Lesson not found");
+    if (!lesson) throw new Error('Lesson not found');
     if (offsetMs === 0) return lesson;
 
-    // Use a transaction to update all subtitles
-    const updates = lesson.subtitles.map(sub => {
-      return prisma.videoSubtitle.update({
+    const updates = lesson.subtitles.map((sub) =>
+      prisma.videoSubtitle.update({
         where: { id: sub.id },
         data: {
           startTimeMs: Math.max(0, sub.startTimeMs + offsetMs),
           endTimeMs: Math.max(100, sub.endTimeMs + offsetMs)
         }
-      });
-    });
+      })
+    );
 
     await prisma.$transaction(updates);
-    
-    // Clear cache
-    const redisKey = `shadowing_detail_${lessonId}`;
-    try {
-      const RedisService = require("../../services/redis.service").RedisService;
-      await RedisService.del(redisKey);
-    } catch(e) {}
-    
+    await this.clearCache();
+
     return { success: true, updatedCount: updates.length };
   }
 
@@ -102,7 +95,12 @@ export class ShadowingService {
       where.level = params.level.toUpperCase();
     }
     if (params.category && params.category !== 'ALL') {
-      where.category = params.category.toUpperCase();
+      const catUpper = params.category.toUpperCase();
+      if (catUpper === 'DAILY_LIFE') {
+        where.category = { in: ['DAILY_LIFE', 'VĂN HÓA & ĐỜI SỐNG', 'CONVERSATION'] };
+      } else {
+        where.category = catUpper;
+      }
     }
     if (params.channelTitle && params.channelTitle !== 'ALL') {
       where.channelTitle = params.channelTitle;
@@ -237,6 +235,8 @@ export class ShadowingService {
     level?: string;
     topic?: string;
     category?: string;
+    channelTitle?: string;
+    author?: string;
     durationSeconds?: number;
     thumbnailUrl?: string;
     description?: string;
@@ -266,6 +266,8 @@ export class ShadowingService {
         level: (data.level || 'N3').toUpperCase(),
         topic: data.topic || 'Giao tiếp đời sống',
         category: (data.category || 'DAILY_LIFE').toUpperCase(),
+        channelTitle: data.channelTitle || data.author || null,
+        author: data.author || data.channelTitle || null,
         durationSeconds: data.durationSeconds || 0,
         thumbnailUrl: data.thumbnailUrl || `https://img.youtube.com/vi/${cleanYoutubeId}/hqdefault.jpg`,
         description: data.description || '',
@@ -291,6 +293,7 @@ export class ShadowingService {
 
     // Xóa cache danh sách để người học thấy ngay bài mới
     l1Cache.clear();
+    await RedisService.delPrefix('shadowing:list:');
 
     return created;
   }
@@ -359,6 +362,8 @@ export class ShadowingService {
     }
 
     const level = (params.level || 'N3').toUpperCase();
+    let videoDescription = '';
+    let videoLengthSec = 0;
 
     // 3. FAST-PATH: Thu thập toàn bộ transcript thật từ YouTube hoặc dữ liệu SRT/VTT
     let rawSnippets: RawTranscriptSnippet[] = [];
@@ -372,34 +377,42 @@ export class ShadowingService {
     } else {
       console.log(`[Fast-Path] Fetching YouTube transcript for ${cleanYoutubeId}...`);
       const fetchRes = await TranscriptParserService.fetchYouTubeTranscript(cleanYoutubeId);
-        rawSnippets = fetchRes.snippets;
-        
-        // AUTO-SYNC: If requested, subtract 1500ms from Auto-Generated captions
-        if (params.autoSync && fetchRes.isGenerated) {
-            rawSnippets = rawSnippets.map(s => ({
-                ...s,
-                startMs: Math.max(0, s.startMs - 1500),
-                endMs: Math.max(100, s.endMs - 1500)
-            }));
-            console.log("[Fast-Path] Auto-Synced YouTube Auto CC by -1500ms");
+      rawSnippets = fetchRes.snippets;
+      if (fetchRes.videoDetails) {
+        if (fetchRes.videoDetails.title && oEmbedTitle === 'Video Luyện Nghe Tiếng Nhật') {
+          oEmbedTitle = fetchRes.videoDetails.title;
         }
+        if (fetchRes.videoDetails.author && authorName === 'YouTube Creator') {
+          authorName = fetchRes.videoDetails.author;
+        }
+        videoDescription = fetchRes.videoDetails.shortDescription || '';
+        videoLengthSec = fetchRes.videoDetails.lengthSeconds || 0;
+      }
+
+      // AUTO-SYNC: Chỉ áp dụng độ trễ -1500ms nếu người dùng yêu cầu và phụ đề là ASR tự động
+      if (params.autoSync && fetchRes.isGenerated && rawSnippets.length > 0) {
+        rawSnippets = rawSnippets.map(s => ({
+          ...s,
+          startMs: Math.max(0, s.startMs - 1500),
+          endMs: Math.max(100, s.endMs - 1500)
+        }));
+        console.log('[Fast-Path] Auto-Synced YouTube Auto CC by -1500ms');
+      }
     }
 
     let subtitlesData: any[] = [];
 
-    // 4. Phân tích ngữ pháp, ghép câu tự nhiên và gắn Furigana siêu tốc bằng Kuromoji (< 100ms)
+    // 4. Phân tích ngữ pháp, ghép câu tự nhiên, gắn Furigana bằng Kuromoji và dịch nghĩa tiếng Việt qua GTX (0 tốn quota AI)
     if (rawSnippets.length > 0) {
-      console.log(`[Fast-Path] Processing ${rawSnippets.length} raw snippets with local Kuromoji engine...`);
+      console.log(`[Fast-Path] Processing ${rawSnippets.length} raw snippets with local Kuromoji + GTX engine...`);
       subtitlesData = await TranscriptParserService.enrichTranscript(rawSnippets);
-      console.log(`[Fast-Path] Generated ${subtitlesData.length} complete, continuous sentences!`);
+      console.log(`[Fast-Path] Generated ${subtitlesData.length} complete, continuous sentences with Vietnamese translations!`);
     }
 
-    // 5. Removed AI fallback - AI cannot transcribe videos from title. If no transcript, we fail immediately.
-
-    // 6. Nếu hoàn toàn không thể lấy được phụ đề, thông báo rõ ràng cho học viên
+    // 5. Nếu hoàn toàn không thể lấy được phụ đề, thông báo rõ ràng cho học viên
     if (subtitlesData.length === 0) {
       throw new Error(
-        'Video YouTube này không có phụ đề tiếng Nhật (CC) tự động. Vui lòng dán nội dung tệp .srt / .vtt hoặc chọn video có phụ đề tiếng Nhật để học tập.'
+        'Video YouTube này không có phụ đề tiếng Nhật (CC). Vui lòng chọn video có bật phụ đề (CC) hoặc dán nội dung tệp .srt / .vtt.'
       );
     }
 
@@ -411,13 +424,15 @@ export class ShadowingService {
 
     // 8. Lưu bài học hoàn chỉnh vào MySQL trong 1 transaction (hỗ trợ video 50p = 3000s)
     const lastSubEndTime = subtitlesData[subtitlesData.length - 1]?.endTimeMs || 30000;
-    const durationSeconds = Math.max(60, Math.ceil(lastSubEndTime / 1000) + 10);
+    const durationSeconds = videoLengthSec > 0 ? videoLengthSec : Math.max(60, Math.ceil(lastSubEndTime / 1000) + 10);
 
     const createdLesson = await this.createLesson({
       title: oEmbedTitle,
       youtubeId: cleanYoutubeId,
       level,
-      category: params.category || 'Văn Hóa & Đời Sống',
+      category: params.category || 'DAILY_LIFE',
+      channelTitle: authorName,
+      author: authorName,
       topic: 'Luyện nghe & Shadowing',
       durationSeconds,
       thumbnailUrl,
@@ -426,6 +441,14 @@ export class ShadowingService {
     });
 
     return this.getLessonDetail(createdLesson.id);
+  }
+
+  /**
+   * Xóa toàn bộ bộ đệm L1 + L2 Redis của Shadowing khi Admin cập nhật/xóa bài học
+   */
+  static async clearCache() {
+    l1Cache.clear();
+    await RedisService.delPrefix('shadowing:');
   }
 
   /**

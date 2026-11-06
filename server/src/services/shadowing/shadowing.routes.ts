@@ -18,3 +18,5 @@ shadowingRouter.post('/process-youtube', ShadowingController.processYouTube);
 // POST /api/shadowing/explain-word - Tra cứu từ vựng tức thì phong cách Corodomo
 shadowingRouter.post('/explain-word', ShadowingController.explainWord);
 
+// PATCH /api/shadowing/:id/sync - Lưu hiệu chỉnh đồng bộ phụ đề vĩnh viễn
+shadowingRouter.patch('/:id/sync', ShadowingController.syncOffset);

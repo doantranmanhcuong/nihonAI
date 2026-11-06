@@ -33,6 +33,7 @@ import { useAuth } from '@/context/AuthContext';
 const LEVELS = ['ALL', 'N5', 'N4', 'N3', 'N2', 'N1'] as const;
 const CATEGORIES = [
   { value: 'ALL', label: 'Tất cả chủ đề' },
+  { value: 'ANIME', label: '🎬 Phim hoạt hình (Doraemon, Anime...)' },
   { value: 'DAILY_LIFE', label: 'Đời sống hàng ngày' },
   { value: 'INTERVIEW', label: 'Phỏng vấn đường phố' },
   { value: 'BUSINESS', label: 'Công việc & Kinh doanh' },
@@ -76,7 +77,7 @@ export const ShadowingStudio: React.FC = () => {
   const [videoLevel, setVideoLevel] = useState('N3');
   const [videoCategory, setVideoCategory] = useState('DAILY_LIFE');
   const [srtContent, setSrtContent] = useState('');
-  const [autoSync, setAutoSync] = useState(true);
+  const [autoSync, setAutoSync] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processError, setProcessError] = useState<string | null>(null);
   const [processSuccess, setProcessSuccess] = useState<string | null>(null);
@@ -435,7 +436,7 @@ export const ShadowingStudio: React.FC = () => {
                       className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300"
                     />
                     <label htmlFor="autoSync" className="text-[11px] font-semibold text-slate-700 cursor-pointer">
-                      T? d?ng cang ch?nh khớp nhịp âm thanh (-1.5s delay c?a YouTube Auto CC)
+                      Tự động căn chỉnh khớp nhịp âm thanh (-1.5s delay của YouTube Auto CC)
                     </label>
                   </div>
               </div>
@@ -528,9 +529,16 @@ const LessonCard: React.FC<LessonCardProps> = ({ lesson, isLoading, onSelect, le
           </div>
         </div>
         {/* Level badge */}
-        <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-lg text-[10px] font-black border shadow-xs ${levelColor}`}>
-          {lesson.level}
-        </span>
+        <div className="absolute top-2 left-2 flex items-center gap-1.5">
+          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border shadow-xs ${levelColor}`}>
+            {lesson.level}
+          </span>
+          {lesson.category === 'ANIME' && (
+            <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-pink-600 text-white shadow-xs">
+              🎬 Hoạt hình
+            </span>
+          )}
+        </div>
         {/* Duration */}
         {lesson.durationSeconds > 0 && (
           <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-lg bg-black/70 text-white text-[10px] font-mono">

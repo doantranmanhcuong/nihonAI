@@ -156,6 +156,7 @@ app.listen(PORT, async () => {
       const { KanjiService } = await import('./services/kanji/kanji.service');
       const { VocabularyService } = await import('./services/vocabulary/vocabulary.service');
       const { ReadingService } = await import('./services/reading/reading.service');
+      const { ShadowingService } = await import('./services/shadowing/shadowing.service');
       const { ExamService } = await import('./services/exam/exam.service');
 
       await Promise.allSettled([
@@ -166,9 +167,10 @@ app.listen(PORT, async () => {
         VocabularyService.getCourseStats(),
         VocabularyService.getCurriculumsSummary('MINNA', 'N5'),
         ReadingService.listArticles({ limit: 50 }),
+        ShadowingService.listLessons({ limit: 50 }),
         ExamService.getExamList()
       ]);
-      console.log('🔥 [CACHE WARMUP] Đã nạp sẵn Hán tự, Từ vựng, Đọc hiểu & Đề thi vào L1 RAM Cache (< 1ms).');
+      console.log('🔥 [CACHE WARMUP] Đã nạp sẵn Hán tự, Từ vựng, Đọc hiểu, Shadowing & Đề thi vào L1 RAM Cache (< 1ms).');
     } catch (warmupErr) {
       console.warn('⚠️ [CACHE WARMUP] Bỏ qua một số mục warmup:', warmupErr);
     }
