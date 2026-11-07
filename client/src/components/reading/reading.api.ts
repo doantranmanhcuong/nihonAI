@@ -3,6 +3,20 @@ import { ReadingArticle, QuotaStatus, ReadingQuiz, NewsFeedItem } from './readin
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api') + '/reading';
 const SHADOWING_API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api') + '/shadowing';
 
+function getAuthHeaders(extra?: Record<string, string>): HeadersInit {
+  const headers: Record<string, string> = { ...(extra || {}) };
+  if (typeof window !== 'undefined') {
+    const token =
+      localStorage.getItem('nihonai_token') ||
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return headers;
+}
+
 export class ReadingApi {
   /**
    * Lấy danh sách bài đọc từ Thư viện cộng đồng (0 Token)
@@ -24,7 +38,9 @@ export class ReadingApi {
       if (filters.page) params.append('page', String(filters.page));
       if (filters.limit) params.append('limit', String(filters.limit));
 
-      const res = await fetch(`${API_BASE}/articles?${params.toString()}`);
+      const res = await fetch(`${API_BASE}/articles?${params.toString()}`, {
+        headers: getAuthHeaders()
+      });
       if (!res.ok) {
         console.warn(`[ReadingApi] getArticles returned status ${res.status}`);
         return { items: [], pagination: { total: 0, page: 1, totalPages: 1 } };
@@ -42,7 +58,9 @@ export class ReadingApi {
    */
   static async getArticleDetail(id: string): Promise<ReadingArticle> {
     try {
-      const res = await fetch(`${API_BASE}/articles/${id}`);
+      const res = await fetch(`${API_BASE}/articles/${id}`, {
+        headers: getAuthHeaders()
+      });
       if (!res.ok) {
         throw new Error(`Không tìm thấy bài đọc (${res.status})`);
       }
@@ -59,7 +77,9 @@ export class ReadingApi {
    */
   static async getQuota(userId: string = 'guest_user'): Promise<QuotaStatus> {
     try {
-      const res = await fetch(`${API_BASE}/quota?userId=${encodeURIComponent(userId)}`);
+      const res = await fetch(`${API_BASE}/quota?userId=${encodeURIComponent(userId)}`, {
+        headers: getAuthHeaders()
+      });
       if (!res.ok) {
         return { dailyLimit: 5, usedToday: 0, remaining: 5, canGenerate: true, resetAt: '' };
       }
@@ -82,7 +102,7 @@ export class ReadingApi {
   }): Promise<{ article: ReadingArticle; quota: QuotaStatus }> {
     const res = await fetch(`${API_BASE}/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload)
     });
 
@@ -246,7 +266,9 @@ export class ReadingApi {
     if (filters.page) params.append('page', String(filters.page));
     if (filters.limit) params.append('limit', String(filters.limit));
 
-    const res = await fetch(`${SHADOWING_API_BASE}/lessons?${params.toString()}`);
+    const res = await fetch(`${SHADOWING_API_BASE}/lessons?${params.toString()}`, {
+      headers: getAuthHeaders()
+    });
     if (!res.ok) throw new Error('Không thể tải danh sách bài học video');
     const json = await res.json();
     return json.data;
@@ -256,7 +278,9 @@ export class ReadingApi {
    * Lấy chi tiết bài học video kèm phụ đề mili-giây
    */
   static async getVideoLessonDetail(id: string): Promise<any> {
-    const res = await fetch(`${SHADOWING_API_BASE}/lessons/${id}`);
+    const res = await fetch(`${SHADOWING_API_BASE}/lessons/${id}`, {
+      headers: getAuthHeaders()
+    });
     if (!res.ok) throw new Error('Không tìm thấy bài học video');
     const json = await res.json();
     return json.data;
@@ -268,7 +292,7 @@ export class ReadingApi {
   static async createVideoLesson(payload: any): Promise<any> {
     const res = await fetch(`${SHADOWING_API_BASE}/lessons`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload)
     });
     const json = await res.json();

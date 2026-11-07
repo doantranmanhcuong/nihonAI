@@ -10,7 +10,36 @@ export interface QuotaStatus {
 }
 
 export class ReadingQuotaService {
-  private static readonly DAILY_LIMIT = 5;
+  private static readonly DEFAULT_DAILY_LIMIT = 5;
+  private static cachedLimit: number = 5;
+  private static cachedGlobalEnabled: boolean = true;
+  private static lastConfigFetch: number = 0;
+
+  static invalidateConfigCache(): void {
+    this.lastConfigFetch = 0;
+  }
+
+  static async getDynamicConfig(): Promise<{ dailyLimit: number; aiGlobalEnabled: boolean }> {
+    const now = Date.now();
+    if (now - this.lastConfigFetch < 30000) {
+      return { dailyLimit: this.cachedLimit, aiGlobalEnabled: this.cachedGlobalEnabled };
+    }
+    try {
+      const settings = await prisma.systemSetting.findMany({
+        where: { key: { in: ['daily_ai_quota', 'AI_LIMIT', 'AI_GLOBAL_ENABLED'] } }
+      });
+      const map: Record<string, string> = {};
+      for (const s of settings) {
+        map[s.key] = s.value;
+      }
+      const rawLimit = map['daily_ai_quota'] ?? map['AI_LIMIT'];
+      const parsedLimit = rawLimit !== undefined ? parseInt(rawLimit, 10) : this.DEFAULT_DAILY_LIMIT;
+      this.cachedLimit = Number.isNaN(parsedLimit) ? this.DEFAULT_DAILY_LIMIT : Math.max(0, parsedLimit);
+      this.cachedGlobalEnabled = map['AI_GLOBAL_ENABLED'] !== 'false';
+      this.lastConfigFetch = now;
+    } catch {}
+    return { dailyLimit: this.cachedLimit, aiGlobalEnabled: this.cachedGlobalEnabled };
+  }
 
   private static getTodayDateKey(): string {
     const now = new Date();
@@ -66,11 +95,13 @@ export class ReadingQuotaService {
       usedToday = dbQuota?.count || 0;
     }
 
-    const remaining = Math.max(0, this.DAILY_LIMIT - usedToday);
-    const canGenerate = remaining > 0;
+    const { dailyLimit, aiGlobalEnabled } = await this.getDynamicConfig();
+    const effectiveLimit = aiGlobalEnabled ? dailyLimit : 0;
+    const remaining = Math.max(0, effectiveLimit - usedToday);
+    const canGenerate = aiGlobalEnabled && remaining > 0;
 
     return {
-      dailyLimit: this.DAILY_LIMIT,
+      dailyLimit: effectiveLimit,
       usedToday,
       remaining,
       canGenerate,
@@ -121,10 +152,10 @@ export class ReadingQuotaService {
     }
 
     const updatedStatus: QuotaStatus = {
-      dailyLimit: this.DAILY_LIMIT,
+      dailyLimit: currentStatus.dailyLimit,
       usedToday: newCount,
-      remaining: Math.max(0, this.DAILY_LIMIT - newCount),
-      canGenerate: newCount < this.DAILY_LIMIT,
+      remaining: Math.max(0, currentStatus.dailyLimit - newCount),
+      canGenerate: newCount < currentStatus.dailyLimit,
       resetAt: this.getEndOfDayIso()
     };
 

@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../core/prisma.service';
 import { GeminiPoolService } from '../../core/ai-pool.service';
-
-const prisma = new PrismaClient();
+import { ReadingQuotaService } from '../reading/reading-quota.service';
 
 export class AiTutorService {
   static async getActivePrompt(key: string, defaultPrompt: string): Promise<string> {
@@ -11,22 +10,32 @@ export class AiTutorService {
   }
 
   static async chat(userId: string, message: string, history: any[] = []): Promise<string> {
+    const { aiGlobalEnabled } = await ReadingQuotaService.getDynamicConfig();
+    if (!aiGlobalEnabled) {
+      throw new Error('Tính năng trợ lý AI hiện đang tạm tắt bởi Quản trị viên.');
+    }
+
     const systemPrompt = await this.getActivePrompt(
       'DEFAULT_TUTOR',
-      'B?n là m?t tr? lý ?o tên là NihonAI Sensei, chuyên giúp h?c viên h?c ti?ng Nh?t. Hãy tr? l?i ng?n g?n, thân thi?n và khuy?n khích h?c viên. Gi?i thích ng? pháp d? hi?u.'
+      'Bạn là một trợ lý ảo tên là NihonAI Sensei, chuyên giúp học viên học tiếng Nhật. Hãy trả lời ngắn gọn, thân thiện và khuyến khích học viên. Giải thích ngữ pháp dễ hiểu.'
     );
 
     const contents = [
-      { role: 'user', parts: [{ text: systemPrompt + "\n\nDu?i dây là cu?c h?i tho?i:" }] },
-      { role: 'model', parts: [{ text: "Ðã rõ. Tôi s? tuân th? vai trò NihonAI Sensei." }] },
-      ...history.map(h => ({
+      { role: 'user', parts: [{ text: systemPrompt + '\n\nDưới đây là cuộc hội thoại:' }] },
+      { role: 'model', parts: [{ text: 'Đã rõ. Tôi sẽ tuân thủ vai trò NihonAI Sensei.' }] },
+      ...history.map((h) => ({
         role: h.role,
         parts: [{ text: h.text }]
       })),
       { role: 'user', parts: [{ text: message }] }
     ];
 
-    const result = await GeminiPoolService.generateContent(process.env.GEMINI_MODEL || 'gemini-flash-latest', { contents }, undefined, userId);
+    const result = await GeminiPoolService.generateContent(
+      process.env.GEMINI_MODEL || 'gemini-flash-latest',
+      { contents },
+      undefined,
+      userId
+    );
     return result.response.text();
   }
-}
+}

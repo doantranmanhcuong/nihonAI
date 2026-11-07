@@ -34,7 +34,10 @@ class ApiGatewayClient {
     // Request Interceptor: Tự động gán Auth Token nếu có
     this.http.interceptors.request.use((config) => {
       if (typeof window !== 'undefined') {
-        const token = localStorage.getItem('auth_token');
+        const token =
+          localStorage.getItem('nihonai_token') ||
+          localStorage.getItem('auth_token') ||
+          localStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -58,6 +61,21 @@ class ApiGatewayClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  /**
+   * Xóa bộ đệm L1 Browser Memory Cache khi Admin thêm/sửa/xóa dữ liệu
+   */
+  clearCache(prefix?: string) {
+    if (!prefix) {
+      this.responseCache.clear();
+      return;
+    }
+    for (const key of Array.from(this.responseCache.keys())) {
+      if (key.includes(prefix)) {
+        this.responseCache.delete(key);
+      }
+    }
   }
 
   /**

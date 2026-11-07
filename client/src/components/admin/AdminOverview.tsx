@@ -1,7 +1,29 @@
 'use client';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  Legend
+} from 'recharts';
 import React, { useState, useEffect } from 'react';
-import { Users, FileText, CheckSquare, Activity, MonitorPlay } from 'lucide-react';
+import {
+  Users,
+  FileText,
+  CheckSquare,
+  Activity,
+  MonitorPlay,
+  BookOpen,
+  Languages,
+  HelpCircle,
+  RefreshCw,
+  Newspaper
+} from 'lucide-react';
 import { authApi } from '@/context/AuthContext';
 
 export const AdminOverview = () => {
@@ -14,11 +36,12 @@ export const AdminOverview = () => {
     totalKanji: 0,
     totalVocab: 0,
     activeUsers: 0,
-    systemHealth: 'Loading...',
+    systemHealth: 'Đang kiểm tra...',
     charts: { days: [], userGrowth: [], examActivity: [] }
   });
 
   const [loading, setLoading] = useState(true);
+  const [crawling, setCrawling] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -38,32 +61,74 @@ export const AdminOverview = () => {
     }
   };
 
+  const handleTriggerNewsCrawl = async () => {
+    try {
+      setCrawling(true);
+      const res = await authApi.post('/admin/crawl-news');
+      const msg = res.data?.data?.message || 'Đã kích hoạt cào báo mới thành công!';
+      alert(msg);
+      fetchStats();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Lỗi khi kích hoạt cào báo');
+    } finally {
+      setCrawling(false);
+    }
+  };
+
   if (loading) return <div className="p-8 text-center text-slate-500">Đang tải thống kê...</div>;
 
   const statCards = [
-    { title: 'Tổng Học Viên', value: stats.totalUsers, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { title: 'Hoạt động (7 ngày)', value: stats.activeUsers, icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-    { title: 'Đề Thi JLPT', value: stats.totalExams, icon: CheckSquare, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { title: 'Video Shadowing', value: stats.totalShadowing, icon: MonitorPlay, color: 'text-rose-600', bg: 'bg-rose-100' },
-    { title: 'Bài đọc AI', value: stats.totalReading, icon: FileText, color: 'text-amber-600', bg: 'bg-amber-100' },
+    { title: 'Tổng Học Viên', value: stats.totalUsers || 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { title: 'Hoạt động (7 ngày)', value: stats.activeUsers || 0, icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-100' },
+    { title: 'Video Shadowing', value: stats.totalShadowing || 0, icon: MonitorPlay, color: 'text-rose-600', bg: 'bg-rose-100' },
+    { title: 'Bài đọc & Báo Nhật', value: stats.totalReading || 0, icon: FileText, color: 'text-amber-600', bg: 'bg-amber-100' },
+    { title: 'Kho Hán Tự (Kanji)', value: stats.totalKanji || 0, icon: Languages, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+    { title: 'Kho Từ Vựng (Vocab)', value: stats.totalVocab || 0, icon: BookOpen, color: 'text-cyan-600', bg: 'bg-cyan-100' },
+    { title: 'Đề Thi JLPT', value: stats.totalExams || 0, icon: CheckSquare, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { title: 'Câu Hỏi Thi JLPT', value: stats.totalQuestions || 0, icon: HelpCircle, color: 'text-teal-600', bg: 'bg-teal-100' }
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Tổng quan hệ thống</h2>
-        <p className="text-sm text-slate-500">Thống kê dữ liệu hoạt động của toàn bộ nền tảng.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-slate-900">Tổng quan hệ thống</h2>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              {stats.systemHealth || 'Hoạt động tốt'}
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 mt-0.5">Thống kê dữ liệu thời gian thực của toàn bộ nền tảng NihonAI.</p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleTriggerNewsCrawl}
+            disabled={crawling}
+            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <Newspaper className="w-4 h-4" />
+            {crawling ? 'Đang cào báo...' : 'Cào báo NHK mới'}
+          </button>
+          <button
+            onClick={fetchStats}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" /> Làm mới
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card, idx) => (
-          <div key={idx} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${card.bg} ${card.color}`}>
-              <card.icon className="w-6 h-6" />
+          <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-3.5">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${card.bg} ${card.color}`}>
+              <card.icon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500">{card.title}</p>
-              <h3 className="text-2xl font-black text-slate-800">{card.value.toLocaleString()}</h3>
+              <p className="text-xs font-semibold text-slate-500">{card.title}</p>
+              <h3 className="text-xl font-black text-slate-800">{Number(card.value).toLocaleString()}</h3>
             </div>
           </div>
         ))}
@@ -90,7 +155,7 @@ export const AdminOverview = () => {
 
         {/* Activity Chart */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-4">Lượt thi (7 ngày qua)</h3>
+          <h3 className="font-bold text-slate-800 mb-4">Lượt thi JLPT (7 ngày qua)</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.charts?.days?.map((d: string, i: number) => ({ name: d, exams: stats.charts.examActivity[i] })) || []}>

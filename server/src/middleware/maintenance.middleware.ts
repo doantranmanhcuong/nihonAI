@@ -1,24 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../core/prisma.service';
 import { ResponseFormatter } from '../core/api-response';
 
-const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_env';
 
 let isMaintenanceCached = false;
 let lastCheck = 0;
 const CACHE_TTL = 30000; // 30 seconds
 
+export const invalidateMaintenanceCache = (): void => {
+  lastCheck = 0;
+};
+
 export const checkMaintenance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  // Allow admin routes unconditionally
-  if (req.path.startsWith('/api/admin')) {
+  // Luôn cho phép các route Admin và Auth (để Admin có thể đăng nhập/xác thực khi hệ thống bảo trì)
+  if (req.path.startsWith('/api/admin') || req.path.startsWith('/api/auth')) {
     next();
     return;
-  }
-  
-  // Allow auth routes related to checking user info
-  if (req.path.startsWith('/api/auth/me')) {
-      next();
-      return;
   }
 
   try {
@@ -30,7 +29,34 @@ export const checkMaintenance = async (req: Request, res: Response, next: NextFu
     }
 
     if (isMaintenanceCached) {
-      res.status(503).json(ResponseFormatter.error('Hệ thống đang bảo trì, vui lòng quay lại sau.', null, 'maintenance-middleware'));
+      // Kiểm tra nếu người gọi có Bearer Token là ADMIN thì cho phép đi qua toàn bộ hệ thống để kiểm thử
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as { userId?: string };
+          if (decoded?.userId) {
+            const u = await prisma.user.findUnique({
+              where: { id: decoded.userId },
+              select: { role: true }
+            });
+            if (u?.role === 'ADMIN') {
+              next();
+              return;
+            }
+          }
+        } catch {}
+      }
+
+      res
+        .status(503)
+        .json(
+          ResponseFormatter.error(
+            'Hệ thống đang bảo trì để nâng cấp. Vui lòng quay lại sau ít phút.',
+            null,
+            'maintenance-middleware'
+          )
+        );
       return;
     }
 

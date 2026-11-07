@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../core/prisma.service';
 
 export interface AuthUserPayload {
   userId: string;
@@ -13,7 +13,6 @@ export interface AuthenticatedRequest extends Request {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_env';
-const prisma = new PrismaClient();
 
 export const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers['authorization'];
@@ -54,7 +53,6 @@ export const optionalAuthenticateToken = (req: AuthenticatedRequest, res: Respon
     req.user = decoded;
     next();
   } catch (error) {
-    // Just ignore invalid tokens for optional routes, or you can throw 401. We'll ignore and proceed as guest.
     next();
   }
 };

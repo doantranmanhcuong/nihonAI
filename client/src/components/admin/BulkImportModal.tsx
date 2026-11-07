@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { XCircle, UploadCloud, FileDown, CheckCircle2 } from 'lucide-react';
 import { authApi } from '@/context/AuthContext';
+import { apiGateway } from '@/services/api-gateway.client';
 
 export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
@@ -28,6 +29,7 @@ export default function BulkImportModal({ isOpen, onClose }: { isOpen: boolean; 
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       const inserted = res.data?.data?.inserted ?? 0;
+      apiGateway.clearCache();
       setResult({
         success: true,
         message: res.data?.message || `Đã nhập thành công ${inserted} mục dữ liệu vào hệ thống!`

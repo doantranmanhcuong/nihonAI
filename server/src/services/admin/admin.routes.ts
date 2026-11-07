@@ -10,20 +10,26 @@ const upload = multer({ storage: multer.memoryStorage() });
 adminRouter.use(authenticateToken);
 adminRouter.use(authorizeRole(['ADMIN']));
 
-// 1. Thống kê
+// 1. Thống kê & Tác vụ hệ thống
 adminRouter.get('/stats', AdminController.getStats);
+adminRouter.post('/crawl-news', AdminController.triggerNewsCrawl);
 
 // 2. Quản lý Users
 adminRouter.get('/users', AdminController.listUsers);
 adminRouter.patch('/users/:id/role', AdminController.updateUserRole);
 adminRouter.put('/users/:id/status', AdminController.updateUserStatus);
 adminRouter.get('/users/:id/progress', AdminController.getUserProgress);
+adminRouter.delete('/users/:id/attempts/:attemptId', AdminController.deleteUserExamAttempt);
 adminRouter.delete('/users/:id', AdminController.deleteUser);
 
-// 3. Quản lý Content: Shadowing, Reading, Kanji, Vocabulary
+// 3. Quản lý Content: Shadowing, Reading, Kanji, Vocabulary, JLPT Exams
+adminRouter.post('/content/bulk-delete', AdminController.bulkDeleteContent);
+
 adminRouter.get('/content/shadowing', AdminController.listShadowing);
 adminRouter.put('/content/shadowing/:id', AdminController.updateShadowing);
 adminRouter.delete('/content/shadowing/:id', AdminController.deleteShadowing);
+adminRouter.get('/content/shadowing/:id/subtitles', AdminController.getShadowingSubtitles);
+adminRouter.put('/content/shadowing/:id/subtitles', AdminController.updateShadowingSubtitles);
 
 adminRouter.get('/content/reading', AdminController.listReading);
 adminRouter.post('/content/reading', AdminController.createReading);
@@ -40,14 +46,24 @@ adminRouter.post('/content/vocab', AdminController.createVocab);
 adminRouter.put('/content/vocab/:id', AdminController.updateVocab);
 adminRouter.delete('/content/vocab/:id', AdminController.deleteVocab);
 
+adminRouter.get('/content/exams', AdminController.listExams);
+adminRouter.post('/content/exams', AdminController.createExam);
+adminRouter.put('/content/exams/:id', AdminController.updateExam);
+adminRouter.delete('/content/exams/:id', AdminController.deleteExam);
+adminRouter.get('/content/exams/:id/questions', AdminController.getExamQuestions);
+adminRouter.put('/content/exams/:id/questions', AdminController.updateExamQuestions);
+
 // 4. Quản lý Settings
 adminRouter.get('/settings', AdminController.getSettings);
 adminRouter.put('/settings', AdminController.updateSettings);
 
-// 5. Import/Export
+// 5. Import / Export
 adminRouter.post('/content/import', upload.single('file'), AdminController.importExcelData);
+adminRouter.get('/content/export', AdminController.exportContentData);
 
 // 6. AI Console
 adminRouter.get('/ai/prompts', AdminController.listAiPrompts);
 adminRouter.put('/ai/prompts/:key', AdminController.updateAiPrompt);
 adminRouter.get('/ai/logs', AdminController.listAiLogs);
+adminRouter.delete('/ai/logs/:id', AdminController.deleteAiLog);
+adminRouter.delete('/ai/logs', AdminController.clearAiLogs);

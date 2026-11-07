@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SharedLibraryView } from './SharedLibraryView';
 import { DokkaiStudyView } from './DokkaiStudyView';
 import { VideoShadowingView } from './VideoShadowingView';
@@ -15,20 +15,20 @@ export const ReadingStudio: React.FC = () => {
   const [selectedArticle, setSelectedArticle] = useState<ReadingArticle | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
-  const { isAuthenticated, openAuthModal } = useAuth();
+  const { user } = useAuth();
 
-  const fetchQuota = async () => {
+  const fetchQuota = useCallback(async () => {
     try {
-      const q = await ReadingApi.getQuota();
+      const q = await ReadingApi.getQuota(user?.id || 'guest_user');
       setQuota(q);
     } catch (e) {
       console.error('Failed to load quota:', e);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     fetchQuota();
-  }, []);
+  }, [fetchQuota]);
 
   const handleSelectArticle = async (articleId: string) => {
     setSelectedArticleId(articleId);
@@ -82,7 +82,7 @@ export const ReadingStudio: React.FC = () => {
         />
       )}
 
-      {/* 4. Modal Tạo Bài Đọc Bằng AI (Hạn ngạch 5 bài/ngày) */}
+      {/* 4. Modal Tạo Bài Đọc Bằng AI (Hạn ngạch mỗi ngày) */}
       <AiGeneratorModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}

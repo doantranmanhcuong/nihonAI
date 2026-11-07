@@ -1,12 +1,11 @@
 import axios from 'axios';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { prisma } from '../../core/prisma.service';
 import { RedisService } from '../../core/redis.service';
 import { OAuth2Client } from 'google-auth-library';
 import { mailService } from '../../core/mail.service';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_env';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev_jwt_refresh_secret_change_in_env';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
@@ -110,12 +109,6 @@ export class AuthService {
   }
 
   static async verifyEmail(data: { email: string; code: string }): Promise<UserResponse> {
-    
-    const setting = await prisma.systemSetting.findUnique({ where: { key: 'allow_registration' } });
-    if (setting && setting.value === 'false') {
-      throw new Error('Hệ thống hiện đang tạm khóa đăng ký mới.');
-    }
-
     const email = data.email.trim().toLowerCase();
     const redisKey = `auth:verify-email:${email}`;
     const cached = await RedisService.get<{ otp: string; userId: string }>(redisKey);
@@ -126,11 +119,11 @@ export class AuthService {
 
     const updatedUser = await prisma.user.update({
       where: { id: cached.data.userId },
-      data: { isEmailVerified: true }
+      data: { isEmailVerified: true, lastLoginAt: new Date() }
     });
 
     await RedisService.del(redisKey);
-    mailService.sendWelcomeEmail(updatedUser.email as string,  updatedUser.displayName as string).catch(err => console.error(err));
+    mailService.sendWelcomeEmail(updatedUser.email as string, updatedUser.displayName as string).catch(err => console.error(err));
     return sanitizeUser(updatedUser);
   }
 
@@ -150,12 +143,6 @@ export class AuthService {
   }
 
   static async login(data: any): Promise<AuthResult> {
-    
-    const setting = await prisma.systemSetting.findUnique({ where: { key: 'allow_registration' } });
-    if (setting && setting.value === 'false') {
-      throw new Error('Hệ thống hiện đang tạm khóa đăng ký mới.');
-    }
-
     const email = data.email.trim().toLowerCase();
     const password = data.password || '';
 
@@ -171,8 +158,13 @@ export class AuthService {
       throw new Error(`Tài khoản đã bị khóa: ${user.banReason || 'Vi phạm chính sách.'}`);
     }
 
-    const tokens = generateTokens(user.id, user.email, user.tokenVersion || 1);
-    return { user: sanitizeUser(user), ...tokens };
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() }
+    });
+
+    const tokens = generateTokens(updatedUser.id, updatedUser.email, updatedUser.tokenVersion || 1);
+    return { user: sanitizeUser(updatedUser), ...tokens };
   }
 
   static async loginDemo(): Promise<AuthResult> {
@@ -281,6 +273,11 @@ export class AuthService {
         }
       });
     } else {
+      const regSetting = await prisma.systemSetting.findUnique({ where: { key: 'allow_registration' } });
+      if (regSetting && regSetting.value === 'false') {
+        throw new Error('Hệ thống hiện đang tạm khóa đăng ký tài khoản mới.');
+      }
+
       user = await prisma.user.create({
         data: {
           email,
@@ -339,12 +336,6 @@ export class AuthService {
   }
 
   static async resetPassword(data: { email: string; code: string; newPassword: string }): Promise<AuthResult> {
-    
-    const setting = await prisma.systemSetting.findUnique({ where: { key: 'allow_registration' } });
-    if (setting && setting.value === 'false') {
-      throw new Error('Hệ thống hiện đang tạm khóa đăng ký mới.');
-    }
-
     const email = data.email.trim().toLowerCase();
     const redisKey = `auth:reset:${email}`;
     const cached = await RedisService.get<{ otp: string; userId: string }>(redisKey);
