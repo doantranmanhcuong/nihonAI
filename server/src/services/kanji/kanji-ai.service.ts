@@ -34,43 +34,10 @@ export class KanjiAiService {
       }
     }
 
-    // 2. Kiểm tra bảng mở rộng kanji_ai_insights trong MySQL (0 token, ~2ms)
-    const existingDb = await prisma.kanjiAiInsight.findUnique({
-      where: { character: cleanChar }
-    });
-
-    // Nếu đã có và không bị lỗi JSON dở dang thì trả về ngay
-    if (existingDb && !forceRegenerate && existingDb.mnemonicStory && !existingDb.mnemonicStory.startsWith('{')) {
-      let radicals: { symbol: string; meaning: string }[] = [];
-      try {
-        radicals = JSON.parse(existingDb.radicalBreakdown);
-      } catch (e) {
-        radicals = [];
-      }
-
-      const kanjiRecord = await prisma.kanji.findUnique({ where: { character: cleanChar } });
-
-      const result: KanjiAiInsightResult = {
-        id: existingDb.id,
-        character: existingDb.character,
-        hanViet: kanjiRecord?.hanViet || 'HÁN TỰ',
-        meaningVi: kanjiRecord?.meaningVi || '',
-        mnemonicStory: existingDb.mnemonicStory,
-        radicalBreakdown: radicals,
-        culturalContext: existingDb.culturalContext || undefined,
-        confusionWarning: existingDb.confusionWarning || undefined,
-        generatedByModel: existingDb.generatedByModel,
-        isCached: true
-      };
-
-      // Ghi nhớ vào Redis 30 ngày
-      await RedisService.set(cacheKey, result, 30 * 86400);
-      return result;
-    }
-
-    // 3. Nếu chưa có hoặc cần sinh lại: Tiến hành gọi Gemini Flash Lite
+    // 2. Kiểm tra bảng mở rộng kanji_ai_insights kèm kanji trong MySQL (0 token, 1 query duy nhất ~2ms)
     const kanji = await prisma.kanji.findUnique({
-      where: { character: cleanChar }
+      where: { character: cleanChar },
+      include: { aiInsight: true }
     });
 
     if (!kanji) {
@@ -83,6 +50,61 @@ export class KanjiAiService {
     } catch (e) {
       parsedRadicals = [];
     }
+
+    const existingDb = kanji.aiInsight;
+
+    // Nếu đã có trong DB và không yêu cầu sinh lại thì trả về ngay
+    if (existingDb && !forceRegenerate && existingDb.mnemonicStory && !existingDb.mnemonicStory.startsWith('{')) {
+      let radicals: { symbol: string; meaning: string }[] = [];
+      try {
+        radicals = JSON.parse(existingDb.radicalBreakdown);
+      } catch (e) {
+        radicals = [];
+      }
+
+      const result: KanjiAiInsightResult = {
+        id: existingDb.id,
+        character: existingDb.character,
+        hanViet: kanji.hanViet || 'HÁN TỰ',
+        meaningVi: kanji.meaningVi || '',
+        mnemonicStory: existingDb.mnemonicStory,
+        radicalBreakdown: radicals.length > 0 ? radicals : parsedRadicals.map((r) => ({ symbol: r.symbol, meaning: r.name })),
+        culturalContext: existingDb.culturalContext || undefined,
+        confusionWarning: existingDb.confusionWarning || undefined,
+        generatedByModel: existingDb.generatedByModel,
+        isCached: true
+      };
+
+      // Ghi nhớ vào Redis 30 ngày
+      await RedisService.set(cacheKey, result, 30 * 86400);
+      return result;
+    }
+
+    // 2B. Nếu chỉ đang xem thẻ (forceRegenerate === false) mà chưa có trong bảng AI,
+    // trả về ngay mẹo nhớ chuẩn trong CSDL (< 1ms, 0 token) để không làm chậm trang và không tốn hạn mức Free Tier!
+    if (!forceRegenerate) {
+      const instantStory =
+        kanji.lookAndLearnTip ||
+        kanji.mnemonicAi ||
+        `Chữ ${cleanChar} (${kanji.hanViet}) gồm ${kanji.strokeCount} nét, mang ý nghĩa cốt lõi là "${kanji.meaningVi}".`;
+
+      const instantResult: KanjiAiInsightResult = {
+        character: cleanChar,
+        hanViet: kanji.hanViet || 'HÁN TỰ',
+        meaningVi: kanji.meaningVi || '',
+        mnemonicStory: instantStory,
+        radicalBreakdown: parsedRadicals.map((r) => ({ symbol: r.symbol, meaning: r.name })),
+        culturalContext: kanji.phoneticRule || undefined,
+        confusionWarning: `Chú ý viết đúng ${kanji.strokeCount} nét của chữ ${cleanChar} (${kanji.hanViet}) để tránh nhầm lẫn khi thi JLPT ${kanji.jlptLevel}.`,
+        generatedByModel: 'database-curated',
+        isCached: true
+      };
+
+      await RedisService.set(cacheKey, instantResult, 30 * 86400);
+      return instantResult;
+    }
+
+    // 3. Khi người dùng chủ động nhấn "Tạo mới bằng AI" (forceRegenerate === true): Gọi Gemini Flash Lite
 
     const radicalNames = parsedRadicals.map((r) => `${r.symbol} (${r.name})`).join(', ');
 

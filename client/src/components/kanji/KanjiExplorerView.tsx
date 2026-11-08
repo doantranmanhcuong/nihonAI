@@ -308,6 +308,86 @@ const generateKanjiQuestions = (kanjis: any[], count: number): CompQuizQuestion[
 
 
 
+const INITIAL_FALLBACK_KANJIS: any[] = [
+  { character: '一', hanViet: 'NHẤT', meaningVi: 'Số một', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 1, kunyomi: 'ひと(つ)', onyomi: 'イチ、イツ', radicals: [{ symbol: '一', name: 'Bộ Nhất (Số một)' }], lookAndLearnTip: 'Một nét gạch ngang duy nhất biểu thị số 1.', mnemonic: 'Một nét gạch ngang duy nhất biểu thị số 1.', exampleWords: [{ word: '一つ', reading: 'ひとつ', hanViet: 'NHẤT', meaningVi: 'Một cái' }, { word: '一人', reading: 'ひとり', hanViet: 'NHẤT NHÂN', meaningVi: 'Một người' }] },
+  { character: '二', hanViet: 'NHỊ', meaningVi: 'Số hai', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 2, kunyomi: 'ふた(つ)', onyomi: 'ニ', radicals: [{ symbol: '二', name: 'Bộ Nhị (Số hai)' }], lookAndLearnTip: 'Hai nét gạch ngang song song biểu thị số 2.', mnemonic: 'Hai nét gạch ngang song song biểu thị số 2.', exampleWords: [{ word: '二つ', reading: 'ふたつ', hanViet: 'NHỊ', meaningVi: 'Hai cái' }, { word: '二人', reading: 'ふたり', hanViet: 'NHỊ NHÂN', meaningVi: 'Hai người' }] },
+  { character: '三', hanViet: 'TAM', meaningVi: 'Số ba', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 3, kunyomi: 'みっ(つ)', onyomi: 'サン', radicals: [{ symbol: '一', name: 'Bộ Nhất' }], lookAndLearnTip: 'Ba nét gạch ngang xếp chồng biểu thị số 3.', mnemonic: 'Ba nét gạch ngang xếp chồng biểu thị số 3.', exampleWords: [{ word: '三つ', reading: 'みっつ', hanViet: 'TAM', meaningVi: 'Ba cái' }, { word: '三月', reading: 'さんがつ', hanViet: 'TAM NGUYỆT', meaningVi: 'Tháng ba' }] },
+  { character: '四', hanViet: 'TỨ', meaningVi: 'Số bốn', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 5, kunyomi: 'よっ(つ)、よん', onyomi: 'シ', radicals: [{ symbol: '囗', name: 'Bộ Vi (Vây quanh)' }, { symbol: '儿', name: 'Bộ Nhân đi' }], lookAndLearnTip: 'Khung hình vuông có 4 góc biểu thị số 4.', mnemonic: 'Khung hình vuông có 4 góc biểu thị số 4.', exampleWords: [{ word: '四つ', reading: 'よっつ', hanViet: 'TỨ', meaningVi: 'Bốn cái' }, { word: '四月', reading: 'しがつ', hanViet: 'TỨ NGUYỆT', meaningVi: 'Tháng tư' }] },
+  { character: '五', hanViet: 'NGŨ', meaningVi: 'Số năm', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 4, kunyomi: 'いつ(つ)', onyomi: 'ゴ', radicals: [{ symbol: '二', name: 'Bộ Nhị' }], lookAndLearnTip: 'Bàn tay 5 ngón đan xen giữa trời và đất.', mnemonic: 'Bàn tay 5 ngón đan xen giữa trời và đất.', exampleWords: [{ word: '五つ', reading: 'いつつ', hanViet: 'NGŨ', meaningVi: 'Năm cái' }, { word: '五月', reading: 'ごがつ', hanViet: 'NGŨ NGUYỆT', meaningVi: 'Tháng năm' }] },
+  { character: '六', hanViet: 'LỤC', meaningVi: 'Số sáu', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 4, kunyomi: 'むっ(つ)', onyomi: 'ロク', radicals: [{ symbol: '亠', name: 'Bộ Đầu' }, { symbol: '八', name: 'Bộ Bát' }], lookAndLearnTip: 'Đội mũ giơ hai chân tạo thành hình số 6.', mnemonic: 'Đội mũ giơ hai chân tạo thành hình số 6.', exampleWords: [{ word: '六つ', reading: 'むっつ', hanViet: 'LỤC', meaningVi: 'Sáu cái' }] },
+  { character: '七', hanViet: 'THẤT', meaningVi: 'Số bảy', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 2, kunyomi: 'なな(つ)', onyomi: 'シチ', radicals: [{ symbol: '一', name: 'Bộ Nhất' }], lookAndLearnTip: 'Số 7 viết ngược cắt ngang một nét.', mnemonic: 'Số 7 viết ngược cắt ngang một nét.', exampleWords: [{ word: '七つ', reading: 'ななつ', hanViet: 'THẤT', meaningVi: 'Bảy cái' }] },
+  { character: '八', hanViet: 'BÁT', meaningVi: 'Số tám', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 2, kunyomi: 'やっ(つ)', onyomi: 'ハチ', radicals: [{ symbol: '八', name: 'Bộ Bát (Số tám)' }], lookAndLearnTip: 'Hai nét xòe rộng ra như râu bát giới (số 8).', mnemonic: 'Hai nét xòe rộng ra như râu bát giới (số 8).', exampleWords: [{ word: '八つ', reading: 'やっつ', hanViet: 'BÁT', meaningVi: 'Tám cái' }] },
+  { character: '九', hanViet: 'CỬU', meaningVi: 'Số chín', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 2, kunyomi: 'ここの(つ)', onyomi: 'キュウ、ク', radicals: [{ symbol: '乙', name: 'Bộ Ất' }], lookAndLearnTip: 'Người cúi gập khuỷu tay tạo hình số 9.', mnemonic: 'Người cúi gập khuỷu tay tạo hình số 9.', exampleWords: [{ word: '九つ', reading: 'ここのつ', hanViet: 'CỬU', meaningVi: 'Chín cái' }] },
+  { character: '十', hanViet: 'THẬP', meaningVi: 'Số mười', jlptLevel: 'N5', curriculum: 'LOOK_AND_LEARN', lesson: 1, lessonTitle: 'Bài 1: Chữ số & Đếm cơ bản', strokeCount: 2, kunyomi: 'とお', onyomi: 'ジュウ', radicals: [{ symbol: '十', name: 'Bộ Thập (Số mười)' }], lookAndLearnTip: 'Hai bàn tay đan chữ thập biểu thị số 10.', mnemonic: 'Hai bàn tay đan chữ thập biểu thị số 10.', exampleWords: [{ word: '十', reading: 'とお', hanViet: 'THẬP', meaningVi: 'Mười cái' }] }
+];
+
+const INITIAL_FALLBACK_SUMMARY = {
+  curriculum: 'LOOK_AND_LEARN',
+  level: 'N5',
+  totalKanji: 10,
+  totalLessons: 1,
+  lessons: [
+    {
+      lesson: 1,
+      title: 'Bài 1: Chữ số & Đếm cơ bản',
+      wordCount: INITIAL_FALLBACK_KANJIS.length,
+      kanjis: INITIAL_FALLBACK_KANJIS
+    }
+  ]
+};
+
+function buildSafeKanjiDetail(raw: any): any {
+  const radicals = Array.isArray(raw?.radicals) && raw.radicals.length > 0
+    ? raw.radicals
+    : [{ symbol: raw?.character || '一', name: 'Bộ thủ chính' }];
+  const examples = Array.isArray(raw?.exampleWords)
+    ? raw.exampleWords
+    : Array.isArray(raw?.minaVocabularies)
+    ? raw.minaVocabularies
+    : [];
+  const minaVocabularies = Array.isArray(raw?.minaVocabularies) && raw.minaVocabularies.length > 0
+    ? raw.minaVocabularies
+    : examples.map((ex: any) => ({
+        word: ex.word || raw?.character || '一',
+        reading: ex.reading || raw?.kunyomi || '',
+        pitchAccent: ex.pitchAccent || `[${ex.reading || ''}]`,
+        hanViet: ex.hanViet || raw?.hanViet || '',
+        meaning: ex.meaningVi || ex.meaning || raw?.meaningVi || '',
+        source: raw?.curriculum || raw?.jlptLevel || 'N5'
+      }));
+  return {
+    character: raw?.character || '一',
+    hanViet: raw?.hanViet || 'HÁN TỰ',
+    meaningVi: raw?.meaningVi || '',
+    jlptLevel: raw?.jlptLevel || 'N5',
+    levelTag: raw?.levelTag || raw?.jlptLevel || 'N5',
+    curriculum: raw?.curriculum || 'LOOK_AND_LEARN',
+    lesson: raw?.lesson || 1,
+    lessonTitle: raw?.lessonTitle || 'Bài 1',
+    strokeCount: Number(raw?.strokeCount) || 1,
+    kunyomi: raw?.kunyomi || '—',
+    onyomi: raw?.onyomi || '—',
+    radicals,
+    mnemonic: raw?.mnemonic || raw?.lookAndLearnTip || `Chữ ${raw?.character || ''} (${raw?.hanViet || ''}) nghĩa là ${raw?.meaningVi || ''}.`,
+    lookAndLearnTip: raw?.lookAndLearnTip || raw?.mnemonic || undefined,
+    phoneticRule: raw?.phoneticRule || undefined,
+    exampleWords: examples,
+    svgStrokes: Array.isArray(raw?.svgStrokes) ? raw.svgStrokes : [],
+    minaVocabularies,
+    compoundsTree: raw?.compoundsTree || {
+      onyomiCompounds: minaVocabularies.map((v: any) => ({
+        word: v.word,
+        reading: v.reading,
+        meaning: v.meaning,
+        jlpt: raw?.jlptLevel || 'N5',
+        pitchAccent: v.pitchAccent
+      })),
+      kunyomiCompounds: []
+    },
+    lookalikes: Array.isArray(raw?.lookalikes) ? raw.lookalikes : []
+  };
+}
+
 export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExplorerViewProps) {
   const { isAuthenticated, openAuthModal } = useAuth();
 
@@ -331,17 +411,21 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
 
 
-  const [curriculumSummary, setCurriculumSummary] = useState<any | null>(null);
+  const [curriculumSummary, setCurriculumSummary] = useState<any | null>(INITIAL_FALLBACK_SUMMARY);
 
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
 
-  const [flashcardKanjis, setFlashcardKanjis] = useState<any[]>([]);
+  const [flashcardKanjis, setFlashcardKanjis] = useState<any[]>(INITIAL_FALLBACK_KANJIS);
 
 
 
-  // Chi tiết chữ Hán đang hiển thị ở cột phải
+  // Chi tiết chữ Hán đang hiển thị ở cột phải (Khởi tạo tức thì 0ms để không bao giờ bị treo màn hình)
 
-  const [kanjiData, setKanjiData] = useState<any | null>(null);
+  const [kanjiData, setKanjiData] = useState<any | null>(() => {
+    const target = initialKanji || '一';
+    const found = INITIAL_FALLBACK_KANJIS.find((k) => k.character === target) || INITIAL_FALLBACK_KANJIS[0];
+    return buildSafeKanjiDetail(found);
+  });
 
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
 
@@ -487,68 +571,72 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
 
 
-  // Tải chi tiết 1 chữ Hán
-
-  const fetchKanjiDetails = useCallback(async (character: string) => {
-
+  // Tải chi tiết 1 chữ Hán (Có Optimistic UI 0ms + chống lỗi khi Server Render đang Cold Start)
+  const fetchKanjiDetails = useCallback(async (character: string, localHint?: any) => {
     if (!character) return;
+    setSelectedKanjiChar(character);
+    setNotFoundQuery(null);
 
-    try {
-
-      setIsLoadingDetails(true);
-
-      setNotFoundQuery(null);
-
-      const data = await apiGateway.kanji.getDetails(character);
-
-      if (data) {
-
-        setKanjiData(data);
-
-        setSelectedKanjiChar(character);
-
-      }
-
-    } catch (err: any) {
-
-      setKanjiData(null);
-
-      setNotFoundQuery(character);
-
-    } finally {
-
-      setIsLoadingDetails(false);
-
+    // 1. Optimistic UI: Nếu có sẵn trong bộ nhớ cục bộ hoặc danh sách bài học thì hiển thị ngay (0ms, không chờ mạng)
+    const fallbackItem =
+      localHint ||
+      INITIAL_FALLBACK_KANJIS.find((k) => k.character === character);
+    if (fallbackItem) {
+      setKanjiData((prev: any) =>
+        prev?.character === character && prev?.minaVocabularies?.length > 0
+          ? prev
+          : buildSafeKanjiDetail(fallbackItem)
+      );
     }
 
+    try {
+      if (!fallbackItem) {
+        setIsLoadingDetails(true);
+      }
+      const data = await apiGateway.kanji.getDetails(character);
+      if (data && typeof data.character === 'string' && data.success !== false) {
+        setKanjiData(buildSafeKanjiDetail(data));
+      } else if (!fallbackItem) {
+        // Nếu server trả về fallback lỗi mà chưa có dữ liệu cục bộ, giữ trạng thái an toàn thay vì làm sập trang
+        setKanjiData((prev: any) =>
+          prev?.character === character
+            ? prev
+            : buildSafeKanjiDetail({ character, hanViet: 'HÁN TỰ', meaningVi: `Chữ Hán ${character}` })
+        );
+      }
+    } catch {
+      if (!fallbackItem) {
+        setNotFoundQuery(character);
+      }
+    } finally {
+      setIsLoadingDetails(false);
+    }
   }, []);
-
-
 
   // 1A. Tải cấu trúc bài học khi đổi Giáo trình hoặc Cấp độ (Không tải lại khi chỉ bấm đổi Bài học)
   useEffect(() => {
     let isMounted = true;
     const loadSummary = async () => {
       try {
-        setIsLoadingSummary(true);
+        // Chỉ hiện loading nếu chưa có dữ liệu fallback của N5 Look and Learn
+        if (!(selectedCurriculum === 'LOOK_AND_LEARN' && selectedLevel === 'N5' && curriculumSummary)) {
+          setIsLoadingSummary(true);
+        }
         const sumRes = await apiGateway.kanji.getCurriculumSummary(selectedCurriculum, selectedLevel);
-        if (isMounted && sumRes && sumRes.data) {
+        if (isMounted && sumRes && sumRes.data && Array.isArray(sumRes.data.lessons) && sumRes.data.lessons.length > 0) {
           setCurriculumSummary(sumRes.data);
-          const lessons = sumRes.data.lessons || [];
-          if (lessons.length > 0) {
-            const currentLessonValid = lessons.find((l: any) => l.lesson === selectedLessonNumber);
-            const targetLesson = currentLessonValid || lessons[0];
-            if (!currentLessonValid) {
-              setSelectedLessonNumber(targetLesson.lesson);
-            }
-            if (targetLesson.kanjis && targetLesson.kanjis.length > 0) {
-              const isCharInLesson = targetLesson.kanjis.some((k: any) => k.character === selectedKanjiChar);
-              if (!isCharInLesson) {
-                const firstChar = targetLesson.kanjis[0]?.character;
-                if (firstChar) {
-                  setSelectedKanjiChar(firstChar);
-                  fetchKanjiDetails(firstChar);
-                }
+          const lessons = sumRes.data.lessons;
+          const currentLessonValid = lessons.find((l: any) => l.lesson === selectedLessonNumber);
+          const targetLesson = currentLessonValid || lessons[0];
+          if (!currentLessonValid) {
+            setSelectedLessonNumber(targetLesson.lesson);
+          }
+          if (targetLesson.kanjis && targetLesson.kanjis.length > 0) {
+            const isCharInLesson = targetLesson.kanjis.some((k: any) => k.character === selectedKanjiChar);
+            if (!isCharInLesson && !initialKanji) {
+              const firstItem = targetLesson.kanjis[0];
+              if (firstItem?.character) {
+                fetchKanjiDetails(firstItem.character, firstItem);
               }
             }
           }
@@ -572,7 +660,7 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
     apiGateway.kanji
       .getCurriculumKanjis(selectedCurriculum, selectedLevel, selectedLessonNumber)
       .then((kanjiRes) => {
-        if (isMounted && kanjiRes && kanjiRes.data) {
+        if (isMounted && kanjiRes && Array.isArray(kanjiRes.data) && kanjiRes.data.length > 0) {
           setFlashcardKanjis(kanjiRes.data);
         }
       })
@@ -582,26 +670,13 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
     };
   }, [selectedCurriculum, selectedLevel, selectedLessonNumber]);
 
-
-
-  // Nếu có initialKanji từ URL hoặc props
-
+  // Nạp chi tiết chữ Hán đầu tiên hoặc initialKanji từ props
   useEffect(() => {
-
+    const targetChar = initialKanji || selectedKanjiChar || '一';
     if (initialKanji) {
-
-      setSelectedKanjiChar(initialKanji);
-
-      fetchKanjiDetails(initialKanji);
-
       setMainTab('directory');
-
-    } else {
-
-      fetchKanjiDetails(selectedKanjiChar);
-
     }
-
+    fetchKanjiDetails(targetChar);
   }, [initialKanji, fetchKanjiDetails]);
 
 
@@ -843,11 +918,18 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
 
   const openFlashcardModal = (type: 'detail' | 'radical' | 'phonetic' | 'stroke', kanji: any) => {
-
-    setModalKanji(kanji);
-
+    const safeKanji = buildSafeKanjiDetail(kanji);
+    setModalKanji(safeKanji);
     setActiveModal(type);
 
+    // Nếu mở modal Tập viết (stroke) hoặc Chi tiết mà chưa có svgStrokes đầy đủ thì tải bổ sung ngầm
+    if ((type === 'stroke' || type === 'detail') && (!safeKanji.svgStrokes || safeKanji.svgStrokes.length === 0)) {
+      apiGateway.kanji.getDetails(safeKanji.character).then((fullData) => {
+        if (fullData && typeof fullData.character === 'string' && fullData.success !== false) {
+          setModalKanji(buildSafeKanjiDetail(fullData));
+        }
+      }).catch(() => {});
+    }
   };
 
 
@@ -1381,11 +1463,9 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
                                 key={k.character}
 
                                 onClick={() => {
-
+                                  const hint = flashcardKanjis.find((fk: any) => fk.character === k.character) || k;
                                   setSelectedKanjiChar(k.character);
-
-                                  fetchKanjiDetails(k.character);
-
+                                  fetchKanjiDetails(k.character, hint);
                                 }}
 
                                 className={`w-full px-3 py-2 rounded-xl text-left text-xs transition-all flex items-center justify-between cursor-pointer ${

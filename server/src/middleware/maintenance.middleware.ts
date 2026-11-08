@@ -7,25 +7,47 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_env';
 
 let isMaintenanceCached = false;
 let lastCheck = 0;
-const CACHE_TTL = 30000; // 30 seconds
+let isRefreshing = false;
+const CACHE_TTL = 5 * 60 * 1000; // 5 phút (Admin đổi cài đặt sẽ gọi invalidateMaintenanceCache ngay lập tức)
 
 export const invalidateMaintenanceCache = (): void => {
   lastCheck = 0;
 };
 
+const refreshMaintenanceState = async (): Promise<void> => {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  try {
+    const setting = await prisma.systemSetting.findUnique({ where: { key: 'maintenance_mode' } });
+    isMaintenanceCached = setting?.value === 'true';
+    lastCheck = Date.now();
+  } catch {
+    // Giữ nguyên trạng thái cache cũ nếu DB tạm thời chậm
+  } finally {
+    isRefreshing = false;
+  }
+};
+
 export const checkMaintenance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  // Luôn cho phép các route Admin và Auth (để Admin có thể đăng nhập/xác thực khi hệ thống bảo trì)
-  if (req.path.startsWith('/api/admin') || req.path.startsWith('/api/auth')) {
+  // Luôn cho phép các route Admin, Auth và Health (để Admin có thể đăng nhập/xác thực khi hệ thống bảo trì)
+  if (
+    req.path.startsWith('/api/admin') ||
+    req.path.startsWith('/api/auth') ||
+    req.path.startsWith('/api/health') ||
+    req.path.startsWith('/api/gateway')
+  ) {
     next();
     return;
   }
 
   try {
     const now = Date.now();
-    if (now - lastCheck > CACHE_TTL) {
-      const setting = await prisma.systemSetting.findUnique({ where: { key: 'maintenance_mode' } });
-      isMaintenanceCached = setting?.value === 'true';
-      lastCheck = now;
+    if (lastCheck === 0) {
+      // Lần đầu tiên hoặc vừa được Admin cập nhật -> đồng bộ 1 lần
+      await refreshMaintenanceState();
+    } else if (now - lastCheck > CACHE_TTL) {
+      // Stale-While-Revalidate: làm mới bất đồng bộ dưới nền, không chặn request của người dùng (< 0.01ms)
+      refreshMaintenanceState();
     }
 
     if (isMaintenanceCached) {

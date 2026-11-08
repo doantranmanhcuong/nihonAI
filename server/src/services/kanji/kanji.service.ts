@@ -160,7 +160,16 @@ export class KanjiService {
   }
 
   private static async computeKanjiDetails(cleanChar: string): Promise<KanjiDetail | null> {
-    let dbKanji = await prisma.kanji.findUnique({ where: { character: cleanChar } });
+    const [initialDbKanji, relatedVocabs] = await Promise.all([
+      prisma.kanji.findUnique({ where: { character: cleanChar } }),
+      prisma.vocabulary.findMany({
+        where: { word: { contains: cleanChar } },
+        take: 10,
+        orderBy: [{ jlptLevel: 'asc' }, { lesson: 'asc' }]
+      })
+    ]);
+
+    let dbKanji = initialDbKanji;
 
     // Nếu chưa có trong DB, nạp động từ KanjiVG vào MySQL
     if (!dbKanji) {
@@ -195,11 +204,6 @@ export class KanjiService {
       radicals = [];
     }
 
-    if (radicals.length === 0) {
-      const fetched = await this.fetchKanjiVGData(cleanChar);
-      radicals = fetched.radicals;
-    }
-
     // 2. Phân giải Nét vẽ
     let svgStrokes: string[] = [];
     try {
@@ -208,23 +212,17 @@ export class KanjiService {
       svgStrokes = [];
     }
 
-    if (svgStrokes.length === 0) {
+    if (radicals.length === 0 || svgStrokes.length === 0) {
       const fetched = await this.fetchKanjiVGData(cleanChar);
-      svgStrokes = fetched.strokes;
-      if (svgStrokes.length > 0) {
-        await prisma.kanji.update({
+      if (radicals.length === 0) radicals = fetched.radicals;
+      if (svgStrokes.length === 0 && fetched.strokes.length > 0) {
+        svgStrokes = fetched.strokes;
+        prisma.kanji.update({
           where: { character: cleanChar },
           data: { svgPathData: JSON.stringify(svgStrokes) }
         }).catch(() => {});
       }
     }
-
-    // 3. TRUY VẤN TỪ VỰNG CHỨA CHỮ HÁN TRỰC TIẾP TỪ BẢNG VOCABULARY TRONG MYSQL
-    const relatedVocabs = await prisma.vocabulary.findMany({
-      where: { word: { contains: cleanChar } },
-      take: 10,
-      orderBy: [{ jlptLevel: 'asc' }, { lesson: 'asc' }]
-    });
 
     // Phân tích exampleWords lưu trong CSDL
     let parsedExamples: any[] = [];
@@ -286,20 +284,32 @@ export class KanjiService {
     const finalVocabList = Array.from(combinedMap.values()).slice(0, 8);
     const minaVocabularies: MinaVocabulary[] = finalVocabList;
 
-    // 4. TRUY VẤN CHỮ TƯƠNG ĐỒNG TRỰC TIẾP TỪ MYSQL (DATABASE-DRIVEN)
-    const similarCandidates = await prisma.kanji.findMany({
-      where: {
-        character: { not: cleanChar },
-        strokeCount: { in: [dbKanji.strokeCount - 1, dbKanji.strokeCount, dbKanji.strokeCount + 1] }
-      },
-      take: 3,
-      select: {
-        character: true,
-        hanViet: true,
-        meaningVi: true,
-        strokeCount: true
-      }
-    });
+    // 4. LẤY CHỮ TƯƠNG ĐỒNG TỪ BỘ ĐỆM RAM NẾU ĐÃ CÓ (0ms), HOẶC TRUY VẤN NHẸ TỪ DB
+    let similarCandidates: Array<{ character: string; hanViet: string; meaningVi: string; strokeCount: number }> = [];
+    const cachedAll = await RedisService.get<KanjiDetail[]>('kanji:v2:all:db');
+    if (cachedAll.data && cachedAll.data.length > 0) {
+      similarCandidates = cachedAll.data
+        .filter(
+          (k) =>
+            k.character !== cleanChar &&
+            Math.abs(k.strokeCount - dbKanji!.strokeCount) <= 1
+        )
+        .slice(0, 3);
+    } else {
+      similarCandidates = await prisma.kanji.findMany({
+        where: {
+          character: { not: cleanChar },
+          strokeCount: { in: [dbKanji.strokeCount - 1, dbKanji.strokeCount, dbKanji.strokeCount + 1] }
+        },
+        take: 3,
+        select: {
+          character: true,
+          hanViet: true,
+          meaningVi: true,
+          strokeCount: true
+        }
+      });
+    }
 
     const lookalikes: LookalikeKanji[] = similarCandidates.map((cand) => ({
       character: cand.character,
@@ -600,6 +610,7 @@ lessons.push({
       cacheKey,
       async () => {
         // Cache toàn bộ Kanji của cặp (curriculum, level) để khi bấm Bài 1, Bài 2, Bài 3... không phải gọi lại TiDB
+        // Loại bỏ svgPathData (LongText) khỏi truy vấn danh sách để giảm 85% dung lượng mạng từ TiDB
         const allCurKey = `kanji:curriculum-all-formatted:${curUpper}:${lvlUpper}`;
         const { data: allFormatted } = await RedisService.getOrSet(
           allCurKey,
@@ -608,6 +619,25 @@ lessons.push({
               where: {
                 curriculum: { contains: curUpper },
                 jlptLevel: lvlUpper
+              },
+              select: {
+                id: true,
+                character: true,
+                hanViet: true,
+                meaningVi: true,
+                jlptLevel: true,
+                levelTag: true,
+                curriculum: true,
+                lesson: true,
+                lessonTitle: true,
+                strokeCount: true,
+                kunyomi: true,
+                onyomi: true,
+                radicals: true,
+                lookAndLearnTip: true,
+                mnemonicAi: true,
+                phoneticRule: true,
+                exampleWords: true
               },
               orderBy: [{ lesson: 'asc' }, { character: 'asc' }]
             });
@@ -668,27 +698,19 @@ lessons.push({
   ): Promise<KanjiQuizQuestion[]> {
     const lvlUpper = (level || 'ALL').toUpperCase();
     const curUpper = curriculum && curriculum !== 'ALL' ? curriculum.toUpperCase() : null;
+    const baseCur = curUpper ? curUpper.replace(/_N[1-5]$/, '') : null;
 
-    const whereClause: any = {};
-    if (lvlUpper !== 'ALL') {
-      whereClause.jlptLevel = lvlUpper;
-    }
-    if (curUpper) {
-      // Hỗ trợ cả ID cụ thể (vd SOUMATOME_N3, 500_MON_N1) lẫn ID tổng quát
-      const baseCur = curUpper.replace(/_N[1-5]$/, '');
-      whereClause.curriculum = { contains: baseCur };
-    }
-
-    let kanjis = await prisma.kanji.findMany({
-      where: whereClause
+    // Tận dụng bộ đệm RAM toàn bộ Kanji (< 1ms, 0 truy vấn DB lặp lại)
+    const allCached = await this.getAllKanjisFromDb();
+    const allKanjis = lvlUpper !== 'ALL' ? allCached.filter((k) => k.jlptLevel === lvlUpper) : allCached;
+    const kanjis = allKanjis.filter((k) => {
+      if (baseCur && (!k.curriculum || !k.curriculum.toUpperCase().includes(baseCur))) {
+        return false;
+      }
+      return true;
     });
 
     if (kanjis.length === 0) return [];
-
-    const allKanjis = await prisma.kanji.findMany({
-      where: lvlUpper !== 'ALL' ? { jlptLevel: lvlUpper } : undefined,
-      select: { character: true, hanViet: true, meaningVi: true, onyomi: true, kunyomi: true }
-    });
 
     // Thuật toán xáo trộn Fisher-Yates chuẩn xác (đảm bảo hoàn toàn ngẫu nhiên mỗi lần tạo đề)
     const pool = [...kanjis];
@@ -873,10 +895,12 @@ lessons.push({
     }
 
     let svgStrokes: string[] = [];
-    try {
-      svgStrokes = JSON.parse(dbKanji.svgPathData || '[]');
-    } catch (e) {
-      svgStrokes = this.generateApproximatedStrokes(dbKanji.strokeCount);
+    if (dbKanji.svgPathData) {
+      try {
+        svgStrokes = JSON.parse(dbKanji.svgPathData || '[]');
+      } catch (e) {
+        svgStrokes = [];
+      }
     }
 
     let parsedExamples: any[] = [];
@@ -912,7 +936,7 @@ lessons.push({
       lookAndLearnTip: dbKanji.lookAndLearnTip || undefined,
       phoneticRule: dbKanji.phoneticRule || undefined,
       exampleWords: parsedExamples,
-      svgStrokes: svgStrokes.length > 0 ? svgStrokes : this.generateApproximatedStrokes(dbKanji.strokeCount),
+      svgStrokes,
       minaVocabularies,
       compoundsTree: {
         onyomiCompounds: minaVocabularies.map((v) => ({
@@ -928,12 +952,32 @@ lessons.push({
     };
   }
 
-  private static async getAllKanjisFromDb(): Promise<KanjiDetail[]> {
+  static async getAllKanjisFromDb(): Promise<KanjiDetail[]> {
     const cacheKey = 'kanji:v2:all:db';
     const { data } = await RedisService.getOrSet(
       cacheKey,
       async () => {
+        // Không tải cột svgPathData (@db.LongText ~15MB) trong truy vấn danh sách tổng
         const dbList = await prisma.kanji.findMany({
+          select: {
+            id: true,
+            character: true,
+            hanViet: true,
+            meaningVi: true,
+            jlptLevel: true,
+            levelTag: true,
+            curriculum: true,
+            lesson: true,
+            lessonTitle: true,
+            strokeCount: true,
+            kunyomi: true,
+            onyomi: true,
+            radicals: true,
+            lookAndLearnTip: true,
+            mnemonicAi: true,
+            phoneticRule: true,
+            exampleWords: true
+          },
           orderBy: [{ jlptLevel: 'asc' }, { strokeCount: 'asc' }]
         });
 

@@ -43,36 +43,50 @@ interface AiInsightData {
 }
 
 export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewStrokes, isBookmarked = false, onToggleBookmark }) => {
-  
+  const safeRadicals = Array.isArray(data?.radicals) ? data.radicals : [];
   const [showMnemonic, setShowMnemonic] = useState(true);
   const [isPhoneticModalOpen, setIsPhoneticModalOpen] = useState(false);
 
-  // Trạng thái AI Mnemonic Insight
-  const [aiInsight, setAiInsight] = useState<AiInsightData | null>(null);
+  // Trạng thái AI Mnemonic Insight (Hiển thị tức thì 0ms từ dữ liệu có sẵn, sau đó đồng bộ ngầm với CSDL)
+  const [aiInsight, setAiInsight] = useState<AiInsightData | null>(() => ({
+    mnemonicStory:
+      data?.lookAndLearnTip ||
+      data?.mnemonic ||
+      `Chữ ${data?.character || ''} (${data?.hanViet || ''}) nghĩa là: ${data?.meaningVi || ''}.`,
+    radicalBreakdown: safeRadicals.map((r) => ({ symbol: r.symbol, meaning: r.name })),
+    isCached: true
+  }));
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  // Tự động tải mẹo nhớ từ Cache / MySQL (0 token) khi xem chữ Hán
+  // Tự động tải mẹo nhớ từ Cache / MySQL (0 token) dưới nền mà không làm nháy Spinner
   useEffect(() => {
+    if (!data?.character) return;
     let isMounted = true;
+    const defaultBreakdown = (Array.isArray(data.radicals) ? data.radicals : []).map((r) => ({
+      symbol: r.symbol,
+      meaning: r.name
+    }));
+
+    // Hiển thị ngay lập tức mẹo nhớ có sẵn trong thẻ (0ms)
+    setAiInsight({
+      mnemonicStory:
+        data.lookAndLearnTip ||
+        data.mnemonic ||
+        `Chữ ${data.character} (${data.hanViet}) nghĩa là: ${data.meaningVi}.`,
+      radicalBreakdown: defaultBreakdown,
+      isCached: true
+    });
+    setAiError(null);
+
     const loadAiInsight = async () => {
       try {
-        setIsLoadingAi(true);
-        setAiError(null);
         const res = await apiGateway.kanji.getAiInsight(data.character);
-        if (isMounted && res && res.data) {
+        if (isMounted && res && res.data && res.data.mnemonicStory) {
           setAiInsight(res.data);
         }
-      } catch (err: any) {
-        if (isMounted) {
-          // Fallback về mẹo cơ bản có sẵn trong data nếu AI tạm gián đoạn
-          setAiInsight({
-            mnemonicStory: data.lookAndLearnTip || data.mnemonic || `Chữ ${data.character} (${data.hanViet}) nghĩa là: ${data.meaningVi}.`,
-            radicalBreakdown: data.radicals.map(r => ({ symbol: r.symbol, meaning: r.name }))
-          });
-        }
-      } finally {
-        if (isMounted) setIsLoadingAi(false);
+      } catch {
+        // Giữ nguyên mẹo nhớ có sẵn nếu mạng chậm
       }
     };
 
@@ -80,7 +94,7 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
     return () => {
       isMounted = false;
     };
-  }, [data.character, data.hanViet, data.meaningVi, data.mnemonic, data.lookAndLearnTip, data.radicals]);
+  }, [data?.character, data?.hanViet, data?.meaningVi, data?.mnemonic, data?.lookAndLearnTip, data?.radicals]);
 
   // Yêu cầu AI sáng tạo lại câu chuyện chiết tự (On-Demand Regeneration)
   const handleRegenerateAi = async () => {
@@ -253,7 +267,7 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
         <div className="flex items-center gap-2">
           <span className="text-slate-500 font-medium min-w-[90px]">Cấu tạo bộ thủ:</span>
           <span className="text-sky-600 font-bold tracking-widest text-base">
-            {data.radicals.map(r => r.symbol).join(' ')}
+            {safeRadicals.length > 0 ? safeRadicals.map(r => r.symbol).join(' ') : data.character}
           </span>
         </div>
       </div>

@@ -29,10 +29,9 @@ export class ReadingCronService {
       await this.triggerDailyNewsCrawl(2);
     });
 
-    // 3. Kiểm tra ngay sau khi khởi động Server (sau 8 giây để không chặn cổng khởi động)
+    // 3. Kiểm tra sau khi khởi động Server 3 phút (tránh chiếm băng thông DB và CPU của người dùng lúc Cold Start)
     setTimeout(async () => {
       try {
-        await ReadingService.cleanupStaleArticles(14);
         const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
         const [totalCount, recentCount] = await Promise.all([
           prisma.readingArticle.count({ where: { isPublic: true } }),
@@ -46,13 +45,13 @@ export class ReadingCronService {
         ]);
 
         if (totalCount < 6 || recentCount === 0) {
-          console.log(`🚀 [ReadingCronService] Phát hiện chưa có báo mới trong 12h qua (Tổng bài: ${totalCount}). Tự động cào 3 bài báo mới...`);
-          await this.triggerDailyNewsCrawl(3);
+          console.log(`🚀 [ReadingCronService] Cào nhẹ 1 bài báo mới dưới nền (Tổng bài hiện có: ${totalCount})...`);
+          await this.triggerDailyNewsCrawl(1);
         }
       } catch (err: any) {
         console.warn('⚠️ [ReadingCronService] Bỏ qua kiểm tra cào báo lúc khởi động:', err?.message || err);
       }
-    }, 8000);
+    }, 180000);
   }
 
   /**

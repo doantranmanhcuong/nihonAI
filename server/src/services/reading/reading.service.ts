@@ -209,7 +209,26 @@ export class ReadingService {
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }],
-            include: {
+            select: {
+              id: true,
+              title: true,
+              sourceType: true,
+              sourceUrl: true,
+              youtubeId: true,
+              level: true,
+              topic: true,
+              durationSeconds: true,
+              audioUrl: true,
+              totalWords: true,
+              isPublic: true,
+              createdBy: true,
+              viewCount: true,
+              createdAt: true,
+              updatedAt: true,
+              imageUrl: true,
+              isEvergreen: true,
+              savedCount: true,
+              vocabSavedCount: true,
               _count: {
                 select: {
                   sentences: true,

@@ -354,15 +354,7 @@ lessons.push({
           orderBy: { word: 'asc' }
         });
 
-        const enrichedWords = await Promise.all(
-          words.map(async (w) => {
-            const constituentKanjis = await this.extractConstituentKanjis(w.word);
-            return {
-              ...w,
-              constituentKanjis
-            };
-          })
-        );
+        const enrichedWords = await this.enrichWordsWithConstituentKanjis(words);
 
         const firstWord = words[0];
         if (lesson <= 9000) {
@@ -447,12 +439,7 @@ lessons.push({
           orderBy: [{ jlptLevel: "asc" }, { lesson: "asc" }]
         })
       ]);
-      const enrichedItems = await Promise.all(
-        items.map(async (item) => {
-          const constituentKanjis = await this.extractConstituentKanjis(item.word);
-          return { ...item, constituentKanjis };
-        })
-      );
+      const enrichedItems = await this.enrichWordsWithConstituentKanjis(items);
       return { items: enrichedItems, total };
     }, 600);
     return data;
@@ -508,50 +495,101 @@ lessons.push({
   }
 
   /**
-   * Tự động trích xuất các chữ Hán cấu thành từ vựng và tra cứu nhanh nghĩa Hán Việt
+   * Batch bóc tách Hán tự cho cả danh sách từ vựng chỉ bằng 1 truy vấn duy nhất (hoặc 0 truy vấn nếu đã có trong RAM Cache)
+   * Triệt tiêu hoàn toàn lỗi N+1 Query (50-200 queries/bài học) gây nghẽn TiDB Connection Pool.
    */
-  private static async extractConstituentKanjis(word: string): Promise<ConstituentKanji[]> {
-    const kanjiChars: string[] = [];
-    for (const ch of word) {
-      if (isJapaneseKanji(ch) && !kanjiChars.includes(ch)) {
-        kanjiChars.push(ch);
+  private static async enrichWordsWithConstituentKanjis<T extends { word: string }>(
+    words: T[]
+  ): Promise<Array<T & { constituentKanjis: ConstituentKanji[] }>> {
+    if (!words || words.length === 0) return [];
+
+    const allUniqueChars = new Set<string>();
+    const wordCharsMap = new Map<string, string[]>();
+
+    for (const w of words) {
+      const chars: string[] = [];
+      for (const ch of w.word || '') {
+        if (isJapaneseKanji(ch) && !chars.includes(ch)) {
+          chars.push(ch);
+          allUniqueChars.add(ch);
+        }
+      }
+      wordCharsMap.set(w.word, chars);
+    }
+
+    if (allUniqueChars.size === 0) {
+      return words.map((w) => ({ ...w, constituentKanjis: [] }));
+    }
+
+    const recordMap = new Map<
+      string,
+      { character: string; hanViet: string; meaningVi: string; strokeCount: number; jlptLevel: string }
+    >();
+
+    // Ưu tiên lấy từ bộ đệm RAM Kanji nếu đã nạp sẵn (< 0.1ms, 0 query DB)
+    const cachedAllKanjis = await RedisService.get<any[]>('kanji:v2:all:db');
+    if (cachedAllKanjis.data && cachedAllKanjis.data.length > 0) {
+      for (const k of cachedAllKanjis.data) {
+        if (allUniqueChars.has(k.character)) {
+          recordMap.set(k.character, {
+            character: k.character,
+            hanViet: k.hanViet,
+            meaningVi: k.meaningVi,
+            strokeCount: k.strokeCount,
+            jlptLevel: k.jlptLevel
+          });
+        }
+      }
+    } else {
+      const kanjiRecords = await prisma.kanji.findMany({
+        where: { character: { in: Array.from(allUniqueChars) } },
+        select: {
+          character: true,
+          hanViet: true,
+          meaningVi: true,
+          strokeCount: true,
+          jlptLevel: true
+        }
+      });
+      for (const k of kanjiRecords) {
+        recordMap.set(k.character, k);
       }
     }
 
-    if (kanjiChars.length === 0) return [];
-
-    const kanjiRecords = await prisma.kanji.findMany({
-      where: { character: { in: kanjiChars } },
-      select: {
-        character: true,
-        hanViet: true,
-        meaningVi: true,
-        strokeCount: true,
-        jlptLevel: true
-      }
-    });
-
-    const recordMap = new Map(kanjiRecords.map((k) => [k.character, k]));
-
-    return kanjiChars.map((ch) => {
-      const record = recordMap.get(ch);
-      if (record) {
+    return words.map((w) => {
+      const chars = wordCharsMap.get(w.word) || [];
+      const constituentKanjis: ConstituentKanji[] = chars.map((ch) => {
+        const record = recordMap.get(ch);
+        if (record) {
+          return {
+            character: record.character,
+            hanViet: record.hanViet,
+            meaningVi: record.meaningVi,
+            strokeCount: record.strokeCount,
+            jlptLevel: record.jlptLevel
+          };
+        }
         return {
-          character: record.character,
-          hanViet: record.hanViet,
-          meaningVi: record.meaningVi,
-          strokeCount: record.strokeCount,
-          jlptLevel: record.jlptLevel
+          character: ch,
+          hanViet: 'HÁN TỰ',
+          meaningVi: 'Chữ Hán cấu thành',
+          strokeCount: 5,
+          jlptLevel: 'N3'
         };
-      }
+      });
       return {
-        character: ch,
-        hanViet: 'HÁN TỰ',
-        meaningVi: 'Chữ Hán cấu thành',
-        strokeCount: 5,
-        jlptLevel: 'N3'
+        ...w,
+        constituentKanjis
       };
     });
+  }
+
+  /**
+   * Tự động trích xuất các chữ Hán cấu thành từ vựng và tra cứu nhanh nghĩa Hán Việt
+   */
+  private static async extractConstituentKanjis(word: string): Promise<ConstituentKanji[]> {
+    const [enriched] = await this.enrichWordsWithConstituentKanjis([{ word }]);
+    return enriched ? enriched.constituentKanjis : [];
   }
 }
 

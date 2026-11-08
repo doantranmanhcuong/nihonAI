@@ -66,7 +66,7 @@ const PHONETIC_RULES = [
 ];
 
 function analyzeSpecificShift(hanViet: string, onyomi: string): string {
-  const hv = hanViet.toUpperCase().trim();
+  const hv = (hanViet || '').toUpperCase().trim();
   const firstLetter = hv.charAt(0);
 
   if (hv.includes('TÍCH') || hv.endsWith('ÍCH')) {

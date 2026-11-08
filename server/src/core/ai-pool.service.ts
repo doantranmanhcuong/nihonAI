@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import { prisma } from './prisma.service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export class GeminiPoolService {
@@ -30,14 +29,23 @@ export class GeminiPoolService {
    */
   static getCandidateModels(requestedModel?: string): string[] {
     const primaryModel = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+    const defaultValidFallbacks = [
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-flash-lite-latest'
+    ];
     const envFallbacks = process.env.GEMINI_MODEL_FALLBACKS
-      ? process.env.GEMINI_MODEL_FALLBACKS.split(',').map(s => s.trim()).filter(Boolean)
-      : ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
+      ? process.env.GEMINI_MODEL_FALLBACKS.split(',')
+          .map(s => s.trim())
+          .filter(s => Boolean(s) && !s.includes('3.6') && !s.includes('3.5'))
+      : defaultValidFallbacks;
 
     const fullList = [
       requestedModel,
       primaryModel,
-      ...envFallbacks
+      ...envFallbacks,
+      ...defaultValidFallbacks
     ].filter(Boolean) as string[];
 
     return [...new Set(fullList)];

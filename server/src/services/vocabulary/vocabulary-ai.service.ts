@@ -56,10 +56,17 @@ export class VocabularyAiService {
       }
     }
 
-    // 2. Kiểm tra bảng mở rộng vocabulary_ai_insights trong MySQL (0 token, ~2ms)
-    const existingDb = await prisma.vocabularyAiInsight.findUnique({
-      where: { vocabId: cleanId }
+    // 2. Kiểm tra bảng mở rộng vocabulary_ai_insights kèm vocabulary trong MySQL (0 token, 1 query duy nhất ~2ms)
+    const vocab = await prisma.vocabulary.findUnique({
+      where: { id: cleanId },
+      include: { aiInsight: true }
     });
+
+    if (!vocab) {
+      throw new Error(`Không tìm thấy từ vựng ID "${cleanId}" trong cơ sở dữ liệu.`);
+    }
+
+    const existingDb = vocab.aiInsight;
 
     if (existingDb && !forceRegenerate) {
       let scenarios: VocabScenario[] = [];
@@ -75,15 +82,13 @@ export class VocabularyAiService {
         collocations = [];
       }
 
-      const vocabRecord = await prisma.vocabulary.findUnique({ where: { id: cleanId } });
-
       if (scenarios.length > 0) {
         const result: VocabAiInsightResult = {
           id: existingDb.id,
           vocabId: cleanId,
-          word: vocabRecord?.word || '',
-          reading: vocabRecord?.reading || '',
-          meaningVi: vocabRecord?.meaningVi || '',
+          word: vocab.word || '',
+          reading: vocab.reading || '',
+          meaningVi: vocab.meaningVi || '',
           scenarios,
           collocations,
           mistakeWarning: existingDb.mistakeWarning || undefined,
@@ -98,14 +103,42 @@ export class VocabularyAiService {
       }
     }
 
-    // 3. Nếu chưa có hoặc cần sinh lại: Gọi Gemini Flash Lite với Key chuyên biệt VOCAB
-    const vocab = await prisma.vocabulary.findUnique({
-      where: { id: cleanId }
-    });
+    // 2B. Nếu chỉ đang xem thẻ từ vựng (forceRegenerate === false) mà chưa có trong bảng AI,
+    // trả về ngay ví dụ thực tế từ CSDL (< 1ms, 0 token) để phản hồi tức thì và bảo vệ hạn mức Gemini Free Tier
+    if (!forceRegenerate) {
+      const defaultScenarios: VocabScenario[] = [
+        {
+          tag: 'Giao tiếp thực tế',
+          contextVi: `Sử dụng từ "${vocab.word}" (${vocab.meaningVi}) trong đời sống hàng ngày`,
+          sentenceJp: vocab.exampleJp || `${vocab.word}を覚えます。`,
+          sentenceVi: vocab.exampleVi || `Tôi ghi nhớ và sử dụng từ "${vocab.meaningVi}".`
+        }
+      ];
+      const instantResult: VocabAiInsightResult = {
+        vocabId: cleanId,
+        word: vocab.word,
+        reading: vocab.reading,
+        meaningVi: vocab.meaningVi,
+        scenarios: defaultScenarios,
+        collocations: [
+          {
+            phraseJp: `${vocab.word} (${vocab.reading})`,
+            meaningVi: `${vocab.meaningVi}${vocab.hanViet ? ` [${vocab.hanViet}]` : ''}`
+          }
+        ],
+        mistakeWarning: `Chú ý cách đọc "${vocab.reading}" và từ loại (${vocab.partOfSpeech || 'Từ vựng JLPT ' + vocab.jlptLevel}) khi đặt câu.`,
+        nuanceNote: vocab.hanViet
+          ? `Âm Hán Việt: ${vocab.hanViet} — Nghĩa trọng tâm: ${vocab.meaningVi}. Nhấn nút "Làm mới" nếu bạn muốn AI sinh thêm câu ví dụ nâng cao.`
+          : `Nghĩa trọng tâm: ${vocab.meaningVi}. Nhấn nút "Làm mới" nếu bạn muốn AI sinh thêm câu ví dụ nâng cao.`,
+        generatedByModel: 'database-curated',
+        isCached: true
+      };
 
-    if (!vocab) {
-      throw new Error(`Không tìm thấy từ vựng ID "${cleanId}" trong cơ sở dữ liệu.`);
+      await RedisService.set(cacheKey, instantResult, 30 * 86400);
+      return instantResult;
     }
+
+    // 3. Khi người dùng chủ động nhấn "Làm mới phân tích AI" (forceRegenerate === true): Gọi Gemini Flash Lite
 
     const prompt = `Bạn là một Giáo sư Ngôn ngữ học tiếng Nhật và Chuyên gia Giảng dạy Từ vựng (Vocabulary Sensei).
 Hãy phân tích ngữ cảnh sử dụng thực tế và sắc thái của từ vựng tiếng Nhật sau:

@@ -6,6 +6,7 @@ try {
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import zlib from 'zlib';
 import dotenv from 'dotenv';
 import { kanjiRouter } from './services/kanji/kanji.routes';
 import { authRouter } from './services/auth/auth.routes';
@@ -53,7 +54,35 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 app.use(cookieParser());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
+
+// Built-in Gzip Compression cho JSON payload > 1.5KB (giảm 80-90% dung lượng truyền tải qua mạng từ Render về trình duyệt)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const acceptEncoding = req.headers['accept-encoding'] || '';
+  if (!acceptEncoding.includes('gzip')) {
+    next();
+    return;
+  }
+  const originalJson = res.json.bind(res);
+  res.json = (body: any): Response => {
+    try {
+      const jsonStr = JSON.stringify(body);
+      if (jsonStr && jsonStr.length > 1536 && !res.headersSent) {
+        const compressed = zlib.gzipSync(Buffer.from(jsonStr, 'utf-8'), { level: zlib.constants.Z_BEST_SPEED });
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Vary', 'Accept-Encoding');
+        res.setHeader('Content-Length', String(compressed.length));
+        return res.send(compressed);
+      }
+    } catch {
+      // Fallback về originalJson nếu có lỗi nén
+    }
+    return originalJson(body);
+  };
+  next();
+});
+
 app.use(checkMaintenance);
 
 // Middleware đo lường hiệu năng và ghi nhận sức khỏe Microservices (Consul Health Metrics)
@@ -135,22 +164,15 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json(ResponseFormatter.error('Internal Gateway Error', err?.message || err));
 });
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`🚀 [API GATEWAY] Server is running on: http://localhost:${PORT}`);
   console.log(`📡 [SERVICE REGISTRY & HEALTH] Check at: http://localhost:${PORT}/api/gateway/health`);
   console.log(`⚡ [REDIS ENGINE] Cache status: ${RedisService.isHealthy() ? 'CONNECTED' : 'IN_MEMORY'}`);
 
-  // Tự động seed dữ liệu bài đọc mẫu nếu CSDL chưa có
-  try {
-    await seedReadingArticles();
-  } catch (err) {
-    console.error('Seed reading articles error:', err);
-  }
-
   // Khởi chạy bộ lập lịch cào tin tức tự động hàng ngày
   ReadingCronService.initReadingNewsCron();
 
-  // Làm nóng bộ đệm L1 RAM (Cache Warmup) bất đồng bộ để phản hồi người dùng đầu tiên < 5ms
+  // Làm nóng bộ đệm L1 RAM (Cache Warmup) theo từng nhịp tuần tự để không gây nghẽn Connection Pool TiDB lúc Cold Start
   setTimeout(async () => {
     try {
       const { KanjiService } = await import('./services/kanji/kanji.service');
@@ -159,20 +181,31 @@ app.listen(PORT, async () => {
       const { ShadowingService } = await import('./services/shadowing/shadowing.service');
       const { ExamService } = await import('./services/exam/exam.service');
 
+      // Bước 1: Nạp các endpoint nhẹ và quan trọng nhất khi mở web
       await Promise.allSettled([
-        KanjiService.searchKanjis(''),
         KanjiService.getCurriculumsSummary('LOOK_AND_LEARN', 'N5'),
-        KanjiService.getCurriculumKanjis('LOOK_AND_LEARN', 'N5', 1),
         KanjiService.getKanjiDetails('一'),
-        VocabularyService.getCourseStats(),
-        VocabularyService.getCurriculumsSummary('MINNA', 'N5'),
-        ReadingService.listArticles({ limit: 50 }),
-        ShadowingService.listLessons({ limit: 50 }),
+        VocabularyService.getCurriculumsSummary('MINNA', 'N5')
+      ]);
+
+      // Bước 2: Nạp tiếp danh sách bài học, bài đọc, video và đề thi
+      await Promise.allSettled([
+        KanjiService.getCurriculumKanjis('LOOK_AND_LEARN', 'N5', 1),
+        ReadingService.listArticles({ limit: 20 }),
+        ShadowingService.listLessons({ limit: 20 }),
         ExamService.getExamList()
       ]);
+
+      // Bước 3: Nạp bảng tổng Kanji nhẹ (không kèm svgPathData) và kiểm tra seed bài đọc mẫu
+      await Promise.allSettled([
+        KanjiService.getAllKanjisFromDb(),
+        VocabularyService.getCourseStats(),
+        seedReadingArticles()
+      ]);
+
       console.log('🔥 [CACHE WARMUP] Đã nạp sẵn Hán tự, Từ vựng, Đọc hiểu, Shadowing & Đề thi vào L1 RAM Cache (< 1ms).');
     } catch (warmupErr) {
       console.warn('⚠️ [CACHE WARMUP] Bỏ qua một số mục warmup:', warmupErr);
     }
-  }, 1500);
+  }, 1000);
 });

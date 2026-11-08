@@ -7,6 +7,7 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { LandingPage } from '@/components/home/LandingPage';
 import { useAuth } from '@/context/AuthContext';
 import { applyGlobalPreferences } from '@/utils/studyPreferences';
+import { apiGateway } from '@/services/api-gateway.client';
 
 const StudioLoadingFallback = () => (
   <div className="bg-white/80 rounded-3xl border border-slate-200/80 p-12 flex flex-col items-center justify-center gap-3 min-h-[360px] shadow-xs">
@@ -56,9 +57,10 @@ export default function Home() {
   const [activeTab, setActiveTabState] = useState<string>('home');
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Khởi tạo tùy biến học tập (Furigana, TTS) ngay khi ứng dụng khởi chạy
+  // Khởi tạo tùy biến học tập (Furigana, TTS) & làm nóng dữ liệu nền ngay khi ứng dụng khởi chạy
   useEffect(() => {
     applyGlobalPreferences();
+    apiGateway.prefetchCoreData();
   }, []);
 
   // Sync activeTab with URL Hash for Browser Back Button support
