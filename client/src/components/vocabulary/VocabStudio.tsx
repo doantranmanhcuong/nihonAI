@@ -9,6 +9,11 @@ import { VocabCardList, VocabularySummary } from './VocabCardList';
 import { VocabDetailCard, VocabularyDetailData } from './VocabDetailCard';
 import { BookOpen, Search, FolderOpen, Folder, FileText, ChevronDown , Sparkles } from 'lucide-react';
 import { ComprehensiveQuizDashboard, CompQuizQuestion } from '../shared/ComprehensiveQuizDashboard';
+import {
+  getFallbackVocabCurriculumLessons,
+  getFallbackVocabLessonData,
+  INITIAL_MINNA_N5_LESSON_1_WORDS
+} from './vocab.fallback-data';
 
 export type CurriculumType = 'MINNA' | 'TANGO' | 'MIMIKARA' | 'SOUMATOME';
 
@@ -114,14 +119,18 @@ const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
 export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) => {
   const [mainTab, setMainTab] = useState<'curriculum' | 'dictionary'>('curriculum');
 
-  // Directory Tree State
+  // Directory Tree State (Khởi tạo tức thì 0ms để không bao giờ hiện "0 mục" + spinner khi chờ server)
   const [selectedCurriculum, setSelectedCurriculum] = useState<CurriculumType>('MINNA');
   const [selectedLevel, setSelectedLevel] = useState('N5');
-  const [curriculumLessons, setCurriculumLessons] = useState<LessonSummaryItem[]>([]);
+  const [curriculumLessons, setCurriculumLessons] = useState<LessonSummaryItem[]>(() =>
+    getFallbackVocabCurriculumLessons('MINNA', 'N5')
+  );
   const [isLoadingLessons, setIsLoadingLessons] = useState(false);
 
-  const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
-  const [lessonData, setLessonData] = useState<any | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<number | null>(1);
+  const [lessonData, setLessonData] = useState<any | null>(() =>
+    getFallbackVocabLessonData('MINNA', 'N5', 1)
+  );
   const [isLoadingLessonWords, setIsLoadingLessonWords] = useState(false);
   const [lessonStudyMode, setLessonStudyMode] = useState<'flashcard' | 'list' | 'listening' | 'quiz'>('list');
 
@@ -130,40 +139,27 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
   const [searchLevel, setSearchLevel] = useState('all');
   const [searchLesson, setSearchLesson] = useState<number | null>(null);
   const [searchPos, setSearchPos] = useState('all');
-  const [dictList, setDictList] = useState<VocabularySummary[]>([]);
-  const [dictTotal, setDictTotal] = useState(0);
-  const [dictSelected, setDictSelected] = useState<VocabularySummary | null>(null);
+  const [dictList, setDictList] = useState<VocabularySummary[]>(() => INITIAL_MINNA_N5_LESSON_1_WORDS as any);
+  const [dictTotal, setDictTotal] = useState(INITIAL_MINNA_N5_LESSON_1_WORDS.length);
+  const [dictSelected, setDictSelected] = useState<VocabularySummary | null>(() => INITIAL_MINNA_N5_LESSON_1_WORDS[0] as any);
   const [dictDetail, setDictDetail] = useState<VocabularyDetailData | null>(null);
   const [isLoadingDictList, setIsLoadingDictList] = useState(false);
   const [isLoadingDictDetail, setIsLoadingDictDetail] = useState(false);
 
-  const fetchCurriculumLessons = useCallback(async (curr: CurriculumType, lvl: string) => {
-    try {
-      setIsLoadingLessons(true);
-      const res = await apiGateway.vocab.getCurriculums(curr, lvl);
-      if (res.success && res.data) {
-        setCurriculumLessons(res.data.lessons || []);
-        if (res.data.lessons?.length > 0) {
-            handleSelectLesson(res.data.lessons[0].lesson, curr, lvl);
-        } else {
-            setLessonData(null);
-            setSelectedLesson(null);
-        }
-      }
-    } catch (err) {
-      console.error('Lỗi tải danh mục bài học:', err);
-    } finally {
-      setIsLoadingLessons(false);
-    }
-  }, []);
-
   const handleSelectLesson = useCallback(async (lessonNum: number, curr = selectedCurriculum, lvl = selectedLevel) => {
     setSelectedLesson(lessonNum);
     setLessonStudyMode('list');
+    // Optimistic UI 0ms: Hiển thị ngay khung từ vựng mẫu của bài học nếu chưa có dữ liệu thực của bài đó
+    setLessonData((prev: any) => {
+      if (prev && prev.curriculum === curr && prev.level === lvl && prev.lesson === lessonNum && Array.isArray(prev.words) && prev.words.length > 0) {
+        return prev;
+      }
+      return getFallbackVocabLessonData(curr, lvl, lessonNum);
+    });
     try {
-      setIsLoadingLessonWords(true);
+      setIsLoadingLessonWords(false);
       const res = await apiGateway.vocab.getLessonWords(curr, lvl, lessonNum);
-      if (res.success && res.data) {
+      if (res.success && res.data && Array.isArray(res.data.words) && res.data.words.length > 0) {
         setLessonData({
           curriculum: curr,
           level: lvl,
@@ -178,6 +174,28 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
       setIsLoadingLessonWords(false);
     }
   }, [selectedCurriculum, selectedLevel]);
+
+  const fetchCurriculumLessons = useCallback(async (curr: CurriculumType, lvl: string) => {
+    // 1. Optimistic UI 0ms: Hiển thị ngay cấu trúc bài học tích hợp sẵn
+    const instantLessons = getFallbackVocabCurriculumLessons(curr, lvl);
+    setCurriculumLessons(instantLessons);
+    setIsLoadingLessons(false);
+    const defaultLesson = instantLessons[0]?.lesson || 1;
+    handleSelectLesson(defaultLesson, curr, lvl);
+
+    // 2. Đồng bộ nền từ Server / Cache
+    try {
+      const res = await apiGateway.vocab.getCurriculums(curr, lvl);
+      if (res.success && res.data && Array.isArray(res.data.lessons) && res.data.lessons.length > 0) {
+        setCurriculumLessons(res.data.lessons);
+        handleSelectLesson(res.data.lessons[0].lesson, curr, lvl);
+      }
+    } catch (err) {
+      console.error('Lỗi tải danh mục bài học:', err);
+    } finally {
+      setIsLoadingLessons(false);
+    }
+  }, [handleSelectLesson]);
 
   // Auto-switch curriculum if it is not supported by the new level
   useEffect(() => {
@@ -324,7 +342,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
                       <option key={c.id} value={c.id}>{c.label}</option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 pointer-events-none group-hover:text-indigo-600 transition-colors" />
+                  <ChevronDown className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-indigo-600 transition-colors" />
                 </div>
 
                 <div className="flex items-center justify-between px-1 border-b border-slate-100 pb-2">

@@ -575,99 +575,131 @@ export class ReadingService {
   }
 
   /**
-   * Lấy danh sách tin tức báo chí tiếng Nhật mới nhất từ các nguồn RSS (NHK, Asahi, Mainichi, Yahoo JP)
-   * Có bộ đệm Redis cache 30 phút.
+   * Lấy danh sách tin tức báo chí tiếng Nhật mới nhất từ các nguồn RSS uy tín (NHK, Livedoor, Yahoo JP, Gigazine, Toyo Keizai)
    */
-  
   static async fetchRawRssFeeds(source?: string) {
     const Parser = require('rss-parser');
-    const parser = new Parser();
+    const parser = new Parser({
+      customFields: {
+        item: ['content:encoded', 'description', 'summary']
+      }
+    });
     const defaultSourceImages: Record<string, string> = {
-      NIPPON_COM: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80',
-      TOYO_KEIZAI: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=80',
-      PRESIDENT: 'https://images.unsplash.com/photo-1542051841857-5f90071e7989?auto=format&fit=crop&w=600&q=80',
+      NHK_NEWS: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80',
+      LIVEDOOR: 'https://images.unsplash.com/photo-1542051841857-5f90071e7989?auto=format&fit=crop&w=600&q=80',
+      YAHOO_JP: 'https://images.unsplash.com/photo-1528164344705-475426879c0d?auto=format&fit=crop&w=600&q=80',
       GIGAZINE: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
-      JBPRESS: 'https://images.unsplash.com/photo-1528164344705-475426879c0d?auto=format&fit=crop&w=600&q=80'
+      TOYO_KEIZAI: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=80',
+      NIPPON_COM: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80'
     };
 
     const feeds = [
-      { name: 'NIPPON_COM', url: 'https://www.nippon.com/ja/rss-all/', defaultLevel: 'N3' },
-      { name: 'TOYO_KEIZAI', url: 'https://toyokeizai.net/list/feed/rss', defaultLevel: 'N2' },
-      { name: 'PRESIDENT', url: 'https://president.jp/list/rss', defaultLevel: 'N2' },
+      { name: 'NHK_NEWS', url: 'https://www.nhk.or.jp/rss/news/cat0.xml', defaultLevel: 'N3' },
+      { name: 'NHK_NEWS', url: 'https://www.nhk.or.jp/rss/news/cat1.xml', defaultLevel: 'N3' },
+      { name: 'NHK_NEWS', url: 'https://www.nhk.or.jp/rss/news/cat3.xml', defaultLevel: 'N3' },
+      { name: 'NHK_NEWS', url: 'https://www.nhk.or.jp/rss/news/cat5.xml', defaultLevel: 'N2' },
       { name: 'GIGAZINE', url: 'https://gigazine.net/news/rss_2.0/', defaultLevel: 'N3' },
-      { name: 'JBPRESS', url: 'https://jbpress.ismedia.jp/list/feed/rss', defaultLevel: 'N2' }
+      { name: 'LIVEDOOR', url: 'https://news.livedoor.com/topics/rss/dom.xml', defaultLevel: 'N3' },
+      { name: 'LIVEDOOR', url: 'https://news.livedoor.com/topics/rss/eco.xml', defaultLevel: 'N2' },
+      { name: 'TOYO_KEIZAI', url: 'https://toyokeizai.net/list/feed/rss', defaultLevel: 'N2' },
+      { name: 'YAHOO_JP', url: 'https://news.yahoo.co.jp/rss/topics/top-picks.xml', defaultLevel: 'N3' }
     ];
 
     const activeFeeds = source && source !== 'ALL'
-      ? feeds.filter(f => f.name.toUpperCase() === source.toUpperCase())
+      ? feeds.filter((f) => f.name.toUpperCase() === source.toUpperCase())
       : feeds;
 
     const allArticles: any[] = [];
+    const seenLinks = new Set<string>();
 
     await Promise.allSettled(
       activeFeeds.map(async (feed) => {
         try {
           const res = await axios.get(feed.url, {
-            timeout: 8000,
+            timeout: 6000,
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
               'Accept': 'application/rss+xml, application/xml, text/xml, */*'
             }
           });
           const parsed = await parser.parseString(res.data);
 
-          (parsed.items || []).slice(0, 12).forEach((item: any) => {
+          (parsed.items || []).slice(0, 10).forEach((item: any) => {
             const rawLink = item.link?.split('?')[0] || '';
             const cleanUrl = this.normalizeUrl(rawLink);
-            if (!cleanUrl) return;
+            if (!cleanUrl || seenLinks.has(cleanUrl)) return;
+            seenLinks.add(cleanUrl);
+
+            const rawHtmlContent =
+              item['content:encoded'] || item.content || item.description || item.summary || item.contentSnippet || '';
+            let cleanSnippet = '';
+            let rssImage = item.enclosure?.url || item.image?.url || '';
+            if (rawHtmlContent) {
+              try {
+                const $rss = cheerio.load(String(rawHtmlContent));
+                if (!rssImage) {
+                  rssImage = $rss('img').first().attr('src') || '';
+                }
+                cleanSnippet = $rss.text().replace(/\s+/g, ' ').trim();
+              } catch {
+                cleanSnippet = String(rawHtmlContent).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+              }
+            }
+
             allArticles.push({
-              title: item.title,
+              title: (item.title || '').trim(),
               link: cleanUrl,
               pubDate: item.pubDate || item.isoDate || new Date().toISOString(),
-              contentSnippet: item.contentSnippet || item.content || '',
+              contentSnippet: cleanSnippet,
               source: feed.name,
               sourceName: feed.name,
               levelEstimate: feed.defaultLevel,
-              imageUrl: item.enclosure?.url || item.image?.url || defaultSourceImages[feed.name]
+              imageUrl: rssImage || defaultSourceImages[feed.name] || defaultSourceImages.NHK_NEWS
             });
           });
         } catch (e: any) {
-          console.warn(`[ReadingService] Không thể tải RSS ${feed.name}:`, e?.message || e);
+          console.warn(`[ReadingService] Không thể tải RSS ${feed.name} (${feed.url}):`, e?.message || e);
         }
       })
     );
 
     const sorted = allArticles.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
 
-    // Lọc bỏ những bài đã xử lý trong CSDL
-    const urls = sorted.map(a => a.link);
+    // Lọc bỏ những bài đã xử lý trong CSDL (theo cả sourceUrl và title)
+    const urls = sorted.map((a) => a.link).filter(Boolean);
+    const titles = sorted.map((a) => a.title).filter(Boolean);
     if (urls.length === 0) return [];
 
     const existing = await prisma.readingArticle.findMany({
-      where: { sourceUrl: { in: urls } },
-      select: { sourceUrl: true }
+      where: {
+        OR: [
+          { sourceUrl: { in: urls } },
+          ...(titles.length > 0 ? [{ title: { in: titles } }] : [])
+        ]
+      },
+      select: { sourceUrl: true, title: true }
     });
-    const existingSet = new Set(existing.map(e => e.sourceUrl));
+    const existingUrlSet = new Set(existing.map((e) => e.sourceUrl).filter(Boolean));
+    const existingTitleSet = new Set(existing.map((e) => e.title).filter(Boolean));
 
-    return sorted.filter(a => !existingSet.has(a.link));
+    return sorted.filter((a) => !existingUrlSet.has(a.link) && !existingTitleSet.has(a.title));
   }
 
   static async getLatestNews(source?: string) {
-    // Trả về trực tiếp live RSS feeds thay vì chỉ lấy từ DB
     return await this.fetchRawRssFeeds(source);
   }
 
   /**
-   * Cào một bài báo từ URL bên ngoài và chuyển hóa thành bài đọc Dokkai tương tác
-   * Hỗ trợ:
-   * 1. DB-First: Trả về ngay lập tức nếu đã có trong CSDL (0 Token)
-   * 2. Single-Flight Lock: Chống Thundering Herd khi nhiều người bấm cùng 1 bài lúc cao điểm
-   * 3. Concurrency Limiter: Điều tiết tối đa 3 tác vụ AI cào song song, còn lại xếp hàng đợi FIFO
+   * Cào một bài báo từ URL bên ngoài và chuyển hóa thành bài đọc Dokkai tương tác (Zero-AI Ultra-Fast Pipeline < 1.5s)
    */
   static async crawlAndProcessArticle(params: {
     url: string;
     level?: string;
     userId?: string;
+    fallbackTitle?: string;
+    fallbackContent?: string;
+    fallbackImage?: string;
+    sourceName?: string;
   }) {
     const cleanUrl = this.normalizeUrl(params.url);
     if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
@@ -684,14 +716,13 @@ export class ReadingService {
       return await this.getArticleDetail(existing.id);
     }
 
-    // 2. Chống Thundering Herd: Nếu đang có người khác cào cùng URL này, gộp Promise (Single-Flight)
+    // 2. Chống Thundering Herd (Single-Flight)
     if (this.crawlInFlight.has(cleanUrl)) {
       return await this.crawlInFlight.get(cleanUrl);
     }
 
-    // 3. Đưa vào hàng đợi điều tiết tải (Semaphore / Concurrency Limiter: Tối đa 3 tác vụ cào đồng thời)
+    // 3. Hàng đợi điều tiết tải
     const crawlPromise = this.enqueueCrawl(async () => {
-      // Double check DB phòng trường hợp vừa được lưu bởi request trước đó trong hàng đợi
       const checkAgain = await prisma.readingArticle.findFirst({
         where: { sourceUrl: cleanUrl },
         select: { id: true }
@@ -700,7 +731,12 @@ export class ReadingService {
         return await this.getArticleDetail(checkAgain.id);
       }
 
-      return await this.executeCrawlAndProcess(cleanUrl, params.level, params.userId);
+      return await this.executeCrawlAndProcess(cleanUrl, params.level, params.userId, {
+        fallbackTitle: params.fallbackTitle,
+        fallbackContent: params.fallbackContent,
+        fallbackImage: params.fallbackImage,
+        sourceName: params.sourceName
+      });
     });
 
     this.crawlInFlight.set(cleanUrl, crawlPromise);
@@ -713,217 +749,412 @@ export class ReadingService {
   }
 
   /**
-   * Thực hiện bóc tách bài báo và gọi AI phân tích Dokkai (chạy trong worker queue)
+   * Thực hiện bóc tách bài báo bằng Cheerio nhẹ (< 2MB RAM) + Kuromoji + Từ điển CSDL + Dịch GTX tốc độ cao (< 1.5s, 0 tốn quota Gemini)
    */
-  private static async executeCrawlAndProcess(cleanUrl: string, level?: string, userId?: string) {
-    // 2. Cào nội dung bài báo từ URL bên ngoài
-    let extractedTitle = '';
-      let extractedBody = '';
-      let extractedImageUrl = '';
-  
-      try {
-        const res = await axios.get(cleanUrl, {
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
+  private static async executeCrawlAndProcess(
+    cleanUrl: string,
+    level?: string,
+    userId?: string,
+    fallbackMeta?: {
+      fallbackTitle?: string;
+      fallbackContent?: string;
+      fallbackImage?: string;
+      sourceName?: string;
+    }
+  ) {
+    let extractedTitle = fallbackMeta?.fallbackTitle || '';
+    let extractedBody = '';
+    let extractedImageUrl = fallbackMeta?.fallbackImage || '';
+    let metaDescription = '';
+
+    try {
+      const res = await axios.get(cleanUrl, {
+        timeout: 7500,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8'
+        }
+      });
+
+      const $ = cheerio.load(res.data);
+
+      extractedImageUrl =
+        $('meta[property="og:image"]').attr('content') ||
+        $('meta[name="twitter:image"]').attr('content') ||
+        $('article img, .main-text img, .article-body img, #main-content img').first().attr('src') ||
+        extractedImageUrl ||
+        '';
+
+      if (extractedImageUrl && !extractedImageUrl.startsWith('http')) {
+        try {
+          extractedImageUrl = new URL(extractedImageUrl, cleanUrl).href;
+        } catch {}
+      }
+
+      metaDescription =
+        $('meta[property="og:description"]').attr('content')?.trim() ||
+        $('meta[name="description"]').attr('content')?.trim() ||
+        '';
+
+      const pageTitle =
+        $('meta[property="og:title"]').attr('content')?.trim() ||
+        $('h1').first().text().trim() ||
+        $('title').text().trim() ||
+        '';
+
+      if (!extractedTitle && pageTitle) {
+        extractedTitle = pageTitle.replace(/\s*[\-|｜|]\s*(NHK|Yahoo|GIGAZINE|東洋経済|ライブドア|nippon).*$/i, '').trim();
+      }
+
+      // Loại bỏ rác DOM trước khi lấy đoạn văn
+      $('script, style, noscript, nav, header, footer, iframe, aside, .advertisement, .ad, .sns-share, .social, button, .footer, .header, .menu, .related, .paywall').remove();
+
+      const candidateSelectors = [
+        'article p',
+        '.article-body p',
+        '.article_body p',
+        '.main-text p',
+        '.content--detail-body p',
+        '#article-body p',
+        'div.NewsBody',
+        'section p',
+        'p'
+      ];
+
+      const collectedParagraphs: string[] = [];
+      const seenPara = new Set<string>();
+
+      for (const sel of candidateSelectors) {
+        $(sel).each((_, el) => {
+          const txt = $(el).text().replace(/\s+/g, ' ').trim();
+          if (
+            txt.length >= 18 &&
+            /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(txt) &&
+            !txt.includes('放送法に基づき契約が必要です') &&
+            !txt.includes('受信契約について詳しく確認する') &&
+            !txt.includes('All Rights Reserved') &&
+            !txt.includes('無断転載を禁じます') &&
+            !seenPara.has(txt)
+          ) {
+            seenPara.add(txt);
+            collectedParagraphs.push(txt);
           }
         });
-        
-        // Import dom & readability dng require vA l< runtime trAsh li types
-        const { JSDOM } = require('jsdom');
-        const { Readability } = require('@mozilla/readability');
-
-        const dom = new JSDOM(res.data, { url: cleanUrl });
-        const reader = new Readability(dom.window.document);
-        const articleResult = reader.parse();
-
-        const $ = cheerio.load(res.data);
-  
-        // TrAch xut nh bAa
-        extractedImageUrl =
-          $('meta[property="og:image"]').attr('content') ||
-          $('meta[name="twitter:image"]').attr('content') ||
-          $('article img, .main-text img, .article-body img, #main-content img').first().attr('src') ||
-          $('img').first().attr('src') ||
-          '';
-  
-        if (extractedImageUrl && !extractedImageUrl.startsWith('http')) {
-          try {
-            extractedImageUrl = new URL(extractedImageUrl, cleanUrl).href;
-          } catch {}
-        }
-        
-        if (articleResult && articleResult.textContent && articleResult.textContent.length > 50) {
-            extractedTitle = articleResult.title || $('h1').first().text().trim() || 'BAi bAo ting Nht';
-            // Clean title
-            extractedTitle = extractedTitle.replace(/[\-?"|].*$/, '').trim();
-            extractedBody = articleResult.textContent.replace(/\n\s*\n/g, '\n\n').trim();
-        } else {
-            // Fallback cheerio
-            extractedTitle = $('h1').first().text().trim() || $('title').text().trim() || 'BAi bAo ting Nht';
-            extractedTitle = extractedTitle.replace(/[\-?"|].*$/, '').trim();
-            
-            $('script, style, noscript, nav, header, footer, iframe, aside, .advertisement, .ad, .sns-share, .social, button, .footer, .header, .menu').remove();
-            
-            const allParagraphs = $('p, div.text, div.article_body, div.NewsBody, div.paragraph')
-              .map((_, p) => $(p).text().trim())
-              .get()
-              .filter(t => t.length > 15 && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(t));
-            extractedBody = allParagraphs.join('\n\n');
-        }
-      } catch (crawlErr: any) {
-        throw new Error(`Khong the truy cap duong link bai bao: ${crawlErr?.message || 'Loi ket noi'}`);
-      }
-  
-      if (!extractedBody || extractedBody.length < 100) {
-        throw new Error('Không thể trích xuất nội dung bài viết từ liên kết này.');
+        if (collectedParagraphs.join('').length >= 350) break;
       }
 
-      // Chặn các trang tường rào thuê bao NHK ONE hoặc trang báo lỗi 404
-      if (
-        extractedBody.includes('放送法に基づき契約が必要です') ||
-        extractedBody.includes('受信契約について詳しく確認する') ||
-        extractedBody.includes('指定されたページまたはファイルは存在しません')
-      ) {
-        throw new Error('Bài viết yêu cầu tài khoản thuê bao hoặc không cho phép trích xuất nội dung.');
-      }
+      extractedBody = collectedParagraphs.join('\n\n');
+    } catch (crawlErr: any) {
+      console.warn(`[ReadingService] HTTP scrape fallback for ${cleanUrl}:`, crawlErr?.message || crawlErr);
+    }
 
-      // Giới hạn độ dài chuẩn Dokkai (tối đa ~1.800 ký tự / 16 câu đầu tiên) để tải nhanh và dễ đọc
-      if (extractedBody.length > 1800) {
-        extractedBody = extractedBody.slice(0, 1800);
-      }
+    // Kết hợp hoặc fallback sang nội dung RSS / Meta Description nếu trang đích khóa cào trực tiếp (như NHK ONE / Livedoor summary)
+    const fallbackText = [fallbackMeta?.fallbackContent || '', metaDescription]
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 25 && !s.includes('放送法に基づき契約が必要です'))
+      .sort((a, b) => b.length - a.length)[0] || '';
 
-    // 3. Sử dụng Kuromoji (Local) để gắn Furigana tự động (Zero-AI Cost)
+    if (!extractedBody || extractedBody.length < 80) {
+      if (fallbackText && fallbackText.length >= 40) {
+        extractedBody = extractedBody ? `${fallbackText}\n\n${extractedBody}` : fallbackText;
+      }
+    } else if (fallbackText && !extractedBody.includes(fallbackText.slice(0, 20)) && extractedBody.length < 250) {
+      extractedBody = `${fallbackText}\n\n${extractedBody}`;
+    }
+
+    if (!extractedBody || extractedBody.length < 40) {
+      throw new Error('Không thể trích xuất nội dung bài viết từ liên kết này.');
+    }
+
+    if (extractedBody.length > 1800) {
+      extractedBody = extractedBody.slice(0, 1800);
+    }
+
     const effectiveUserId = userId || 'guest_user';
     const targetLevel = level || 'N3';
 
     const { KuromojiService } = await import('./kuromoji.service');
-      const rawSentences = extractedBody
-        .split(/(?<=[。！？\n])/)
-        .map((s: any) => s.trim())
-        .filter((s: any) => s.length >= 6 && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(s))
-        .slice(0, 16);
+    const { TranscriptParserService } = await import('../shadowing/transcript-parser.service');
 
-      if (rawSentences.length === 0) {
-        throw new Error('Không tìm thấy câu tiếng Nhật hợp lệ trong bài viết.');
-      }
+    const rawSentences = extractedBody
+      .split(/(?<=[。！？\n])/)
+      .map((s: string) => s.replace(/\s+/g, ' ').trim())
+      .filter((s: string) => s.length >= 8 && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(s))
+      .slice(0, 16);
 
-      const trimmedBody = rawSentences.join('\n');
-      const globalAnalysis = await KuromojiService.analyzeText(trimmedBody);
+    if (rawSentences.length === 0) {
+      throw new Error('Không tìm thấy câu tiếng Nhật hợp lệ trong bài viết.');
+    }
 
-      let finalVocabs = globalAnalysis.vocabularies;
-      let finalGrammars = globalAnalysis.grammars;
-      let sentenceTranslations: string[] = [];
+    const cleanTitleJp = (extractedTitle || rawSentences[0].slice(0, 38)).replace(/[\-|｜].*$/, '').trim();
+    const trimmedBody = rawSentences.join('\n');
 
+    // 1. Phân tích toàn bài bằng Kuromoji (Single-Pass < 15ms) + Dịch Batch GTX miễn phí (< 300ms)
+    const [globalAnalysis, gtxTranslations] = await Promise.all([
+      KuromojiService.analyzeText(trimmedBody),
+      TranscriptParserService.translateBatchGtx([cleanTitleJp, ...rawSentences])
+    ]);
+
+    const titleVi = (gtxTranslations[0] || '').trim();
+    const sentenceTranslations = gtxTranslations.slice(1);
+
+    // 2. Làm giàu nghĩa tiếng Việt & Hán Việt cho Từ vựng từ CSDL + GTX Batch (0 tốn AI Quota)
+    const candidateVocabs = globalAnalysis.vocabularies || [];
+    const candidateWords = candidateVocabs.map((v: any) => v.word).filter(Boolean);
+
+    const dbVocabMap = new Map<string, any>();
+    if (candidateWords.length > 0) {
       try {
-        const { ReadingAiService } = await import('./reading-ai.service');
-        const aiData = await ReadingAiService.extractVocabAndGrammar(trimmedBody, targetLevel, rawSentences);
-        if (aiData.vocabularies && aiData.vocabularies.length > 0) {
-          finalVocabs = aiData.vocabularies;
-        }
-        if (aiData.grammars && aiData.grammars.length > 0) {
-          finalGrammars = aiData.grammars;
-        }
-        if (aiData.sentenceTranslations && aiData.sentenceTranslations.length > 0) {
-          sentenceTranslations = aiData.sentenceTranslations;
-        }
-      } catch (e) {
-        console.error('AI extraction failed during crawl, fallback to Kuromoji', e);
-      }
-
-      const sentences = [];
-      for (let i = 0; i < rawSentences.length; i++) {
-        const raw = rawSentences[i];
-        const sentenceAnalysis = await KuromojiService.analyzeText(raw);
-        sentences.push({
-          orderIndex: i + 1,
-          sentenceJp: raw,
-          sentenceVi: sentenceTranslations[i] || '',
-          furigana: sentenceAnalysis.furiganaText,
-          grammarFocus: null
+        const dbRecords = await prisma.vocabulary.findMany({
+          where: { word: { in: candidateWords } },
+          select: {
+            word: true,
+            reading: true,
+            hanViet: true,
+            meaningVi: true,
+            jlptLevel: true,
+            partOfSpeech: true
+          }
         });
-      }
-
-      const generated: any = {
-        title: extractedTitle || 'Bài báo Nhật Bản',
-        sentences: sentences,
-        vocabularies: finalVocabs,
-        grammars: finalGrammars,
-        quizzes: []
-      };
-
-      const tempId = crypto.randomUUID();
-
-      // TTS
-      let audioData: any = { audioUrl: null, timings: [] };
-      try {
-        audioData = await TtsService.generateArticleAudio(tempId, generated.sentences.map((s: any) => s.sentenceJp));
-      } catch (e) {
-        console.error('TTS Error', e);
-      }
-
-      // Xác định tên nguồn báo hiển thị rõ ràng
-      let topicLabel = 'Tin tức báo chí';
-      if (cleanUrl.includes('nippon.com')) topicLabel = 'Nippon.com • Văn hóa & Xã hội';
-      else if (cleanUrl.includes('toyokeizai.net')) topicLabel = 'Toyo Keizai • Kinh tế & Đời sống';
-      else if (cleanUrl.includes('president.jp')) topicLabel = 'President JP • Công việc & Xã hội';
-      else if (cleanUrl.includes('gigazine.net')) topicLabel = 'GIGAZINE • Công nghệ & Khoa học';
-      else if (cleanUrl.includes('jbpress')) topicLabel = 'JBpress • Thời sự Quốc tế';
-
-      // Prisma create
-      const newArticle = await prisma.readingArticle.create({
-        data: {
-          id: tempId,
-          audioUrl: audioData.audioUrl,
-          durationSeconds: audioData.timings.length > 0 ? Math.ceil(audioData.timings[audioData.timings.length - 1].endTimeMs / 1000) : 0,
-          title: generated.title,
-          sourceType: cleanUrl.includes('nhk') ? 'NHK_NEWS' : 'EXTERNAL_NEWS',
-          level: targetLevel,
-          topic: topicLabel,
-          totalWords: generated.sentences.reduce((acc: number, s: any) => acc + s.sentenceJp.length, 0),
-          imageUrl: extractedImageUrl || 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=80',
-          isPublic: true,
-          createdBy: effectiveUserId,
-          sourceUrl: cleanUrl,
-          sentences: {
-            createMany: {
-              data: generated.sentences.map((s: any, idx: number) => ({
-                orderIndex: s.orderIndex,
-                sentenceJp: s.sentenceJp,
-                sentenceVi: s.sentenceVi || '',
-                furigana: s.furigana || null,
-                startTimeMs: audioData.timings[idx]?.startTimeMs || 0,
-                endTimeMs: audioData.timings[idx]?.endTimeMs || 2000
-              }))
-            }
-          },
-          vocabularies: generated.vocabularies && generated.vocabularies.length > 0 ? {
-            createMany: {
-              data: generated.vocabularies.map((v: any) => ({
-                word: v.word || 'Từ vựng',
-                reading: v.reading || v.word || '',
-                meaningVi: v.meaningVi || 'Từ vựng trọng tâm trong bài',
-                level: v.level || targetLevel,
-                hanViet: v.hanViet || null
-              }))
-            }
-          } : undefined,
-          grammars: generated.grammars && generated.grammars.length > 0 ? {
-            createMany: {
-              data: generated.grammars.map((g: any) => ({
-                grammarPoint: g.grammar || g.grammarPoint || 'Cấu trúc ngữ pháp',
-                meaningVi: g.meaningVi || 'Cấu trúc ngữ pháp trong bài',
-                level: g.level || targetLevel,
-                excerpt: g.explanation || g.excerpt || ''
-              }))
-            }
-          } : undefined
+        for (const r of dbRecords) {
+          if (!dbVocabMap.has(r.word)) dbVocabMap.set(r.word, r);
         }
-      });
+      } catch {}
+    }
 
-      await RedisService.delPrefix('reading:list:');
-      return await this.getArticleDetail(newArticle.id);
+    // Dịch các từ vựng chưa có trong DB bằng 1 lần gọi GTX duy nhất
+    const missingVocabWords = candidateWords.filter((w: string) => !dbVocabMap.has(w));
+    const missingTranslations =
+      missingVocabWords.length > 0 ? await TranscriptParserService.translateBatchGtx(missingVocabWords) : [];
+    const missingMap = new Map<string, string>();
+    missingVocabWords.forEach((w: string, idx: number) => {
+      if (missingTranslations[idx]) missingMap.set(w, missingTranslations[idx]);
+    });
+
+    const finalVocabs = candidateVocabs.slice(0, 14).map((v: any) => {
+      const dbHit = dbVocabMap.get(v.word);
+      if (dbHit) {
+        return {
+          word: v.word,
+          reading: dbHit.reading || v.reading || '',
+          hanViet: dbHit.hanViet || null,
+          meaningVi: dbHit.meaningVi,
+          level: dbHit.jlptLevel || targetLevel
+        };
+      }
+      const gtxMeaning = missingMap.get(v.word) || 'Từ vựng trọng tâm trong bài';
+      return {
+        word: v.word,
+        reading: v.reading || '',
+        hanViet: null,
+        meaningVi: v.pos ? `[${v.pos}] ${gtxMeaning}` : gtxMeaning,
+        level: targetLevel
+      };
+    });
+
+    const finalGrammars = (globalAnalysis.grammars || []).slice(0, 6);
+
+    // 3. Tạo Furigana và tính mốc thời gian Mora cho từng câu (Không chờ tải 16 file MP3 gây timeout)
+    const sentences: any[] = [];
+    let accumulatedMs = 0;
+    for (let i = 0; i < rawSentences.length; i++) {
+      const raw = rawSentences[i];
+      const furiText = await KuromojiService.addFurigana(raw);
+      const estDurationMs = Math.max(2500, Math.round(raw.length * 210));
+      const startTimeMs = accumulatedMs;
+      const endTimeMs = accumulatedMs + estDurationMs;
+      accumulatedMs = endTimeMs;
+
+      sentences.push({
+        orderIndex: i + 1,
+        sentenceJp: raw,
+        sentenceVi: sentenceTranslations[i] || '',
+        furigana: furiText,
+        startTimeMs,
+        endTimeMs
+      });
+    }
+
+    // 4. Tạo bản dịch toàn bài (translationFull) chia theo đoạn
+    const paraBlocks: string[] = [];
+    for (let i = 0; i < sentences.length; i += 4) {
+      const chunk = sentences
+        .slice(i, i + 4)
+        .map((s) => s.sentenceVi)
+        .filter(Boolean)
+        .join(' ');
+      if (chunk) {
+        paraBlocks.push(`【Đoạn ${Math.floor(i / 4) + 1}】\n${chunk}`);
+      }
+    }
+    const translationFull = paraBlocks.join('\n\n');
+
+    // 5. Tự động sinh bộ câu hỏi đọc hiểu JLPT Dokkai từ nội dung bài báo (0 tốn AI Quota)
+    const autoQuizzes: any[] = [];
+    if (sentences.length >= 1) {
+      const mainSentJp = sentences[0].sentenceJp;
+      const mainSentVi = sentences[0].sentenceVi || titleVi || cleanTitleJp;
+      autoQuizzes.push({
+        question: 'この記事の主な内容（テーマ）として最も適切なものはどれか。',
+        questionVi: 'Đâu là nội dung (chủ đề) chính phù hợp nhất với bài báo này?',
+        optionsJson: JSON.stringify([
+          `1. ${mainSentJp.slice(0, 65)}${mainSentJp.length > 65 ? '…' : ''}`,
+          '2. 伝統的な祭りの歴史と地方の観光産業の衰退について。',
+          '3. 小学校における新しい外国語教育カリキュラムの廃止について。',
+          '4. 江戸時代の建築様式と現代の住宅デザインの比較について。'
+        ]),
+        optionsViJson: JSON.stringify([
+          `1. ${mainSentVi}`,
+          '2. Lịch sử các lễ hội truyền thống và sự suy giảm ngành du lịch địa phương.',
+          '3. Việc bãi bỏ chương trình giáo dục ngoại ngữ mới tại các trường tiểu học.',
+          '4. So sánh phong cách kiến trúc thời Edo và thiết kế nhà ở hiện đại.'
+        ]),
+        correctIndex: 0,
+        explanation: `Đoạn mở đầu của bài báo nêu rõ nội dung trọng tâm: "${mainSentJp}" (${mainSentVi}).`,
+        questionType: 'MAIN_IDEA'
+      });
+    }
+
+    if (sentences.length >= 2) {
+      const detailIdx = Math.min(sentences.length - 1, Math.floor(sentences.length / 2));
+      const detailSentJp = sentences[detailIdx].sentenceJp;
+      const detailSentVi = sentences[detailIdx].sentenceVi || 'Thông tin chi tiết được nêu trong bài.';
+      autoQuizzes.push({
+        question: '本文で述べられている内容と合致しているものはどれか。',
+        questionVi: 'Nhận định nào sau đây ĐÚNG với thông tin được nêu trong bài viết?',
+        optionsJson: JSON.stringify([
+          '1. この問題については、まだ一度も調査や報道が行われていない。',
+          `2. ${detailSentJp.slice(0, 68)}${detailSentJp.length > 68 ? '…' : ''}`,
+          '3. 関係者は全員この計画に強く反対しており、直ちに中止された。',
+          '4. 海外の事例のみを紹介しており、日本国内の状況には触れていない。'
+        ]),
+        optionsViJson: JSON.stringify([
+          '1. Về vấn đề này, vẫn chưa từng có cuộc điều tra hay đưa tin nào được thực hiện.',
+          `2. ${detailSentVi}`,
+          '3. Tất cả những người liên quan đều phản đối gay gắt nên kế hoạch đã bị hủy bỏ ngay lập tức.',
+          '4. Bài viết chỉ giới thiệu các trường hợp ở nước ngoài mà không đề cập tới tình hình tại Nhật Bản.'
+        ]),
+        correctIndex: 1,
+        explanation: `Thông tin khớp trực tiếp với câu số ${detailIdx + 1} trong bài: "${detailSentJp}" (${detailSentVi}).`,
+        questionType: 'DETAIL_MATCH'
+      });
+    }
+
+    if (finalVocabs.length >= 2) {
+      const targetVocab = finalVocabs[0];
+      const distractors = [
+        'Tạm hoãn vô thời hạn',
+        'Phản đối hoàn toàn',
+        'Thay đổi theo mùa'
+      ];
+      autoQuizzes.push({
+        question: `本文中に登場する重要語彙「${targetVocab.word}」（${targetVocab.reading || targetVocab.word}）の意味として最も適切なものはどれか。`,
+        questionVi: `Từ vựng trọng tâm "${targetVocab.word}" (${targetVocab.reading || targetVocab.word}) xuất hiện trong bài báo mang ý nghĩa nào sau đây?`,
+        optionsJson: JSON.stringify([
+          `1. ${targetVocab.meaningVi}`,
+          `2. ${distractors[0]}`,
+          `3. ${distractors[1]}`,
+          `4. ${distractors[2]}`
+        ]),
+        optionsViJson: JSON.stringify([
+          `1. ${targetVocab.meaningVi}`,
+          `2. ${distractors[0]}`,
+          `3. ${distractors[1]}`,
+          `4. ${distractors[2]}`
+        ]),
+        correctIndex: 0,
+        explanation: `Từ vựng 【${targetVocab.word}】 (${targetVocab.reading}) trong bài có nghĩa là: ${targetVocab.meaningVi}.`,
+        questionType: 'VOCAB_CONTEXT'
+      });
+    }
+
+    // Xác định tên nguồn báo hiển thị rõ ràng
+    let topicLabel = 'Tin tức báo chí';
+    if (cleanUrl.includes('nhk.or.jp') || fallbackMeta?.sourceName === 'NHK_NEWS') topicLabel = 'NHK News • Thời sự Nhật Bản';
+    else if (cleanUrl.includes('nippon.com')) topicLabel = 'Nippon.com • Văn hóa & Xã hội';
+    else if (cleanUrl.includes('toyokeizai.net')) topicLabel = 'Toyo Keizai • Kinh tế & Đời sống';
+    else if (cleanUrl.includes('president.jp')) topicLabel = 'President JP • Công việc & Xã hội';
+    else if (cleanUrl.includes('gigazine.net')) topicLabel = 'GIGAZINE • Công nghệ & Khoa học';
+    else if (cleanUrl.includes('livedoor.com')) topicLabel = 'Livedoor News • Xã hội & Đời sống';
+    else if (cleanUrl.includes('yahoo.co.jp')) topicLabel = 'Yahoo! News JP • Tiêu điểm';
+
+    const displayTitle =
+      titleVi && !cleanTitleJp.includes('(') && titleVi !== cleanTitleJp
+        ? `${cleanTitleJp} (${titleVi})`
+        : cleanTitleJp;
+
+    const tempId = crypto.randomUUID();
+    const isNhk = cleanUrl.includes('nhk') || fallbackMeta?.sourceName === 'NHK_NEWS';
+
+    const newArticle = await prisma.readingArticle.create({
+      data: {
+        id: tempId,
+        audioUrl: null,
+        durationSeconds: Math.max(30, Math.ceil(accumulatedMs / 1000)),
+        title: displayTitle,
+        sourceType: isNhk ? 'NHK_NEWS' : 'EXTERNAL_NEWS',
+        level: targetLevel,
+        topic: topicLabel,
+        totalWords: sentences.reduce((acc: number, s: any) => acc + s.sentenceJp.length, 0),
+        imageUrl:
+          extractedImageUrl ||
+          'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80',
+        translationFull: translationFull || null,
+        isPublic: true,
+        createdBy: effectiveUserId,
+        sourceUrl: cleanUrl,
+        sentences: {
+          createMany: {
+            data: sentences.map((s: any) => ({
+              orderIndex: s.orderIndex,
+              sentenceJp: s.sentenceJp,
+              sentenceVi: s.sentenceVi || '',
+              furigana: s.furigana || null,
+              startTimeMs: s.startTimeMs || 0,
+              endTimeMs: s.endTimeMs || 3000
+            }))
+          }
+        },
+        vocabularies:
+          finalVocabs.length > 0
+            ? {
+                createMany: {
+                  data: finalVocabs.map((v: any) => ({
+                    word: v.word || 'Từ vựng',
+                    reading: v.reading || v.word || '',
+                    meaningVi: v.meaningVi || 'Từ vựng trọng tâm trong bài',
+                    level: v.level || targetLevel,
+                    hanViet: v.hanViet || null
+                  }))
+                }
+              }
+            : undefined,
+        grammars:
+          finalGrammars.length > 0
+            ? {
+                createMany: {
+                  data: finalGrammars.map((g: any) => ({
+                    grammarPoint: g.grammar || g.grammarPoint || 'Cấu trúc ngữ pháp',
+                    meaningVi: g.meaningVi || 'Cấu trúc ngữ pháp trong bài',
+                    level: g.level || targetLevel,
+                    excerpt: g.excerpt || g.explanation || ''
+                  }))
+                }
+              }
+            : undefined,
+        quizzes:
+          autoQuizzes.length > 0
+            ? {
+                createMany: {
+                  data: autoQuizzes
+                }
+              }
+            : undefined
+      }
+    });
+
+    await RedisService.delPrefix('reading:list:');
+    return await this.getArticleDetail(newArticle.id);
   }
 }

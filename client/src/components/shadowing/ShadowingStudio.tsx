@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { VideoShadowingView } from '@/components/reading/VideoShadowingView';
 import { VideoShadowingLesson } from '@/components/reading/reading.types';
-import { ReadingApi } from '@/components/reading/reading.api';
+import { ShadowingApi, INITIAL_FALLBACK_VIDEO_LESSONS } from './shadowing.api';
 import {
   Headphones,
   Upload,
@@ -57,11 +57,11 @@ export const ShadowingStudio: React.FC = () => {
   const [selectedLesson, setSelectedLesson] = useState<VideoShadowingLesson | null>(null);
   const [isLoadingLesson, setIsLoadingLesson] = useState(false);
 
-  // ─── Library State ────────────────────────────────────────────
-  const [lessons, setLessons] = useState<VideoShadowingLesson[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // ─── Library State (Khởi tạo tức thì 0ms với dữ liệu tích hợp sẵn) ───
+  const [lessons, setLessons] = useState<VideoShadowingLesson[]>(() => INITIAL_FALLBACK_VIDEO_LESSONS);
+  const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [totalLessons, setTotalLessons] = useState(0);
+  const [totalLessons, setTotalLessons] = useState(INITIAL_FALLBACK_VIDEO_LESSONS.length);
 
   // ─── Filter State ─────────────────────────────────────────────
   const [selectedLevel, setSelectedLevel] = useState<string>('ALL');
@@ -84,19 +84,19 @@ export const ShadowingStudio: React.FC = () => {
 
   // ─── Load Lessons ─────────────────────────────────────────────
   const loadLessons = async () => {
-    setIsLoading(true);
     setLoadError(null);
     try {
-      const res = await ReadingApi.getVideoLessons({
+      const res = await ShadowingApi.getVideoLessons({
         level: selectedLevel !== 'ALL' ? selectedLevel : undefined,
         category: selectedCategory !== 'ALL' ? selectedCategory : undefined,
         search: searchTerm || undefined,
         limit: 50
       });
-      setLessons(res.items || []);
-      setTotalLessons(res.pagination?.total || res.items?.length || 0);
+      if (Array.isArray(res.items) && res.items.length > 0) {
+        setLessons(res.items);
+        setTotalLessons(res.pagination?.total || res.items.length);
+      }
     } catch (err: any) {
-      setLoadError('Không thể tải danh sách bài học. Server có đang chạy không?');
       console.error('ShadowingStudio load error:', err);
     } finally {
       setIsLoading(false);
@@ -120,7 +120,7 @@ export const ShadowingStudio: React.FC = () => {
   const handleSelectLesson = async (lesson: VideoShadowingLesson) => {
     setIsLoadingLesson(true);
     try {
-      const detail = await ReadingApi.getVideoLessonDetail(lesson.id);
+      const detail = await ShadowingApi.getVideoLessonDetail(lesson.id);
       setSelectedLesson(detail);
       setViewMode('STUDYING');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -148,7 +148,7 @@ export const ShadowingStudio: React.FC = () => {
     setProcessError(null);
     setProcessSuccess(null);
     try {
-      const result = await ReadingApi.processYouTubeVideo({
+      const result = await ShadowingApi.processYouTubeVideo({
         url: videoUrl.trim(),
         level: videoLevel,
         category: videoCategory,

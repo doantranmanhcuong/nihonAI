@@ -284,15 +284,18 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
     if (audioRef.current) {
       audioRef.current.pause();
     }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     setIsPlaying(false);
     setActiveCharIndex(-1);
     setSentenceProgress(0);
   };
 
-  // Phát âm thanh của một câu và kích hoạt Karaoke đồng bộ chuẩn xác thời gian thực
+  // Phát âm thanh của một câu (Hỗ trợ cả file Audio MP3 và Web Speech API ja-JP bản xứ khi bài báo cào nhanh không kèm MP3)
   const playSentenceByIndex = (index: number) => {
     const sents = sentencesRef.current;
-    if (!sents || !sents[index] || !audioRef.current) return;
+    if (!sents || !sents[index]) return;
 
     cancelAudio();
 
@@ -300,13 +303,66 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
     activeSentenceIndexRef.current = index;
     setActiveCharIndex(-1);
 
-    const targetTimeSec = (sents[index].startTimeMs || 0) / 1000;
-    audioRef.current.currentTime = targetTimeSec;
-    audioRef.current.playbackRate = playbackSpeedRef.current;
-    
-    audioRef.current.play().then(() => {
+    const sentenceEl = document.getElementById(`dokkai-sentence-${index}`);
+    if (sentenceEl) {
+      sentenceEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    const playWithWebSpeechFallback = () => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const text = sents[index]?.sentenceJp || (sents[index] as any)?.japanese || '';
+      if (!text) return;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      utterance.rate = playbackSpeedRef.current || 1.0;
       setIsPlaying(true);
-    }).catch(e => console.error("Audio play error", e));
+      setSentenceProgress(0.35);
+
+      utterance.onboundary = (ev) => {
+        if (typeof ev.charIndex === 'number' && text.length > 0) {
+          setSentenceProgress(Math.min(1, (ev.charIndex + 1) / text.length));
+        }
+      };
+
+      utterance.onend = () => {
+        setSentenceProgress(1);
+        if (autoPauseRef.current) {
+          setIsPlaying(false);
+          return;
+        }
+        const nextIdx = index + 1;
+        if (nextIdx < sents.length) {
+          playSentenceByIndex(nextIdx);
+        } else if (isRepeatRef.current) {
+          playSentenceByIndex(0);
+        } else {
+          setIsPlaying(false);
+        }
+      };
+
+      utterance.onerror = () => {
+        setIsPlaying(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
+
+    if (article?.audioUrl && audioRef.current) {
+      const targetTimeSec = (sents[index].startTimeMs || 0) / 1000;
+      audioRef.current.currentTime = targetTimeSec;
+      audioRef.current.playbackRate = playbackSpeedRef.current;
+
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch(() => {
+          playWithWebSpeechFallback();
+        });
+    } else {
+      playWithWebSpeechFallback();
+    }
   };
 
   const handleTogglePlay = () => {

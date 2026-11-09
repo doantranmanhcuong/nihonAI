@@ -124,12 +124,19 @@ export async function GET(req: NextRequest) {
 
   // 2. Gọi Innertube Player API (ANDROID -> IOS)
   const clients = [
-    { clientName: 'ANDROID', clientVersion: '20.10.38' },
-    { clientName: 'IOS', clientVersion: '20.10.4' }
+    {
+      client: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 34, hl: 'ja', gl: 'JP' },
+      ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip'
+    },
+    {
+      client: { clientName: 'IOS', clientVersion: '20.10.4', hl: 'ja', gl: 'JP' },
+      ua: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)'
+    }
   ];
 
   let captionTracks: any[] = [];
-  for (const client of clients) {
+  let activeUa = clients[0].ua;
+  for (const entry of clients) {
     try {
       const playerUrl = apiKey
         ? `https://www.youtube.com/youtubei/v1/player?key=${apiKey}&prettyPrint=false`
@@ -138,10 +145,11 @@ export async function GET(req: NextRequest) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(cookieHeader ? { Cookie: cookieHeader } : {})
+          'User-Agent': entry.ua,
+          'Accept-Language': 'ja-JP,ja;q=0.9'
         },
         body: JSON.stringify({
-          context: { client },
+          context: { client: entry.client },
           videoId: youtubeId
         })
       });
@@ -157,6 +165,7 @@ export async function GET(req: NextRequest) {
       const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
       if (Array.isArray(tracks) && tracks.length > 0) {
         captionTracks = tracks;
+        activeUa = entry.ua;
         break;
       }
     } catch {}
@@ -185,7 +194,10 @@ export async function GET(req: NextRequest) {
           ? cleanBaseUrl.replace(/fmt=[^&]+/, 'fmt=json3')
           : `${cleanBaseUrl}&fmt=json3`;
         const jRes = await fetch(json3Url, {
-          headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) }
+          headers: {
+            'User-Agent': activeUa,
+            'Accept-Language': 'ja-JP,ja;q=0.9'
+          }
         });
         if (jRes.ok) {
           const jData: any = await jRes.json();
@@ -231,7 +243,7 @@ export async function GET(req: NextRequest) {
       // 2b. XML
       try {
         const xmlRes = await fetch(cleanBaseUrl, {
-          headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) }
+          headers: { 'User-Agent': 'com.google.android.youtube/19.29.37 (Linux; U; Android 11) gzip' }
         });
         if (xmlRes.ok) {
           const xml = await xmlRes.text();

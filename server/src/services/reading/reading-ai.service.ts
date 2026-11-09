@@ -349,15 +349,61 @@ Trả về JSON định dạng:
       await RedisService.set(cacheKey, standardized, 86400);
       return standardized;
     } catch (err: any) {
-      console.error('Error in translateSelection:', err);
-      return {
-        type: isSentence ? 'sentence' : 'word',
-        kanjiWithFurigana: cleanText,
-        translation: cleanText,
-        explanation: 'Không thể kết nối AI phân tích vào lúc này.',
-        example: null,
-        examples: []
-      };
+      console.warn('[ReadingAiService] translateSelection AI fallback -> Dictionary + GTX:', err?.message);
+      try {
+        const { prisma } = await import('../../core/prisma.service');
+        const { TranscriptParserService } = await import('../shadowing/transcript-parser.service');
+        const { CURATED_JLPT_GRAMMAR_PATTERNS } = await import('./kuromoji.service');
+
+        if (!isSentence) {
+          const dbVocab = await prisma.vocabulary.findFirst({
+            where: {
+              OR: [{ word: cleanText }, { reading: cleanText }]
+            }
+          });
+          if (dbVocab) {
+            const fallbackWord = {
+              type: 'word',
+              kanjiWithFurigana: dbVocab.reading ? `${dbVocab.word}（${dbVocab.reading}）` : dbVocab.word,
+              translation: dbVocab.meaningVi,
+              explanation: dbVocab.hanViet ? `Âm Hán Việt: ${dbVocab.hanViet} • Trình độ ${dbVocab.jlptLevel}` : `Từ vựng JLPT ${dbVocab.jlptLevel}`,
+              grammarPoint: null,
+              grammarStructure: null,
+              grammarMeaning: null,
+              example: dbVocab.exampleJp ? { jp: dbVocab.exampleJp, vi: dbVocab.exampleVi || '' } : null,
+              examples: dbVocab.exampleJp ? [{ jp: dbVocab.exampleJp, vi: dbVocab.exampleVi || '' }] : []
+            };
+            await RedisService.set(cacheKey, fallbackWord, 86400);
+            return fallbackWord;
+          }
+        }
+
+        const [gtxMeaning] = await TranscriptParserService.translateBatchGtx([cleanText]);
+        const matchedGrammar = CURATED_JLPT_GRAMMAR_PATTERNS.find((p) => p.regex.test(cleanText) || (contextSentence && p.regex.test(contextSentence)));
+
+        const fallbackResult = {
+          type: isSentence ? 'sentence' : 'word',
+          kanjiWithFurigana: cleanText,
+          translation: gtxMeaning || cleanText,
+          explanation: matchedGrammar ? `${matchedGrammar.pattern}: ${matchedGrammar.explanation}` : 'Bản dịch tự động theo ngữ cảnh câu.',
+          grammarPoint: matchedGrammar?.pattern || null,
+          grammarStructure: matchedGrammar?.structure || null,
+          grammarMeaning: matchedGrammar?.meaningVi || null,
+          example: null,
+          examples: []
+        };
+        await RedisService.set(cacheKey, fallbackResult, 3600);
+        return fallbackResult;
+      } catch {
+        return {
+          type: isSentence ? 'sentence' : 'word',
+          kanjiWithFurigana: cleanText,
+          translation: cleanText,
+          explanation: 'Không thể kết nối AI phân tích vào lúc này.',
+          example: null,
+          examples: []
+        };
+      }
     }
   }
 
@@ -379,7 +425,7 @@ Hãy giải thích CHI TIẾT và CHUẨN XÁC mẫu ngữ pháp tiếng Nhật 
 - Cấp độ JLPT: ${level || 'N/A'}
 ${sentence ? `- Đoạn câu được dùng trong bài đọc: "${sentence}"` : ''}
 
-Yêu cầu giải thích:
+YÊU CẦU giải thích:
 1. Ý nghĩa tiếng Việt chính xác và sắc thái biểu cảm.
 2. Cấu trúc kết hợp (Công thức ngữ pháp rõ ràng: Động từ chia thể nào, danh từ, tính từ + gì...).
 3. Cách sử dụng, phân biệt với ngữ pháp tương đương và lỗi người học hay mắc phải.
@@ -409,14 +455,29 @@ Trả về JSON:
       await RedisService.set(cacheKey, parsed, 604800);
       return parsed;
     } catch (err: any) {
-      console.error('Error in explainGrammar:', err);
+      console.warn('[ReadingAiService] explainGrammar AI fallback -> Curated JLPT Dictionary:', err?.message);
+      const { CURATED_JLPT_GRAMMAR_PATTERNS } = await import('./kuromoji.service');
+      const { TranscriptParserService } = await import('../shadowing/transcript-parser.service');
+      const cleanStrip = cleanPoint.replace(/[〜~・]/g, '').trim();
+      const matched = CURATED_JLPT_GRAMMAR_PATTERNS.find(
+        (p) => p.pattern.includes(cleanStrip) || (cleanStrip && p.regex.test(cleanStrip))
+      );
+      let sentenceVi = '';
+      if (sentence) {
+        const [trans] = await TranscriptParserService.translateBatchGtx([sentence]).catch(() => ['']);
+        sentenceVi = trans || '';
+      }
       return {
         grammarPoint: cleanPoint,
-        level: level || '',
-        meaningVi: 'Đang cập nhật giải thích ngữ pháp.',
-        structure: '',
-        explanation: 'Không thể kết nối AI phân tích ngữ pháp vào lúc này.',
-        excerptAnalysis: '',
+        level: matched?.level || level || 'N3',
+        meaningVi: matched?.meaningVi || 'Cấu trúc ngữ pháp trọng tâm trong bài đọc',
+        structure: matched?.structure || `Danh từ / Động từ + ${cleanPoint}`,
+        explanation:
+          matched?.explanation ||
+          `Cấu trúc "${cleanPoint}" thường được sử dụng trong văn viết và báo chí tiếng Nhật để liên kết mệnh đề và làm rõ ý nghĩa ngữ cảnh.`,
+        excerptAnalysis: sentence
+          ? `Trong câu trích dẫn: "${sentence}"${sentenceVi ? ` (${sentenceVi})` : ''}, cấu trúc ${cleanPoint} đóng vai trò nhấn mạnh mối quan hệ ngữ pháp giữa các vế câu.`
+          : '',
         examples: []
       };
     }

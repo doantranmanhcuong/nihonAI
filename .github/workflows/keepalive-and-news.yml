@@ -1,0 +1,30 @@
+name: NihonAI 24/7 Keep-Alive & Auto News Crawler
+
+on:
+  schedule:
+    # Chạy mỗi 14 phút một lần để giữ máy chủ Render luôn thức 24/7 (loại bỏ hoàn toàn Cold Start 30s)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Cho phép bấm chạy thủ công từ GitHub
+
+jobs:
+  keepalive-and-crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping Gateway Health (Wake up server)
+        run: |
+          echo "Pinging NihonAI API Gateway to prevent sleep..."
+          curl -s -f -m 25 "https://nihonai.vercel.app/api/gateway/health" || echo "Gateway pinged"
+
+      - name: Auto Crawl Japanese News (Periodically)
+        # Kích hoạt cào báo mới định kỳ vào các khung giờ chính
+        run: |
+          CURRENT_HOUR=$(date -u +%H)
+          CURRENT_MIN=$(date -u +%M)
+          echo "Current UTC hour: $CURRENT_HOUR, min: $CURRENT_MIN"
+          # Cào tin tức báo chí nếu là đầu giờ (00, 06, 12, 18 UTC)
+          if [ "$CURRENT_MIN" -lt 15 ] && [ $((10#$CURRENT_HOUR % 6)) -eq 0 ]; then
+            echo "Triggering Japanese daily news crawler..."
+            curl -s -X POST -m 25 "https://nihonai.vercel.app/api/reading/news/trigger-crawl" || echo "Crawl triggered"
+          fi

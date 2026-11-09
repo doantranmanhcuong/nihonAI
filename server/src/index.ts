@@ -1,4 +1,3 @@
-import { aiRouter } from './services/ai/ai.routes';
 import dns from 'dns';
 try {
   dns.setDefaultResultOrder('ipv4first');
@@ -126,7 +125,6 @@ app.use('/api/shadowing', shadowingRouter);
 app.use('/api/exam', examRouter);
 app.use('/api/notebook', notebookRouter);
 app.use('/api/admin', adminRouter);
-app.use('/api/ai', aiRouter);
 
 // 3. Health check gốc (chuyển tiếp sang Gateway Health)
 app.get('/api/health', (req: Request, res: Response) => {
@@ -172,7 +170,7 @@ app.listen(PORT, () => {
   // Khởi chạy bộ lập lịch cào tin tức tự động hàng ngày
   ReadingCronService.initReadingNewsCron();
 
-  // Làm nóng bộ đệm L1 RAM (Cache Warmup) theo từng nhịp tuần tự để không gây nghẽn Connection Pool TiDB lúc Cold Start
+  // Làm nóng bộ đệm L1 RAM (Cache Warmup) sau 6 giây để nhường 100% băng thông TiDB & CPU cho request đầu tiên của người dùng lúc Cold Start
   setTimeout(async () => {
     try {
       const { KanjiService } = await import('./services/kanji/kanji.service');
@@ -181,31 +179,23 @@ app.listen(PORT, () => {
       const { ShadowingService } = await import('./services/shadowing/shadowing.service');
       const { ExamService } = await import('./services/exam/exam.service');
 
-      // Bước 1: Nạp các endpoint nhẹ và quan trọng nhất khi mở web
-      await Promise.allSettled([
-        KanjiService.getCurriculumsSummary('LOOK_AND_LEARN', 'N5'),
-        KanjiService.getKanjiDetails('一'),
-        VocabularyService.getCurriculumsSummary('MINNA', 'N5')
-      ]);
+      // Bước 1: Nạp các endpoint nhẹ và quan trọng nhất
+      await KanjiService.getCurriculumsSummary('LOOK_AND_LEARN', 'N5').catch(() => {});
+      await VocabularyService.getCurriculumsSummary('MINNA', 'N5').catch(() => {});
+      await ReadingService.listArticles({ limit: 20 }).catch(() => {});
 
-      // Bước 2: Nạp tiếp danh sách bài học, bài đọc, video và đề thi
-      await Promise.allSettled([
-        KanjiService.getCurriculumKanjis('LOOK_AND_LEARN', 'N5', 1),
-        ReadingService.listArticles({ limit: 20 }),
-        ShadowingService.listLessons({ limit: 20 }),
-        ExamService.getExamList()
-      ]);
+      // Bước 2: Nạp tiếp danh sách bài học, video và đề thi
+      await ShadowingService.listLessons({ limit: 20 }).catch(() => {});
+      await ExamService.getExamList().catch(() => {});
+      await KanjiService.getCurriculumKanjis('LOOK_AND_LEARN', 'N5', 1).catch(() => {});
 
-      // Bước 3: Nạp bảng tổng Kanji nhẹ (không kèm svgPathData) và kiểm tra seed bài đọc mẫu
-      await Promise.allSettled([
-        KanjiService.getAllKanjisFromDb(),
-        VocabularyService.getCourseStats(),
-        seedReadingArticles()
-      ]);
+      // Bước 3: Kiểm tra seed bài đọc mẫu và nạp bảng tổng Kanji nhẹ
+      await seedReadingArticles().catch(() => {});
+      await KanjiService.getAllKanjisFromDb().catch(() => {});
 
       console.log('🔥 [CACHE WARMUP] Đã nạp sẵn Hán tự, Từ vựng, Đọc hiểu, Shadowing & Đề thi vào L1 RAM Cache (< 1ms).');
     } catch (warmupErr) {
       console.warn('⚠️ [CACHE WARMUP] Bỏ qua một số mục warmup:', warmupErr);
     }
-  }, 1000);
+  }, 6000);
 });

@@ -21,7 +21,7 @@ import {
   FileText
 , ChevronLeft, ChevronRight , Calendar } from 'lucide-react';
 import { ReadingArticle, QuotaStatus, } from './reading.types';
-import { ReadingApi } from './reading.api';
+import { ReadingApi, INITIAL_FALLBACK_READING_ARTICLES } from './reading.api';
 
 type ReadingTab = 'NEWS' | 'LIBRARY' | 'IMPORT';
 type JLPTFilter = 'ALL' | 'N5' | 'N4' | 'N3' | 'N2' | 'N1';
@@ -31,12 +31,11 @@ interface SharedLibraryViewProps {
   onSelectArticle: (articleId: string) => void;
   onArticleGenerated: (article: ReadingArticle) => void;
   quota: QuotaStatus | null;
-  onNavigateToVideo?: () => void;
 }
 
 let globalLibraryCache: ReadingArticle[] | null = null;
 
-export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestAiGenerate, onSelectArticle, onArticleGenerated, quota, onNavigateToVideo }) => {
+export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestAiGenerate, onSelectArticle, onArticleGenerated, quota }) => {
   // Tabs & Filters
   const [activeTab, setActiveTab] = useState<ReadingTab>('NEWS');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -48,9 +47,12 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
   // Tin tức báo chí Nhật Bản
   const [loadingNewsId, setLoadingNewsId] = useState<string | null>(null);
 
-  // Thư viện bài đọc CSDL
-  const [libraryArticles, setLibraryArticles] = useState<ReadingArticle[]>(globalLibraryCache || []);
-  const [isLibraryLoading, setIsLibraryLoading] = useState<boolean>(!globalLibraryCache);
+  // Thư viện bài đọc CSDL (Khởi tạo tức thì 0ms với dữ liệu tích hợp sẵn + đồng bộ nền)
+  const [libraryArticles, setLibraryArticles] = useState<ReadingArticle[]>(
+    globalLibraryCache && globalLibraryCache.length > 0 ? globalLibraryCache : INITIAL_FALLBACK_READING_ARTICLES
+  );
+  const [isLibraryLoading, setIsLibraryLoading] = useState<boolean>(false);
+  const [showUrlImportDrawer, setShowUrlImportDrawer] = useState<boolean>(false);
 
   // Cào bài báo từ URL
   const [inputUrl, setInputUrl] = useState<string>('');
@@ -83,13 +85,12 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
 
   // 2. Tải danh sách bài đọc từ thư viện
   const fetchLibrary = async (forceRefresh = false) => {
-    if (!globalLibraryCache || forceRefresh) {
-      setIsLibraryLoading(true);
-    }
     try {
-      const res = await ReadingApi.getArticles({ limit: 50 });
-      globalLibraryCache = res.items || [];
-      setLibraryArticles(globalLibraryCache);
+      const res = await ReadingApi.getArticles({ limit: 50, forceRefresh });
+      if (Array.isArray(res.items) && res.items.length > 0) {
+        globalLibraryCache = res.items;
+        setLibraryArticles(res.items);
+      }
     } catch (err) {
       console.error('Lỗi khi tải thư viện bài đọc:', err);
     } finally {
@@ -104,19 +105,29 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
   const handleTriggerCrawl = async () => {
     try {
       setIsCrawling(true);
-      setCrawlStatus('Đang cào bài báo mới nhất...');
+      setCrawlStatus('Đang kích hoạt cào báo Nhật (NHK, Livedoor, Gigazine...) & gắn Furigana...');
       const res = await ReadingApi.triggerNewsCrawl();
+
       if (res && res.success) {
-        setCrawlStatus('✅ Đã cập nhật xong bài báo mới!');
-        await fetchLibrary(true);
+        setCrawlStatus('🚀 Đang cào bài báo mới dưới nền, danh sách bài sẽ tự động cập nhật sau giây lát...');
+
+        // Tự động làm mới thư viện sau 4s và 8s để hiển thị các bài vừa cào xong
+        setTimeout(async () => {
+          await fetchLibrary(true);
+        }, 4000);
+
+        setTimeout(async () => {
+          await fetchLibrary(true);
+          setCrawlStatus('✅ Đã cập nhật xong tin tức báo chí mới nhất!');
+        }, 9000);
       } else {
-        setCrawlStatus('⚠️ ' + (res?.message || 'Chưa có thêm bài mới'));
+        setCrawlStatus('⚠️ ' + (res?.message || 'Chưa thể cập nhật thêm bài mới lúc này'));
       }
     } catch (err: any) {
       setCrawlStatus('❌ Lỗi: ' + (err?.message || 'Không thể cào báo'));
     } finally {
       setIsCrawling(false);
-      setTimeout(() => setCrawlStatus(null), 5000);
+      setTimeout(() => setCrawlStatus(null), 10000);
     }
   };
 
@@ -244,13 +255,21 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
 
         {/* Tab Switcher hiện đại dạng Segmented Control */}
                   
-        {/* Nút Kích hoạt cào báo mới */}
-        <div className="flex flex-col sm:flex-row items-center gap-2">
+        {/* Nút Kích hoạt cào báo mới & Dán link báo */}
+        <div className="flex flex-wrap items-center gap-2">
           {crawlStatus && (
             <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700 animate-in fade-in">
               {crawlStatus}
             </span>
           )}
+          <button
+            onClick={() => setShowUrlImportDrawer((v) => !v)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+            title="Dán đường dẫn bài báo tiếng Nhật bất kỳ để phân tích Dokkai"
+          >
+            <LinkIcon className="w-3.5 h-3.5 text-blue-600" />
+            <span>Dán link báo Nhật</span>
+          </button>
           <button
             onClick={handleTriggerCrawl}
             disabled={isCrawling}
@@ -263,6 +282,58 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
         </div>
 
       </div>
+
+      {/* Khung Dán Link Báo Nhật Bất Kỳ (Mở khi bấm "Dán link báo Nhật") */}
+      {showUrlImportDrawer && (
+        <div className="bg-white rounded-2xl border border-blue-200/90 p-4 shadow-xs flex flex-col gap-3 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+              <Globe className="w-4 h-4 text-blue-600" />
+              <span>Nhập đường dẫn bài báo tiếng Nhật (NHK, Yahoo News, Livedoor, Gigazine, Toyo Keizai...)</span>
+            </div>
+            <button
+              onClick={() => setShowUrlImportDrawer(false)}
+              className="text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              Đóng
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="url"
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              placeholder="https://www3.nhk.or.jp/news/html/..."
+              className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+            <select
+              value={urlLevel}
+              onChange={(e) => setUrlLevel(e.target.value as any)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
+            >
+              <option value="N5">JLPT N5</option>
+              <option value="N4">JLPT N4</option>
+              <option value="N3">JLPT N3</option>
+              <option value="N2">JLPT N2</option>
+              <option value="N1">JLPT N1</option>
+            </select>
+            <button
+              onClick={handleImportFromUrl}
+              disabled={isImportingUrl}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            >
+              {isImportingUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+              <span>{isImportingUrl ? 'Đang bóc tách...' : 'Phân tích Dokkai ngay'}</span>
+            </button>
+          </div>
+          {urlError && (
+            <div className="text-xs font-semibold text-rose-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>{urlError}</span>
+            </div>
+          )}
+        </div>
+      )}
 
               {/* 2. THANH ĐIỀU KHIỂN & LỌC THÔNG MINH */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">

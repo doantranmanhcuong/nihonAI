@@ -124,15 +124,15 @@ export class RedisService {
   }
 
   static async set(key: string, value: any, ttlSeconds = 3600): Promise<void> {
-    const serialized = JSON.stringify(value);
+    this.memoryFallback.set(key, value, ttlSeconds);
     if (this.client && this.isConnected) {
       try {
+        const serialized = JSON.stringify(value);
         await this.client.set(key, serialized, 'EX', ttlSeconds);
       } catch (e) {
         // Fallback to memory on write error
       }
     }
-    this.memoryFallback.set(key, value, ttlSeconds);
   }
 
   static async del(key: string): Promise<void> {

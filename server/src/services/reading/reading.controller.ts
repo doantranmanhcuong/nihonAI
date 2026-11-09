@@ -326,10 +326,19 @@ export class ReadingController {
     try {
       const maxArticles = req.body?.maxArticles ? Number(req.body.maxArticles) : 3;
       const { ReadingCronService } = await import('./reading-cron.service');
-      const result = await ReadingCronService.triggerDailyNewsCrawl(maxArticles);
+      
+      // Khởi chạy cào báo bất đồng bộ ở chế độ nền (không chặn HTTP connection gây timeout)
+      ReadingCronService.triggerDailyNewsCrawl(maxArticles).then((res) => {
+        console.log('[ReadingController] Cào báo ngầm hoàn tất:', res);
+      }).catch((err) => {
+        console.error('[ReadingController] Lỗi cào báo ngầm:', err?.message || err);
+      });
 
       return res.json(
-        ResponseFormatter.success(result, {
+        ResponseFormatter.success({
+          status: 'PROCESSING',
+          message: 'Hệ thống đang tiến hành cào báo mới và phân tích từ vựng/ngữ pháp dưới nền. Dữ liệu sẽ xuất hiện sau vài giây.'
+        }, {
           service: 'reading-shadowing-service',
           latencyMs: Date.now() - startTime
         })

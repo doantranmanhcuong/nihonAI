@@ -818,7 +818,7 @@ lessons.push({
           kanji: k.character,
           options,
           correctAnswer,
-          explanation: `[${k.hanViet}] ("${k.meaningVi}") tương ứng với chữ 【${k.character}】. ${k.lookAndLearnTip || k.mnemonicAi || ''}`,
+          explanation: `[${k.hanViet}] ("${k.meaningVi}") tương ứng với chữ 【${k.character}】. ${k.lookAndLearnTip || k.mnemonic || ''}`,
           hanViet: k.hanViet,
           level: k.jlptLevel
         };

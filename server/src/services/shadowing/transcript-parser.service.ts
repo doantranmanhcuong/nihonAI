@@ -310,6 +310,22 @@ export class TranscriptParserService {
       } catch (err) {
         console.warn('[GTX-Batch] Translation warning:', (err as any)?.message);
       }
+
+      // Fallback cho bất kỳ câu nào chưa dịch được trong chunk qua MyMemory API
+      for (let j = 0; j < chunk.length; j++) {
+        if (!results[i + j]) {
+          try {
+            const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk[j])}&langpair=ja|vi`;
+            const mmRes = await fetch(mmUrl, { signal: AbortSignal.timeout(4000) });
+            if (mmRes.ok) {
+              const mmData: any = await mmRes.json();
+              if (mmData?.responseData?.translatedText && !mmData.responseData.translatedText.startsWith('MYMEMORY WARNING')) {
+                results[i + j] = mmData.responseData.translatedText.trim();
+              }
+            }
+          } catch {}
+        }
+      }
     }
 
     return results;
@@ -503,12 +519,19 @@ export class TranscriptParserService {
 
     // 2. Gọi Innertube Player API (ANDROID -> IOS) để lấy captionTracks không dính exp=xpe
     const clients = [
-      { clientName: 'ANDROID', clientVersion: '20.10.38' },
-      { clientName: 'IOS', clientVersion: '20.10.4' }
+      {
+        client: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 34, hl: 'ja', gl: 'JP' },
+        ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip'
+      },
+      {
+        client: { clientName: 'IOS', clientVersion: '20.10.4', hl: 'ja', gl: 'JP' },
+        ua: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)'
+      }
     ];
 
     let captionTracks: any[] = [];
-    for (const client of clients) {
+    let activeUa = clients[0].ua;
+    for (const entry of clients) {
       try {
         const playerUrl = apiKey
           ? `https://www.youtube.com/youtubei/v1/player?key=${apiKey}&prettyPrint=false`
@@ -517,13 +540,14 @@ export class TranscriptParserService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(cookieHeader ? { Cookie: cookieHeader } : {})
+            'User-Agent': entry.ua,
+            'Accept-Language': 'ja-JP,ja;q=0.9'
           },
           body: JSON.stringify({
-            context: { client },
+            context: { client: entry.client },
             videoId: youtubeId
           }),
-          signal: AbortSignal.timeout(8000)
+          signal: AbortSignal.timeout(10000)
         });
         const playerData: any = await playerRes.json();
         if (playerData?.videoDetails && !videoDetails) {
@@ -537,6 +561,7 @@ export class TranscriptParserService {
         const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
         if (Array.isArray(tracks) && tracks.length > 0) {
           captionTracks = tracks;
+          activeUa = entry.ua;
           break;
         }
       } catch {}
@@ -566,8 +591,11 @@ export class TranscriptParserService {
             ? cleanBaseUrl.replace(/fmt=[^&]+/, 'fmt=json3')
             : `${cleanBaseUrl}&fmt=json3`;
           const jRes = await fetch(json3Url, {
-            headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
-            signal: AbortSignal.timeout(8000)
+            headers: {
+              'User-Agent': activeUa,
+              'Accept-Language': 'ja-JP,ja;q=0.9'
+            },
+            signal: AbortSignal.timeout(12000)
           });
           if (jRes.ok) {
             const jData: any = await jRes.json();
@@ -610,8 +638,11 @@ export class TranscriptParserService {
         // 2b. Fallback sang định dạng XML chuẩn của timedtext
         try {
           const xmlRes = await fetch(cleanBaseUrl, {
-            headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
-            signal: AbortSignal.timeout(8000)
+            headers: {
+              'User-Agent': activeUa,
+              'Accept-Language': 'ja-JP,ja;q=0.9'
+            },
+            signal: AbortSignal.timeout(12000)
           });
           if (xmlRes.ok) {
             const xml = await xmlRes.text();
@@ -660,20 +691,37 @@ export class TranscriptParserService {
     for (const host of invidiousMirrors) {
       try {
         const capRes = await fetch(`${host}/api/v1/captions/${youtubeId}`, {
-          signal: AbortSignal.timeout(5000)
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+          },
+          signal: AbortSignal.timeout(10000)
         });
         if (!capRes.ok) continue;
         const capData: any = await capRes.json();
         const captions: any[] = capData?.captions || [];
-        const jaCap = captions.find(
-          (c: any) =>
-            c.language_code?.startsWith('ja') ||
-            c.label?.toLowerCase().includes('japanese') ||
-            c.label?.includes('日本語')
-        );
+        const jaCap =
+          captions.find(
+            (c: any) =>
+              (c.languageCode?.startsWith('ja') || c.language_code?.startsWith('ja')) &&
+              !c.label?.toLowerCase().includes('auto')
+          ) ||
+          captions.find(
+            (c: any) =>
+              c.languageCode?.startsWith('ja') ||
+              c.language_code?.startsWith('ja') ||
+              c.label?.toLowerCase().includes('japanese') ||
+              c.label?.includes('日本語')
+          );
         if (jaCap && jaCap.url) {
           const vttUrl = jaCap.url.startsWith('http') ? jaCap.url : `${host}${jaCap.url}`;
-          const vttRes = await fetch(vttUrl, { signal: AbortSignal.timeout(5000) });
+          const vttRes = await fetch(vttUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+            },
+            signal: AbortSignal.timeout(15000)
+          });
           if (vttRes.ok) {
             const vttText = await vttRes.text();
             const snippets = this.parseSrtOrVtt(vttText);

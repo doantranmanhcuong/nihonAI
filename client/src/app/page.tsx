@@ -9,6 +9,8 @@ import { useAuth } from '@/context/AuthContext';
 import { applyGlobalPreferences } from '@/utils/studyPreferences';
 import { apiGateway } from '@/services/api-gateway.client';
 
+import { StudioErrorBoundary } from '@/components/common/StudioErrorBoundary';
+
 const StudioLoadingFallback = () => (
   <div className="bg-white/80 rounded-3xl border border-slate-200/80 p-12 flex flex-col items-center justify-center gap-3 min-h-[360px] shadow-xs">
     <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -101,61 +103,63 @@ export default function Home() {
       {/* 2. Workspace Học Tập Rộng Rãi, Thoáng Đãng */}
       <main className="flex-1 w-full px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10">
         <div className="max-w-7xl mx-auto flex flex-col gap-6">
-          {/* Phân hệ 0: Trang chủ / Landing Page */}
-          {activeTab === 'home' && (
-            <LandingPage onNavigate={setActiveTab} />
-          )}
+          <StudioErrorBoundary>
+            {/* Phân hệ 0: Trang chủ / Landing Page */}
+            {activeTab === 'home' && (
+              <LandingPage onNavigate={setActiveTab} />
+            )}
 
-          {/* Phân hệ 1: Tra cứu & Luyện tập Hán tự Kanji */}
-          {activeTab === 'kanji' && (
-            <KanjiExplorerView
-              initialKanji={selectedKanjiFromVocab}
-              onNavigateToVocab={() => setActiveTab('vocab')}
-            />
-          )}
+            {/* Phân hệ 1: Tra cứu & Luyện tập Hán tự Kanji */}
+            {activeTab === 'kanji' && (
+              <KanjiExplorerView
+                initialKanji={selectedKanjiFromVocab}
+                onNavigateToVocab={() => setActiveTab('vocab')}
+              />
+            )}
 
-          {/* Phân hệ 2: Từ vựng theo Giáo trình (Minna, Tango, Mimikara) */}
-          {activeTab === 'vocab' && (
-            <VocabStudio
-              onNavigateToKanji={(char) => {
-                setSelectedKanjiFromVocab(char);
-                setActiveTab('kanji');
-              }}
-            />
-          )}
+            {/* Phân hệ 2: Từ vựng theo Giáo trình (Minna, Tango, Mimikara) */}
+            {activeTab === 'vocab' && (
+              <VocabStudio
+                onNavigateToKanji={(char) => {
+                  setSelectedKanjiFromVocab(char);
+                  setActiveTab('kanji');
+                }}
+              />
+            )}
 
-          {/* Phân hệ 3: Ngữ pháp JLPT N5 - N1 */}
-          {activeTab === 'grammar' && (
-            <GrammarStudio
-              onNavigateToReading={() => setActiveTab('reading')}
-            />
-          )}
+            {/* Phân hệ 3: Ngữ pháp JLPT N5 - N1 */}
+            {activeTab === 'grammar' && (
+              <GrammarStudio
+                onNavigateToReading={() => setActiveTab('reading')}
+              />
+            )}
 
-          {/* Phân hệ 4: Đọc Hiểu Chuẩn JLPT Dokkai */}
-          {activeTab === 'reading' && <ReadingStudio />}
+            {/* Phân hệ 4: Đọc Hiểu Chuẩn JLPT Dokkai */}
+            {activeTab === 'reading' && <ReadingStudio />}
 
-          {/* Phân hệ 5: Luyện Nghe & Video Shadowing */}
-          {activeTab === 'shadowing' && <ShadowingStudio />}
+            {/* Phân hệ 5: Luyện Nghe & Video Shadowing */}
+            {activeTab === 'shadowing' && <ShadowingStudio />}
 
-          {/* Phân hệ 6: Thi Thử JLPT Bấm Giờ */}
-          {activeTab === 'exam' && (
-            <ExamStudio
-              onNavigateToReading={() => setActiveTab('reading')}
-              onNavigateToGrammar={() => setActiveTab('grammar')}
-              onNavigateToVocab={() => setActiveTab('vocab')}
-            />
-          )}
+            {/* Phân hệ 6: Thi Thử JLPT Bấm Giờ */}
+            {activeTab === 'exam' && (
+              <ExamStudio
+                onNavigateToReading={() => setActiveTab('reading')}
+                onNavigateToGrammar={() => setActiveTab('grammar')}
+                onNavigateToVocab={() => setActiveTab('vocab')}
+              />
+            )}
 
-          {/* Phân hệ 7: Sổ Tay Cá Nhân & Điều Hướng Nhanh */}
-          {activeTab === 'personal' && (
-            <PersonalStudio
-              onNavigate={(tabId) => setActiveTab(tabId)}
-            />
-          )}
+            {/* Phân hệ 7: Sổ Tay Cá Nhân & Điều Hướng Nhanh */}
+            {activeTab === 'personal' && (
+              <PersonalStudio
+                onNavigate={(tabId) => setActiveTab(tabId)}
+              />
+            )}
 
-          {/* Phân hệ 8: Admin Dashboard & Hồ sơ */}
-          {activeTab === 'admin' && <AdminDashboard />}
-          {activeTab === 'profile' && <UserProfileView onNavigate={setActiveTab} />}
+            {/* Phân hệ 8: Admin Dashboard & Hồ sơ */}
+            {activeTab === 'admin' && <AdminDashboard />}
+            {activeTab === 'profile' && <UserProfileView onNavigate={setActiveTab} />}
+          </StudioErrorBoundary>
         </div>
       </main>
 

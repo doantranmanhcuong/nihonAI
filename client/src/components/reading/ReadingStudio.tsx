@@ -3,14 +3,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SharedLibraryView } from './SharedLibraryView';
 import { DokkaiStudyView } from './DokkaiStudyView';
-import { VideoShadowingView } from './VideoShadowingView';
 import { AiGeneratorModal } from './AiGeneratorModal';
 import { ReadingArticle, QuotaStatus } from './reading.types';
 import { ReadingApi } from './reading.api';
 import { useAuth } from '@/context/AuthContext';
 
 export const ReadingStudio: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'LIBRARY' | 'DOKKAI' | 'VIDEO'>('LIBRARY');
+  const [currentView, setCurrentView] = useState<'LIBRARY' | 'DOKKAI'>('LIBRARY');
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<ReadingArticle | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -56,7 +55,6 @@ export const ReadingStudio: React.FC = () => {
           onSelectArticle={handleSelectArticle}
           onArticleGenerated={handleArticleGenerated}
           quota={quota}
-          onNavigateToVideo={() => setCurrentView('VIDEO')}
         />
       )}
 
@@ -72,17 +70,7 @@ export const ReadingStudio: React.FC = () => {
         />
       )}
 
-      {/* 3. Màn hình Video Shadowing Studio */}
-      {currentView === 'VIDEO' && (
-        <VideoShadowingView
-          onBack={() => {
-            setCurrentView('LIBRARY');
-            fetchQuota();
-          }}
-        />
-      )}
-
-      {/* 4. Modal Tạo Bài Đọc Bằng AI (Hạn ngạch mỗi ngày) */}
+      {/* 3. Modal Tạo Bài Đọc Bằng AI (Hạn ngạch mỗi ngày) */}
       <AiGeneratorModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
