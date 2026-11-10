@@ -22,6 +22,11 @@ export class GeminiPoolService {
     
     // De-duplicate keys
     this.keys = [...new Set(this.keys)];
+
+    const validGoogleKeys = this.keys.filter(k => k.startsWith('AIzaSy'));
+    if (validGoogleKeys.length === 0 && this.keys.length > 0) {
+      console.warn('⚠️ [GeminiPool] Cảnh báo: Các API key hiện tại không bắt đầu bằng "AIzaSy". Vui lòng kiểm tra lại Google Gemini API Key tại https://aistudio.google.com/app/apikey');
+    }
   }
 
   /**
@@ -110,9 +115,19 @@ export class GeminiPoolService {
             break; // Thoát vòng lặp key để chuyển model
           }
 
-          // 2. Nếu lỗi Quota (429) hoặc lỗi tạm thời: Xoay vòng API key
-          if (status === 429 || message.includes('429') || message.includes('exhausted') || message.includes('quota') || status >= 500) {
-            console.warn(`[GeminiPool] Key tại index ${this.currentIndex} cho model '${currentModel}' bị nghẽn (${status || 'Quota'}). Đang chuyển key tiếp theo...`);
+          // 2. Nếu lỗi Quota (429), 401 Unauthorized (Key sai/hết hạn) hoặc lỗi tạm thời: Xoay vòng API key
+          if (
+            status === 429 ||
+            status === 401 ||
+            message.includes('429') ||
+            message.includes('401') ||
+            message.includes('API key not valid') ||
+            message.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED') ||
+            message.includes('exhausted') ||
+            message.includes('quota') ||
+            status >= 500
+          ) {
+            console.warn(`[GeminiPool] Key tại index ${this.currentIndex} (${key.substring(0, 8)}...) không khả dụng (${status || 'Quota/Invalid'}). Đang chuyển key tiếp theo...`);
             this.currentIndex = (this.currentIndex + 1) % this.keys.length;
             attempts++;
           } else {
