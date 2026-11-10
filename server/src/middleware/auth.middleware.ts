@@ -67,13 +67,10 @@ export const authorizeRole = (roles: string[]) => {
         return;
       }
 
-      const email = (req.user.email || '').toLowerCase().trim();
-      const isEmailAdmin = ADMIN_EMAILS.includes(email);
-
-      // Check role directly from database to ensure up-to-date permissions and token version
+      // Check role and email directly from database to ensure up-to-date permissions
       const user = await prisma.user.findUnique({
         where: { id: req.user.userId },
-        select: { role: true, tokenVersion: true }
+        select: { id: true, email: true, role: true, tokenVersion: true }
       });
 
       if (!user) {
@@ -84,6 +81,22 @@ export const authorizeRole = (roles: string[]) => {
       if (req.user.tokenVersion && user.tokenVersion !== req.user.tokenVersion) {
         res.status(401).json({ success: false, message: 'Phiên đăng nhập đã bị thu hồi' });
         return;
+      }
+
+      const userEmail = (user.email || req.user.email || '').toLowerCase().trim();
+      const isEmailAdmin = ADMIN_EMAILS.includes(userEmail);
+
+      // Tự động nâng cấp quyền trong Database đám mây nếu email thuộc danh sách Admin
+      if (isEmailAdmin && user.role !== 'ADMIN') {
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { role: 'ADMIN' }
+          });
+          user.role = 'ADMIN';
+        } catch (dbErr) {
+          console.warn('Could not auto-update admin role in DB:', dbErr);
+        }
       }
 
       const effectiveRole = isEmailAdmin ? 'ADMIN' : user.role;

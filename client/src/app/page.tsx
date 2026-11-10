@@ -150,7 +150,7 @@ export default function Home() {
             )}
 
             {/* Phân hệ 7: Sổ Tay Cá Nhân & Điều Hướng Nhanh */}
-            {activeTab === 'personal' && (
+            {(activeTab === 'personal' || activeTab === 'notebook') && (
               <PersonalStudio
                 onNavigate={(tabId) => setActiveTab(tabId)}
               />

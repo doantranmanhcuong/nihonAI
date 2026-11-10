@@ -47,11 +47,12 @@ export const AdminOverview = () => {
     fetchStats();
   }, []);
 
-  const fetchStats = async () => {
+  const fetchStats = async (force = false) => {
     try {
       setLoading(true);
-      const res = await authApi.get('/admin/stats');
-      if (res.data.success) {
+      const url = force ? '/admin/stats?refresh=true' : '/admin/stats';
+      const res = await authApi.get(url);
+      if (res.data?.success && res.data?.data) {
         setStats(res.data.data);
       }
     } catch (error) {
@@ -64,18 +65,22 @@ export const AdminOverview = () => {
   const handleTriggerNewsCrawl = async () => {
     try {
       setCrawling(true);
-      const res = await authApi.post('/admin/crawl-news');
-      const msg = res.data?.data?.message || 'Đã kích hoạt cào báo mới thành công!';
+      let res;
+      try {
+        res = await authApi.post('/admin/crawl-news');
+      } catch (adminErr: any) {
+        // Fallback gọi trực tiếp endpoint crawler mở
+        res = await authApi.post('/reading/news/trigger-crawl');
+      }
+      const msg = res.data?.data?.message || res.data?.message || 'Đã kích hoạt cào báo mới thành công!';
       alert(msg);
-      fetchStats();
+      fetchStats(true);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi kích hoạt cào báo');
+      alert(error.response?.data?.message || error.message || 'Lỗi khi kích hoạt cào báo');
     } finally {
       setCrawling(false);
     }
   };
-
-  if (loading) return <div className="p-8 text-center text-slate-500">Đang tải thống kê...</div>;
 
   const statCards = [
     { title: 'Tổng Học Viên', value: stats.totalUsers || 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
@@ -112,10 +117,11 @@ export const AdminOverview = () => {
             {crawling ? 'Đang cào báo...' : 'Cào báo NHK mới'}
           </button>
           <button
-            onClick={fetchStats}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            onClick={() => fetchStats(true)}
+            disabled={loading}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
           >
-            <RefreshCw className="w-4 h-4" /> Làm mới
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} /> Làm mới
           </button>
         </div>
       </div>

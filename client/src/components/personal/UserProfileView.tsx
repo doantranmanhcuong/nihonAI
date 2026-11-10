@@ -791,20 +791,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
           </div>
 
           {/* PHÒNG THỬ NGHIỆM TƯƠNG TÁC (LIVE PREVIEW & TESTING PLAYGROUND) */}
-          <div className="md:col-span-2 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-indigo-500/20 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-indigo-800/60 pb-5">
+          <div className="md:col-span-2 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-500/20 text-indigo-300 rounded-2xl border border-indigo-500/30">
-                  <Sparkles className="w-6 h-6 text-indigo-400 animate-pulse" />
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 shadow-xs">
+                  <Sparkles className="w-6 h-6 text-indigo-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
                     Phòng Thử Nghiệm Trực Quan (Live Interactive Playground)
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       Thời gian thực
                     </span>
                   </h3>
-                  <p className="text-xs text-indigo-200/80">
+                  <p className="text-xs text-slate-500">
                     Thử nghiệm ngay lập tức các hiệu ứng phát âm, hiển thị Furigana và âm thanh bạn vừa chọn
                   </p>
                 </div>
@@ -813,8 +813,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
               {onNavigate && (
                 <button
                   type="button"
-                  onClick={() => onNavigate('notebook')}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 shadow-lg shadow-indigo-600/30 cursor-pointer"
+                  onClick={() => onNavigate('personal')}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 shadow-xs cursor-pointer"
                 >
                   <BookOpen className="w-3.5 h-3.5" />
                   <span>Mở Sổ tay SRS</span>
@@ -825,56 +825,56 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               {/* Card 1: Thử nghiệm Furigana */}
-              <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 space-y-3">
+              <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
                     1. Hiển thị Furigana
                   </span>
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-bold">
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold">
                     {preferences.furiganaMode}
                   </span>
                 </div>
                 
-                <div className="bg-slate-900/90 rounded-xl p-4 border border-slate-800 text-center select-none min-h-[75px] flex items-center justify-center">
-                  <p className="text-xl font-bold leading-relaxed text-amber-200">
-                    <ruby className="cursor-pointer">私<rt className="text-xs text-amber-400">わたし</rt></ruby>は
-                    <ruby className="cursor-pointer">日本語<rt className="text-xs text-amber-400">にほんご</rt></ruby>を
-                    <ruby className="cursor-pointer">勉強<rt className="text-xs text-amber-400">べんきょう</rt></ruby>します。
+                <div className="bg-white rounded-xl p-4 border border-slate-200 text-center select-none min-h-[75px] flex items-center justify-center shadow-xs">
+                  <p className="text-xl font-bold leading-relaxed text-slate-800">
+                    <ruby className="cursor-pointer">私<rt className="text-xs text-indigo-600 font-semibold">わたし</rt></ruby>は
+                    <ruby className="cursor-pointer">日本語<rt className="text-xs text-indigo-600 font-semibold">にほんご</rt></ruby>を
+                    <ruby className="cursor-pointer">勉強<rt className="text-xs text-indigo-600 font-semibold">べんきょう</rt></ruby>します。
                   </p>
                 </div>
 
-                <div className="text-[11px] text-slate-300 leading-relaxed bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/50">
+                <div className="text-[11px] text-slate-600 leading-relaxed bg-white p-2.5 rounded-xl border border-slate-200/60 shadow-xs">
                   {preferences.furiganaMode === 'always' && (
-                    <p className="text-emerald-300">✅ <strong>Luôn hiển thị:</strong> Chữ phiên âm Hiragana nhỏ luôn hiển thị phía trên Hán tự.</p>
+                    <p className="text-emerald-700">✅ <strong>Luôn hiển thị:</strong> Chữ phiên âm Hiragana nhỏ luôn hiển thị phía trên Hán tự.</p>
                   )}
                   {preferences.furiganaMode === 'hover' && (
-                    <p className="text-amber-300">👆 <strong>Di chuột/Chạm:</strong> Furigana đang ẩn. Hãy <strong>rê chuột hoặc chạm</strong> vào chữ Hán ở trên để hiện cách đọc!</p>
+                    <p className="text-amber-700">👆 <strong>Di chuột/Chạm:</strong> Furigana đang ẩn. Hãy <strong>rê chuột hoặc chạm</strong> vào chữ Hán ở trên để hiện cách đọc!</p>
                   )}
                   {preferences.furiganaMode === 'hidden' && (
-                    <p className="text-rose-300">🙈 <strong>Ẩn hoàn toàn:</strong> Furigana đã được ẩn triệt để để bạn tự lực nhớ mặt chữ.</p>
+                    <p className="text-rose-700">🙈 <strong>Ẩn hoàn toàn:</strong> Furigana đã được ẩn triệt để để bạn tự lực nhớ mặt chữ.</p>
                   )}
                 </div>
               </div>
 
               {/* Card 2: Thử nghiệm Giọng đọc TTS */}
-              <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+              <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-700 flex items-center gap-1.5">
                       <Volume2 className="w-3.5 h-3.5" />
                       2. Giọng đọc Tiếng Nhật (TTS)
                     </span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-bold">
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold">
                       {preferences.ttsSpeed}x tốc độ
                     </span>
                   </div>
 
-                  <div className="bg-slate-900/90 rounded-xl p-3.5 border border-slate-800">
-                    <p className="text-sm font-semibold text-slate-200">
+                  <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs">
+                    <p className="text-sm font-semibold text-slate-800">
                       「こんにちは、日本語の勉強を頑張りましょう！」
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-1 italic">
+                    <p className="text-[11px] text-slate-500 mt-1 italic">
                       (Xin chào, chúc bạn học tập tiếng Nhật thật tốt!)
                     </p>
                   </div>
@@ -883,7 +883,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
                 <button
                   type="button"
                   onClick={() => speakJapanese('こんにちは、日本語の勉強を頑張りましょう！')}
-                  className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   <span>Nghe Thử Phát Âm Chuẩn ({preferences.ttsSpeed}x)</span>
@@ -891,23 +891,23 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
               </div>
 
               {/* Card 3: Thử nghiệm Hiệu ứng âm thanh & Sổ tay */}
-              <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+              <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
                       <Award className="w-3.5 h-3.5" />
                       3. Âm Thanh Phản Hồi
                     </span>
                     <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
                       preferences.soundEffects 
-                        ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
-                        : 'bg-rose-950 text-rose-300 border-rose-800/60'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}>
                       {preferences.soundEffects ? 'Đang BẬT' : 'Đang TẮT'}
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-300">
+                  <p className="text-xs text-slate-600">
                     Chuông báo thông minh qua Web Audio API không tốn băng thông, phát tức thì khi làm bài:
                   </p>
 
@@ -915,25 +915,25 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
                     <button
                       type="button"
                       onClick={() => playFeedbackSound(true)}
-                      className="py-2 px-3 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Chuông ĐÚNG</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => playFeedbackSound(false)}
-                      className="py-2 px-3 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs"
                     >
-                      <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
                       <span>Chuông SAI</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
                   <span>Chế độ ôn tập SRS:</span>
-                  <span className="font-bold text-amber-300">
+                  <span className="font-bold text-indigo-700">
                     {preferences.reviewMode === 'flashcard' ? '🃏 Flashcard 2 mặt' : '🎯 Trắc nghiệm 4 đáp án'}
                   </span>
                 </div>
