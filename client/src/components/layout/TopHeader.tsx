@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, isUserAdmin } from '@/context/AuthContext';
 import {
   Settings,
   LogIn,
@@ -28,6 +28,7 @@ interface TopHeaderProps {
 export const TopHeader: React.FC<TopHeaderProps> = ({ activeTab = 'kanji', onSelectTab }) => {
   const { user, isAuthenticated, isLoading, openAuthModal, logout, revokeAllSessions, updateLevel } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const isAdmin = isUserAdmin(user);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isChangingLevel, setIsChangingLevel] = useState(false);
 
@@ -158,9 +159,24 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ activeTab = 'kanji', onSel
                         <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 mt-2 pt-2 border-t border-slate-200/60 text-[10px] text-indigo-700 font-semibold">
-                      <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                      <span>Tài khoản Học viên NihonAI</span>
+                    <div
+                      className={`flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-200/60 text-[10px] font-bold ${
+                        isAdmin ? 'text-rose-600' : 'text-emerald-700'
+                      }`}
+                    >
+                      {isAdmin ? (
+                        <>
+                          <ShieldAlert className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          <span className="flex items-center gap-1">
+                            Quản trị viên Hệ thống <span className="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[9px] uppercase tracking-wider font-black">ADMIN 👑</span>
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <span>Tài khoản Học viên NihonAI</span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -190,13 +206,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ activeTab = 'kanji', onSel
                   </div>
 
                   {/* Quản trị hệ thống */}
-                  {user?.role === 'ADMIN' && (
+                  {isAdmin && (
                     <button
                       onClick={() => { setIsDropdownOpen(false); onSelectTab?.('admin'); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer mb-1 shadow-xs"
                     >
                       <ShieldAlert className="w-4 h-4 text-rose-500" />
-                      <span>Quản trị hệ thống (Admin)</span>
+                      <span>Quản trị hệ thống (Admin Portal)</span>
                     </button>
                   )}
 

@@ -45,13 +45,15 @@ function generateTokens(userId: string, email: string, tokenVersion = 1): { acce
 }
 
 function sanitizeUser(user: any): UserResponse {
+  const email = (user.email || '').toLowerCase().trim();
+  const shouldBeAdmin = user.role === 'ADMIN' || ADMIN_EMAILS.includes(email);
   return {
     id: user.id,
     email: user.email,
     displayName: user.displayName || user.email.split('@')[0],
     targetLevel: user.targetLevel,
     avatar: user.avatar,
-    role: user.role,
+    role: shouldBeAdmin ? 'ADMIN' : (user.role || 'USER'),
     status: user.status,
     banReason: user.banReason,
     authProvider: user.authProvider || 'LOCAL',

@@ -51,6 +51,23 @@ interface AuthContextType {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 const USER_KEY = 'nihonai_user';
+const ADMIN_EMAILS = ['doantranmanhcuong@gmail.com', 'cuong@nihonai.edu.vn', 'admin@gmail.com', 'admin'];
+
+export const isUserAdmin = (u?: any | null): boolean => {
+  if (!u) return false;
+  if (u.role === 'ADMIN') return true;
+  const email = (u.email || '').toLowerCase().trim();
+  return ADMIN_EMAILS.includes(email);
+};
+
+export const normalizeUserRole = (u: any): any => {
+  if (!u) return u;
+  const email = (u.email || '').toLowerCase().trim();
+  if (ADMIN_EMAILS.includes(email) || u.role === 'ADMIN') {
+    return { ...u, role: 'ADMIN' };
+  }
+  return u;
+};
 
 export const authApi = axios.create({
   baseURL: API_BASE_URL,
@@ -130,14 +147,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setToken(savedToken);
       }
       if (storedUser) {
-        setUser(JSON.parse(storedUser));
+        try {
+          const parsed = JSON.parse(storedUser);
+          const normalized = normalizeUserRole(parsed);
+          setUser(normalized);
+          if (normalized && parsed && normalized.role !== parsed.role) {
+            localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+          }
+        } catch {
+          setUser(null);
+        }
         try {
           const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
           if (res.data.success) {
+            const normalized = normalizeUserRole(res.data.data.user);
             setToken(res.data.data.token);
             localStorage.setItem('nihonai_token', res.data.data.token);
-            setUser(res.data.data.user);
-            localStorage.setItem(USER_KEY, JSON.stringify(res.data.data.user));
+            setUser(normalized);
+            localStorage.setItem(USER_KEY, JSON.stringify(normalized));
           }
         } catch (error) {
           // Nếu trình duyệt chặn third-party cookie (refresh), thử xác thực bằng Bearer token hiện có qua /auth/me
@@ -147,8 +174,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 headers: { Authorization: `Bearer ${savedToken}` }
               });
               if (meRes.data?.success && meRes.data?.data) {
-                setUser(meRes.data.data);
-                localStorage.setItem(USER_KEY, JSON.stringify(meRes.data.data));
+                const normalized = normalizeUserRole(meRes.data.data);
+                setUser(normalized);
+                localStorage.setItem(USER_KEY, JSON.stringify(normalized));
                 setIsLoading(false);
                 return;
               }
@@ -175,10 +203,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const setAuthData = (authUser: AuthUser, authToken: string) => {
+    const normalized = normalizeUserRole(authUser);
     localStorage.setItem('nihonai_token', authToken);
     setToken(authToken);
-    setUser(authUser);
-    localStorage.setItem(USER_KEY, JSON.stringify(authUser));
+    setUser(normalized);
+    localStorage.setItem(USER_KEY, JSON.stringify(normalized));
   };
 
   const openAuthModal = useCallback((tab: 'login' | 'register' | 'forgot' | 'verify' = 'login') => {

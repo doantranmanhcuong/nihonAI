@@ -2,7 +2,7 @@
 import AdminAiConsoleView from './AdminAiConsoleView';
 import { Bot, Settings, Activity, LayoutDashboard, Users, BookOpen, LogOut } from 'lucide-react';
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, isUserAdmin } from '@/context/AuthContext';
 import { AdminOverview } from './AdminOverview';
 import { AdminUsersView } from './AdminUsersView';
 import { AdminContentView } from './AdminContentView';
@@ -13,8 +13,9 @@ type AdminTab = 'overview' | 'users' | 'content' | 'ai' | 'settings';
 export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const isAdmin = isUserAdmin(user);
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!user || !isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="text-red-500 mb-2"><Activity size={48} /></div>

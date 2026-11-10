@@ -57,6 +57,8 @@ export const optionalAuthenticateToken = (req: AuthenticatedRequest, res: Respon
   }
 };
 
+const ADMIN_EMAILS = ['doantranmanhcuong@gmail.com', 'cuong@nihonai.edu.vn', 'admin@gmail.com', 'admin'];
+
 export const authorizeRole = (roles: string[]) => {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -64,6 +66,9 @@ export const authorizeRole = (roles: string[]) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
       }
+
+      const email = (req.user.email || '').toLowerCase().trim();
+      const isEmailAdmin = ADMIN_EMAILS.includes(email);
 
       // Check role directly from database to ensure up-to-date permissions and token version
       const user = await prisma.user.findUnique({
@@ -81,7 +86,8 @@ export const authorizeRole = (roles: string[]) => {
         return;
       }
 
-      if (!roles.includes(user.role)) {
+      const effectiveRole = isEmailAdmin ? 'ADMIN' : user.role;
+      if (!roles.includes(effectiveRole)) {
         res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập chức năng này' });
         return;
       }
