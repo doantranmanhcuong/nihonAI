@@ -459,6 +459,9 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
 
   // Tra cứu khi bôi đen cụm từ hoặc đoạn văn: Dịch chính xác cụm từ và phân tích ngữ pháp
   const handleTextSelection = async (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, input, select, textarea, .no-lookup, .select-none, [role="button"]')) return;
+
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) return;
 

@@ -595,6 +595,19 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
   const [showExitModal, setShowExitModal] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [selectionPopup, setSelectionPopup] = useState<any>(null);
+  const selectionPopupRef = useRef<HTMLDivElement | null>(null);
+
+  // Tự động đóng popup tra cứu eJOY khi click ra ngoài vùng popup
+  useEffect(() => {
+    if (!selectionPopup) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (selectionPopupRef.current && !selectionPopupRef.current.contains(e.target as Node)) {
+        setSelectionPopup(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [selectionPopup]);
   
   const [selectedSkillSection, setSelectedSkillSection] = useState<string>('ALL');
   const [selectedLevel, setSelectedLevel] = useState<string>('ALL');
@@ -814,6 +827,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       setShowListeningScript(false);
       activeDialogueTurnsRef.current = [];
     }
+    setSelectionPopup(null);
   }, [currentQuestionIndex, currentScreen]);
 
   // Hỗ trợ phím tắt 1, 2, 3, 4 để chọn đáp án và phím mũi tên điều hướng
@@ -1378,6 +1392,7 @@ const handleConfirmStartRealExam = () => {
 
   // Chọn đáp án
   const handleSelectOption = (questionId: string, optionIndex: number) => {
+    setSelectionPopup(null);
     setUserAnswers((prev) => ({
       ...prev,
       [questionId]: optionIndex
@@ -1401,21 +1416,41 @@ const handleConfirmStartRealExam = () => {
   };
 
   // Xử lý bôi đen / nhấn đúp để tra cứu nhanh & câu ví dụ tương tự (tiện ích eJOY style)
-  const handleTextMouseUp = async () => {
+  const handleTextMouseUp = async (e?: React.MouseEvent) => {
     if (typeof window === 'undefined') return;
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
 
-    // Tắt tính năng tra cứu từ bôi đen trong chế độ thi thật
+    // 1. Nếu click vào button, input, controls, navigation hoặc phần tử select-none -> bỏ qua ngay
+    const target = e?.target as HTMLElement | null;
+    if (target?.closest('button, input, select, textarea, .no-lookup, .select-none, [role="button"]')) {
+      return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+
+    // 2. Tắt tính năng tra cứu từ bôi đen trong chế độ thi thật
     if (examMode === 'exam') return;
     const selectedText = selection.toString().trim();
     if (!selectedText || selectedText.length < 1 || selectedText.length > 250) {
       return;
     }
 
+    // 3. CHỈ tra cứu nếu đoạn bôi đen THỰC SỰ CHỨA KÝ TỰ TIẾNG NHẬT (Kanji, Hiragana, Katakana)
+    // Loại trừ hoàn toàn text tiếng Việt ("Câu tiếp", "Câu trước", "Hôm nay tôi..."), tiếng Anh, số, dấu câu
+    const hasJapanese = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(selectedText);
+    if (!hasJapanese) {
+      return;
+    }
+
+    // 4. Loại trừ các chuỗi nhãn hệ thống hoặc định dạng đề thi
+    if (/^(câu|đáp án|phương án|mondai|bài|\d+)/i.test(selectedText)) {
+      return;
+    }
+
     try {
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
 
       setSelectionPopup({
         text: selectedText,
@@ -3616,32 +3651,41 @@ const handleConfirmStartRealExam = () => {
                 )}
 
                 {/* THANH ĐIỀU HƯỚNG TRƯỚC / SAU CÂU HỎI */}
-                <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between pt-6 border-t border-slate-100 select-none no-lookup">
                   <button
-                    onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
+                    onClick={() => {
+                      setSelectionPopup(null);
+                      setCurrentQuestionIndex((prev) => Math.max(0, prev - 1));
+                    }}
                     disabled={currentQuestionIndex === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer select-none no-lookup"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     <span>Câu trước</span>
                   </button>
 
-                  <span className="text-xs text-slate-400 font-medium">
+                  <span className="text-xs text-slate-400 font-medium select-none no-lookup">
                     Câu {currentQuestionIndex + 1} / {activeExam.questions?.length}
                   </span>
 
                   {currentQuestionIndex < (activeExam.questions?.length || 0) - 1 ? (
                     <button
-                      onClick={() => setCurrentQuestionIndex((prev: any) => prev + 1)}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all cursor-pointer shadow-xs"
+                      onClick={() => {
+                        setSelectionPopup(null);
+                        setCurrentQuestionIndex((prev: any) => prev + 1);
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all cursor-pointer shadow-xs select-none no-lookup"
                     >
                       <span>Câu tiếp</span>
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   ) : (
                     <button
-                      onClick={() => setShowSubmitModal(true)}
-                      className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-all cursor-pointer shadow-md"
+                      onClick={() => {
+                        setSelectionPopup(null);
+                        setShowSubmitModal(true);
+                      }}
+                      className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-all cursor-pointer shadow-md select-none no-lookup"
                     >
                       <Check className="w-4 h-4" />
                       <span>Hoàn tất & Nộp bài</span>
@@ -3809,6 +3853,7 @@ const handleConfirmStartRealExam = () => {
         {/* POPUP TRA CỨU BÔI ĐEN / NHẤN ĐÚP TƯƠNG TỰ EXTENSION EJOY ENGLISH */}
         {selectionPopup && (
           <div
+            ref={selectionPopupRef}
             style={{
               position: 'absolute',
               left: `${selectionPopup.x}px`,
