@@ -573,6 +573,219 @@ const renderPassageWithHighlight = (passage: string, activeOrderNumber?: number)
     return `<div class="text-slate-900 text-sm md:text-base leading-loose whitespace-pre-line font-serif">${innerHtml}</div>`;
   };
 
+const stripRuby = (str?: string | null): string => {
+  if (!str) return '';
+  return str
+    .replace(/<rt>.*?<\/rt>/g, '')
+    .replace(/<rp>.*?<\/rp>/g, '')
+    .replace(/<\/?[^>]+(>|$)/g, '')
+    .replace(/\*\*/g, '')
+    .trim();
+};
+
+interface QuestionDiagnosticInsightData {
+  rightOptionJp: string;
+  rightOptionVi: string;
+  evidenceSection?: {
+    label: string;
+    quoteJp: string;
+    quoteVi?: string;
+  };
+  recognitionGuides: {
+    title: string;
+    content: string;
+  }[];
+  trapBreakdown: {
+    optIdx: number;
+    textJp: string;
+    textVi?: string;
+    isCorrect: boolean;
+    analysis: string;
+  }[];
+  coreStudyTakeaway: string;
+  keyKnowledgeHtml?: string;
+}
+
+const getQuestionDiagnosticInsight = (
+  q: QuestionResultItem,
+  lesson?: DiagnosticLessonLearned
+): QuestionDiagnosticInsightData => {
+  const rightIdx = q.correctAnswer ?? 0;
+  const rightOptionJp = q.options?.[rightIdx] || '';
+  const rightOptionVi = q.optionsVi?.[rightIdx] || '';
+  const cleanRightJp = stripRuby(rightOptionJp);
+
+  // 1. DẪN CHỨNG MẪU CHỐT (Cho Đọc hiểu hoặc Nghe hiểu)
+  let evidenceSection: QuestionDiagnosticInsightData['evidenceSection'] = undefined;
+
+  if (q.section === 'reading' || q.section === 'listening') {
+    const isListening = q.section === 'listening' || Boolean(q.audioUrl);
+    const label = isListening
+      ? '🎧 Đoạn thoại then chốt trong kịch bản nghe (Listening Evidence):'
+      : '📍 Câu dẫn chứng mấu chốt trong bài đọc (Reading Evidence):';
+
+    // Thử trích xuất từ ngoặc 「...」 trong explanation trước
+    const quoteInExp = (q.explanation || '').match(/「([^」]+)」/);
+    let quoteJp = '';
+    let quoteVi: string | undefined = undefined;
+
+    if (quoteInExp && quoteInExp[1].length > 4) {
+      quoteJp = quoteInExp[1];
+    } else if (q.passage) {
+      // Tách passage thành các câu bằng dấu chấm câu tiếng Nhật
+      const sentences = q.passage
+        .split(/(?<=[。！？\n])/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 5);
+
+      // Tìm câu có nhiều ký tự trùng khớp nhất với đáp án đúng hoặc explanation
+      const targetKeywords = (cleanRightJp + ' ' + (q.explanation || ''))
+        .replace(/[\s\d\(\)\[\]・,，。]/g, '')
+        .split('')
+        .filter((c) => /[\u4e00-\u9faf\u30a0-\u30ff]/.test(c));
+
+      let bestSentence = '';
+      let maxMatches = -1;
+
+      for (const sent of sentences) {
+        let matches = 0;
+        for (const kw of targetKeywords) {
+          if (sent.includes(kw)) matches++;
+        }
+        if (matches > maxMatches) {
+          maxMatches = matches;
+          bestSentence = sent;
+        }
+      }
+
+      quoteJp = bestSentence || sentences[0] || '';
+    }
+
+    // Tìm bản dịch tiếng Việt tương ứng nếu có passageVi
+    if (q.passageVi && quoteJp) {
+      const viSentences = q.passageVi
+        .split(/(?<=[.!?\n])/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 5);
+
+      if (viSentences.length > 0) {
+        const viKeywords = (rightOptionVi + ' ' + (q.explanation || ''))
+          .toLowerCase()
+          .split(/[\s,.:;!?"'-]+/)
+          .filter((w) => w.length > 2);
+
+        let bestVi = '';
+        let maxViMatches = -1;
+        for (const vSent of viSentences) {
+          const lower = vSent.toLowerCase();
+          let count = 0;
+          for (const kw of viKeywords) {
+            if (lower.includes(kw)) count++;
+          }
+          if (count > maxViMatches) {
+            maxViMatches = count;
+            bestVi = vSent;
+          }
+        }
+        quoteVi = bestVi || undefined;
+      }
+    }
+
+    if (quoteJp) {
+      evidenceSection = {
+        label,
+        quoteJp,
+        quoteVi
+      };
+    }
+  }
+
+  // 2. DẤU HIỆU NHẬN BIẾT & PHƯƠNG PHÁP SUY LUẬN (RECOGNITION GUIDES)
+  const recognitionGuides: { title: string; content: string }[] = [];
+
+  if (q.section === 'reading') {
+    recognitionGuides.push({
+      title: '🔍 Kỹ thuật đối chiếu Paraphrase (Diễn đạt tương đương)',
+      content: `Ý chính trong bài đọc tương ứng trực tiếp với Phương án [${formatOptLabel(rightIdx)}]. Bài thi JLPT thường không dùng lại y nguyên câu chữ mà sẽ diễn đạt lại (Paraphrase) từ câu dẫn chứng sang các từ đồng nghĩa hoặc câu chủ động/bị động tương đương.`
+    });
+    recognitionGuides.push({
+      title: '🎯 Định vị từ khóa (Keyword Scanning)',
+      content: `Đọc lướt câu hỏi để khoanh vùng từ khóa trọng tâm${q.questionVi ? ` ("${cleanQuestionVi(q.questionVi, q.orderNumber).slice(0, 50)}...")` : ''}, sau đó dò tới vị trí câu mang thông tin trong bài đọc thay vì dịch toàn bộ từ đầu đến cuối.`
+    });
+  } else if (q.section === 'listening') {
+    recognitionGuides.push({
+      title: '🎧 Lắng nghe từ phát tín hiệu chốt kết luận (Signal Words)',
+      content: `Trong phần nghe JLPT, thông tin chốt phương án đúng thường xuất hiện ngay sau các từ nối chuyển ý hoặc nhấn mạnh như 「実は」(thực ra), 「ポイントは」(điểm mấu chốt là), 「〜大切です」(quan trọng là), 「〜方がいい」(nên làm), 「やはり / やっぱり」(quả nhiên/rốt cuộc).`
+    });
+    recognitionGuides.push({
+      title: '⏱️ Nắm bắt mốc thời gian & Trọng tâm hành động',
+      content: `Đặc biệt lưu ý mốc thời gian, số lượng hoặc câu hỏi trọng tâm (ví dụ: làm gì trước tiên, điểm được chuyên gia khuyến nghị). Đối chiếu thẳng vào 4 phương án đã in trên đề.`
+    });
+  } else if (q.section === 'vocab') {
+    recognitionGuides.push({
+      title: '📚 Nhận diện âm On / Kun & Ngữ cảnh Collocation',
+      content: `Kiểm tra kỹ các thành phần dễ nhầm trong chữ Hán: trường âm (ー, おう, う), âm ngắt (っ), âm đục (゛) và cụm từ đi kèm (Collocation) tự nhiên theo văn phong của người Nhật.`
+    });
+  } else {
+    // Grammar
+    recognitionGuides.push({
+      title: '🧩 Hình thức liên kết & Sắc thái vế câu',
+      content: `Quan sát dạng thức ngay trước chỗ trống (Thể từ điển, thể Ta, thể Te, Danh từ + の) và kiểm tra xem vế sau là đánh giá chủ quan, nguyện vọng, lời khuyên hay phủ định để chọn đúng mẫu ngữ pháp.`
+    });
+  }
+
+  // 3. PHÂN TÍCH CHI TIẾT TỪNG PHƯƠNG ÁN & BẪY ĐỀ THI (TRAP BREAKDOWN)
+  const trapBreakdown = (q.options || []).map((opt, optIdx) => {
+    const isCorrect = optIdx === rightIdx;
+    const optVi = q.optionsVi?.[optIdx];
+    const cleanOpt = stripRuby(opt);
+
+    let analysis = '';
+    if (isCorrect) {
+      analysis = `✅ Đáp án chính xác. Thể hiện chuẩn xác nội dung được khẳng định trong đề bài và dẫn chứng${optVi ? ` ("${optVi}")` : ''}.`;
+    } else {
+      if (/一切|絶対|のみ|だけ|常に|必ず|すべて|全員/.test(cleanOpt)) {
+        const extremeWord = cleanOpt.match(/一切|絶対|のみ|だけ|常に|必ず|すべて|全員/)?.[0] || 'tuyệt đối';
+        analysis = `❌ Bẫy từ mang tính tuyệt đối hóa ("${extremeWord}"). Trong JLPT, các phương án mang tính cực đoan/tuyệt đối đa phần là bẫy sai vì tác giả hiếm khi khẳng định tuyệt đối một chiều.`;
+      } else if (/禁止|処罰|悪化|反対|失敗|できない|ない/.test(cleanOpt)) {
+        analysis = `❌ Bẫy phủ định / đảo ngược ý nghĩa. Ý kiến này đi ngược lại với thông điệp tích cực hoặc nội dung được khẳng định trong bài.`;
+      } else if (q.section === 'listening' && /直前|時間|すぐ|急に/.test(cleanOpt)) {
+        analysis = `❌ Bẫy mâu thuẫn thời điểm hoặc mức độ. Thông tin này xuất hiện thoáng qua nhưng bị phủ định hoặc sai lệch về điều kiện thực hiện.`;
+      } else {
+        analysis = `❌ Phương án gây nhiễu (Distractor). Thông tin không có căn cứ xác thực trong bài hoặc không trả lời trực tiếp câu hỏi được đưa ra.`;
+      }
+    }
+
+    return {
+      optIdx,
+      textJp: opt,
+      textVi: optVi,
+      isCorrect,
+      analysis
+    };
+  });
+
+  // 4. BÀI HỌC CỐT LÕI (CORE STUDY TAKEAWAY)
+  const coreStudyTakeaway =
+    lesson?.coreTakeaway ||
+    q.studyTips ||
+    (q.section === 'reading'
+      ? 'Đọc câu hỏi trước để khoanh vùng đoạn văn có từ khóa, loại bỏ ngay các đáp án có từ tuyệt đối (一切, のみ, 必ず).'
+      : q.section === 'listening'
+      ? 'Tận dụng thời gian chuẩn bị để quan sát 4 phương án, lắng nghe kỹ nửa sau đoạn thoại và các từ phát tín hiệu kết luận.'
+      : 'Ghi nhớ trọng điểm kiến thức và công thức nhận diện dạng bài để tránh bẫy phát âm và chia thì.');
+
+  return {
+    rightOptionJp,
+    rightOptionVi,
+    evidenceSection,
+    recognitionGuides,
+    trapBreakdown,
+    coreStudyTakeaway,
+    keyKnowledgeHtml: q.keyGrammarOrVocab || undefined
+  };
+};
+
 export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigateToVocab }: ExamStudioProps) {
   const router = useRouter();
   const [examMode, setExamMode] = useState<'practice' | 'exam'>('exam');
@@ -706,6 +919,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
   // State Nghe lại Audio & Xem Script trong màn hình Kết quả
   const [reviewAudioPlayingId, setReviewAudioPlayingId] = useState<string | null>(null);
   const [reviewExpandedScriptId, setReviewExpandedScriptId] = useState<string | null>(null);
+  const [reviewExpandedReadingViId, setReviewExpandedReadingViId] = useState<string | null>(null);
   const reviewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const lessonByOrderMap = useMemo(() => {
@@ -1689,9 +1903,9 @@ const handleConfirmStartRealExam = () => {
           exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
           exampleVi: q.passageVi ? `${q.passageVi}\n\n${q.questionVi}` : q.questionVi,
           note: [
-            q.explanation ? `💡 Giải thích đáp án & Bẫy thi: ${q.explanation}` : '',
-            q.keyGrammarOrVocab ? `🎯 Trọng tâm: ${q.keyGrammarOrVocab}` : '',
-            q.studyTips ? `💡 Mẹo phòng thi: ${q.studyTips}` : '',
+            q.explanation ? `💡 Giải thích đáp án & Bẫy thi: ${stripRuby(q.explanation)}` : '',
+            q.keyGrammarOrVocab ? `🎯 Trọng tâm: ${stripRuby(q.keyGrammarOrVocab)}` : '',
+            q.studyTips ? `💡 Mẹo phòng thi: ${stripRuby(q.studyTips)}` : '',
             metaStr
           ].filter(Boolean).join('\n'),
           tags: `JLPT_${examResult.level},Thi_thử,Câu_sai,${shortExamTitle}`,
@@ -1746,9 +1960,9 @@ const handleConfirmStartRealExam = () => {
         exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
         exampleVi: q.passageVi ? `${q.passageVi}\n\n${q.questionVi}` : q.questionVi,
         note: [
-          q.explanation ? `💡 Giải thích đáp án & Bẫy thi: ${q.explanation}` : '',
-          q.keyGrammarOrVocab ? `🎯 Trọng tâm: ${q.keyGrammarOrVocab}` : '',
-          q.studyTips ? `💡 Mẹo phòng thi: ${q.studyTips}` : '',
+          q.explanation ? `💡 Giải thích đáp án & Bẫy thi: ${stripRuby(q.explanation)}` : '',
+          q.keyGrammarOrVocab ? `🎯 Trọng tâm: ${stripRuby(q.keyGrammarOrVocab)}` : '',
+          q.studyTips ? `💡 Mẹo phòng thi: ${stripRuby(q.studyTips)}` : '',
           metaStr
         ].filter(Boolean).join('\n'),
         tags: `JLPT_${examResult.level},Thi_thử,Câu_sai,${shortExamTitle}`,
@@ -4701,8 +4915,52 @@ const handleConfirmStartRealExam = () => {
 
                       {/* Đoạn văn đọc hiểu hoặc ngữ pháp đoạn văn */}
                       {q.section !== 'listening' && !q.audioUrl && q.passage && (
-                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-serif text-slate-800 leading-relaxed max-h-56 overflow-y-auto">
-                          <div dangerouslySetInnerHTML={{ __html: renderPassageWithHighlight(q.passage, q.section === 'grammar' ? q.orderNumber : undefined) }} />
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                            <span className="flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Bài đọc hiểu (Passage):</span>
+                            </span>
+                            {q.passageVi && (
+                              <button
+                                onClick={() =>
+                                  setReviewExpandedReadingViId(
+                                    reviewExpandedReadingViId === q.questionId ? null : q.questionId
+                                  )
+                                }
+                                className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                {reviewExpandedReadingViId === q.questionId ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                                <span>
+                                  {reviewExpandedReadingViId === q.questionId
+                                    ? 'Ẩn bản dịch tiếng Việt'
+                                    : 'Xem bản dịch bài đọc (Tiếng Việt)'}
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-serif text-slate-800 leading-relaxed max-h-56 overflow-y-auto">
+                            <div
+                              dangerouslySetInnerHTML={{
+                                __html: renderPassageWithHighlight(
+                                  q.passage,
+                                  q.section === 'grammar' ? q.orderNumber : undefined
+                                )
+                              }}
+                            />
+                          </div>
+                          {reviewExpandedReadingViId === q.questionId && q.passageVi && (
+                            <div className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-200 text-xs text-slate-800 italic leading-relaxed whitespace-pre-line">
+                              <div className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider not-italic mb-1">
+                                🇻🇳 Bản dịch tiếng Việt bài đọc:
+                              </div>
+                              {q.passageVi}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -4844,10 +5102,17 @@ const handleConfirmStartRealExam = () => {
                                   >
                                     {formatOptLabel(optIdx)}
                                   </span>
-                                  <span
-                                    className="pt-0.5 leading-relaxed font-serif flex-1 break-words"
-                                    dangerouslySetInnerHTML={{ __html: opt }}
-                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div
+                                      className="pt-0.5 leading-relaxed font-serif break-words"
+                                      dangerouslySetInnerHTML={{ __html: opt }}
+                                    />
+                                    {q.optionsVi && q.optionsVi[optIdx] && (
+                                      <p className="text-[11px] text-slate-500 italic mt-0.5 font-sans leading-relaxed">
+                                        {q.optionsVi[optIdx]}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                                 {badge}
                               </div>
@@ -4856,37 +5121,138 @@ const handleConfirmStartRealExam = () => {
                         </div>
                       </div>
 
-                      {/* KHUNG BÀI HỌC RÚT KINH NGHIỆM TỪ AI (GEMINI 3.5 FLASH) */}
-                      <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200/90 text-xs space-y-2.5">
-                        <div className="flex items-center gap-1.5 text-amber-900 font-bold">
-                          <Lightbulb className="w-4 h-4 text-amber-600" />
-                          <span>Bài Học Rút Kinh Nghiệm Từ Giám Khảo AI:</span>
-                        </div>
+                      {/* KHUNG HƯỚNG DẪN CHẤM CHỮA CHI TIẾT & BÀI HỌC RÚT KINH NGHIỆM */}
+                      {(() => {
+                        const insight = getQuestionDiagnosticInsight(q, lesson);
+                        return (
+                          <div className="p-4 md:p-5 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-50/90 rounded-2xl border border-amber-200/90 text-xs space-y-3.5 shadow-xs">
+                            {/* 1. BANNER ĐÁP ÁN ĐÚNG CHUẨN XÁC */}
+                            <div className="p-3 bg-white/95 rounded-xl border border-emerald-300 shadow-xs flex flex-wrap items-start justify-between gap-2.5">
+                              <div className="space-y-1 flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  <span className="text-xs uppercase tracking-wide">
+                                    Đáp án chuẩn JLPT: Phương án [{formatOptLabel(q.correctAnswer)}]
+                                  </span>
+                                </div>
+                                <div
+                                  className="text-sm font-bold text-slate-900 font-serif leading-relaxed"
+                                  dangerouslySetInnerHTML={{ __html: insight.rightOptionJp }}
+                                />
+                                {insight.rightOptionVi && (
+                                  <p className="text-xs text-slate-600 italic">
+                                    🇻🇳 {insight.rightOptionVi}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                                Chuẩn {q.subTypeLabel || 'JLPT'}
+                              </span>
+                            </div>
 
-                        {/* Bẫy đề thi & Lý do sai */}
-                        <div className="space-y-0.5">
-                          <strong className="text-amber-950 block">🎯 Bẫy đề thi & Lý do dễ nhầm:</strong>
-                          <p className="text-slate-700 leading-relaxed">
-                            {lesson?.trapNote || q.explanation || 'Phân tích kỹ ngữ cảnh và trợ từ liên kết trước chỗ trống.'}
-                          </p>
-                        </div>
+                            {/* 2. DẪN CHỨNG MẪU CHỐT (ĐỌC HIỂU HOẶC NGHE HIỂU) */}
+                            {insight.evidenceSection && (
+                              <div className="p-3.5 bg-blue-50/90 rounded-xl border border-blue-200 space-y-1.5">
+                                <div className="font-bold text-blue-950 flex items-center gap-1.5">
+                                  {q.section === 'listening' ? (
+                                    <Headphones className="w-4 h-4 text-blue-600 shrink-0" />
+                                  ) : (
+                                    <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                                  )}
+                                  <span>{insight.evidenceSection.label}</span>
+                                </div>
+                                <div className="p-2.5 bg-white/95 rounded-lg border border-blue-100">
+                                  <p className="text-slate-900 font-serif text-xs md:text-sm leading-relaxed font-medium">
+                                    「{insight.evidenceSection.quoteJp}」
+                                  </p>
+                                  {insight.evidenceSection.quoteVi && (
+                                    <p className="text-slate-600 italic text-xs mt-1 pt-1 border-t border-blue-50">
+                                      🇻🇳 Dịch nghĩa dẫn chứng: {insight.evidenceSection.quoteVi}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
-                        {/* Bài học cốt lõi */}
-                        <div className="space-y-0.5">
-                          <strong className="text-amber-950 block">💡 Bài học cốt lõi để không sai lại:</strong>
-                          <p className="text-slate-700 leading-relaxed font-medium">
-                            {lesson?.coreTakeaway || q.studyTips || 'Ghi nhớ trọng điểm kiến thức và công thức nhận diện dạng bài.'}
-                          </p>
-                        </div>
+                            {/* 3. DẤU HIỆU NHẬN BIẾT & PHƯƠNG PHÁP SUY LUẬN */}
+                            <div className="space-y-2">
+                              <strong className="text-amber-950 flex items-center gap-1.5 font-bold">
+                                <Lightbulb className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span>Dấu hiệu nhận biết đáp án đúng & Kỹ thuật suy luận:</span>
+                              </strong>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {insight.recognitionGuides.map((guide, gIdx) => (
+                                  <div key={gIdx} className="p-2.5 bg-white/90 rounded-xl border border-amber-200/70 space-y-0.5">
+                                    <span className="font-bold text-amber-900 block text-[11px]">{guide.title}</span>
+                                    <p className="text-slate-700 leading-relaxed">{guide.content}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
 
-                        {/* Kiến thức trọng tâm */}
-                        {q.keyGrammarOrVocab && (
-                          <div className="pt-1.5 border-t border-amber-200/60 text-slate-700">
-                            <span className="font-bold text-amber-950">📘 Trọng tâm kiến thức: </span>
-                            <span>{q.keyGrammarOrVocab}</span>
+                            {/* 4. PHÂN TÍCH BẪY ĐỀ THI & LOẠI TRỪ 3 PHƯƠNG ÁN SAI */}
+                            <div className="space-y-1.5">
+                              <strong className="text-amber-950 flex items-center gap-1.5 font-bold">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span>Phân tích bẫy đề thi & Lý do loại trừ các phương án:</span>
+                              </strong>
+                              <div className="space-y-1.5">
+                                {insight.trapBreakdown.map((item) => (
+                                  <div
+                                    key={item.optIdx}
+                                    className={`p-2.5 rounded-xl border text-xs leading-relaxed ${
+                                      item.isCorrect
+                                        ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950 font-medium'
+                                        : 'bg-white/85 border-slate-200 text-slate-700'
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <span
+                                        className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[11px] shrink-0 ${
+                                          item.isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                                        }`}
+                                      >
+                                        {formatOptLabel(item.optIdx)}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <span
+                                            className="font-serif font-semibold"
+                                            dangerouslySetInnerHTML={{ __html: item.textJp }}
+                                          />
+                                          {item.textVi && (
+                                            <span className="text-slate-500 italic text-[11px]">({item.textVi})</span>
+                                          )}
+                                        </div>
+                                        <p className="mt-0.5 text-[11px] text-slate-600">{item.analysis}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* 5. BÀI HỌC CỐT LÕI ĐỂ KHÔNG SAI LẠI */}
+                            <div className="p-3 bg-white/90 rounded-xl border border-amber-200 space-y-1">
+                              <strong className="text-amber-950 block font-bold">💡 Bài học cốt lõi để không sai lại:</strong>
+                              <p className="text-slate-800 leading-relaxed font-medium">
+                                {insight.coreStudyTakeaway}
+                              </p>
+                            </div>
+
+                            {/* 6. TRỌNG TÂM KIẾN THỨC VỚI FURIGANA CHUẨN */}
+                            {insight.keyKnowledgeHtml && (
+                              <div className="p-3 bg-white/90 rounded-xl border border-amber-200 space-y-1">
+                                <strong className="text-amber-950 block font-bold">📘 Trọng tâm kiến thức:</strong>
+                                <div
+                                  className="text-slate-800 leading-relaxed font-serif [&_ruby]:inline-flex [&_ruby]:flex-col-reverse [&_ruby]:items-center [&_rt]:text-[10px] [&_rt]:text-indigo-600 [&_rt]:font-normal [&_rt]:leading-none"
+                                  dangerouslySetInnerHTML={{ __html: insight.keyKnowledgeHtml }}
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
 
                       {/* AI Explain sâu hơn nếu học viên yêu cầu */}
                       {aiRes && (
@@ -4902,7 +5268,10 @@ const handleConfirmStartRealExam = () => {
                             </div>
                             <div className="p-2.5 bg-white rounded-xl border border-purple-100">
                               <span className="font-bold text-indigo-700 block">📘 Trọng Tâm Cần Nhớ:</span>
-                              <p className="text-slate-700 mt-0.5">{aiRes.keyKnowledge || aiRes.keyGrammarOrVocab}</p>
+                              <div
+                                className="text-slate-700 mt-0.5 [&_ruby]:inline-flex [&_ruby]:flex-col-reverse [&_ruby]:items-center [&_rt]:text-[10px] [&_rt]:text-indigo-600 [&_rt]:font-normal [&_rt]:leading-none"
+                                dangerouslySetInnerHTML={{ __html: aiRes.keyKnowledge || aiRes.keyGrammarOrVocab || '' }}
+                              />
                             </div>
                             <div className="p-2.5 bg-white rounded-xl border border-purple-100">
                               <span className="font-bold text-emerald-700 block">💡 Mẹo Làm Bài:</span>

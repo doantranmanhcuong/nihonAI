@@ -116,10 +116,14 @@ function extractKeyGrammar(q: any): string {
     ].filter(Boolean).join('\n');
   }
   if (q.section === 'reading') {
-    return `Kỹ năng Đọc hiểu (${q.subTypeLabel || 'Dokkai'}): Đáp án đúng là [${ (q.correctIndex ?? 0) + 1 }] ${correctOpt}${correctVi ? ` (${correctVi})` : ''}. Đối chiếu trực tiếp với mệnh đề chứa từ khóa trong đoạn văn.`;
+    const quoteInExp = (q.explanation || '').match(/「([^」]+)」/);
+    const evidenceText = quoteInExp ? `Dẫn chứng mấu chốt: 「${quoteInExp[1]}」. ` : '';
+    return `${evidenceText}Kỹ năng Đọc hiểu (${q.subTypeLabel || 'Dokkai'}): Đáp án đúng là Phương án [${ (q.correctIndex ?? 0) + 1 }] 「${correctOpt}」${correctVi ? ` (${correctVi})` : ''}. Đối chiếu trực tiếp với câu chứa từ khóa trong bài đọc.`;
   }
   if (q.section === 'listening') {
-    return `Kỹ năng Nghe hiểu (${q.subTypeLabel || 'Choukai'}): Chú ý câu hỏi trọng tâm và thông tin chốt lại ở cuối hội thoại (Đáp án [${ (q.correctIndex ?? 0) + 1 }] ${correctOpt}).`;
+    const quoteInExp = (q.explanation || '').match(/「([^」]+)」/);
+    const evidenceText = quoteInExp ? `Đoạn thoại then chốt: 「${quoteInExp[1]}」. ` : '';
+    return `${evidenceText}Kỹ năng Nghe hiểu (${q.subTypeLabel || 'Choukai'}): Đáp án đúng là Phương án [${ (q.correctIndex ?? 0) + 1 }] 「${correctOpt}」${correctVi ? ` (${correctVi})` : ''}. Lắng nghe kỹ câu hỏi và từ phát tín hiệu chốt kết luận.`;
   }
   return patternStr ? `Điểm kiến thức cốt lõi: ${patternStr}` : 'Điểm kiến thức cốt lõi chuẩn kỳ thi JLPT.';
 }
@@ -142,10 +146,10 @@ function extractStudyTip(q: any): string {
     return 'Quan sát kỹ dạng chia (Thể Rư / Thể Ta / Thể Te / Danh từ + の) ngay trước chỗ trống và sắc thái vế câu phía sau.';
   }
   if (q.section === 'reading') {
-    return 'Đọc câu hỏi trước để khoanh vùng đoạn chứa từ khóa, tránh suy diễn chủ quan ngoài nội dung bài đọc.';
+    return 'Đọc câu hỏi trước để xác định từ khóa (キーワード) cần tìm, đối chiếu câu dẫn chứng trong đoạn văn và loại bỏ các phương án chứa từ mang tính tuyệt đối hóa (như 一切, のみ, 必ず).';
   }
   if (q.section === 'listening') {
-    return 'Tận dụng giây nghỉ để đọc lướt 4 đáp án, đặc biệt chú ý các liên từ chuyển ý như でも、ただ、実は、やっぱり.';
+    return 'Tận dụng thời gian chuẩn bị đọc lướt 4 lựa chọn, lắng nghe kỹ nửa sau đoạn thoại và bắt các từ phát tín hiệu kết luận (như 実は, でも, ポイントは, 〜方がいい).';
   }
   return 'Đọc kỹ yêu cầu đề bài và loại trừ các phương án gây nhiễu.';
 }
@@ -475,6 +479,7 @@ export class ExamService {
         question: q.question,
         questionVi: q.questionVi,
         passage: q.passage || undefined,
+        passageVi: q.passageVi || undefined,
         audioUrl: q.audioUrl || (q.section === 'listening' ? `/api/exam/audio/${q.id}` : undefined),
         imageUrl: q.imageUrl || undefined,
         options: optionsList,

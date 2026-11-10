@@ -87,6 +87,7 @@ export interface ExamEvaluationResult {
     question: string;
     questionVi: string;
     passage?: string;
+    passageVi?: string;
     audioUrl?: string;
     imageUrl?: string;
     options: string[];
