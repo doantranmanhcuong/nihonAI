@@ -108,12 +108,35 @@ export const AdminContentView = () => {
       setLoading(true);
       const endpoint = getEndpointBase(contentTab);
       const q = customSearch !== undefined ? customSearch : searchQuery;
-      const res = await authApi.get(endpoint, {
-        params: q ? { search: q } : undefined
-      });
-      if (res.data.success) {
-        setItems(res.data.data || []);
+      let fetchedItems: any[] = [];
+      try {
+        const res = await authApi.get(endpoint, {
+          params: q ? { search: q } : undefined
+        });
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          fetchedItems = res.data.data;
+        }
+      } catch (adminErr) {
+        console.warn('Admin content endpoint failed, attempting fallback to public services:', adminErr);
+        // Fallback tự động lấy dữ liệu từ các service công khai để luôn hiển thị danh sách
+        if (contentTab === 'SHADOWING') {
+          const res = await authApi.get('/shadowing/lessons?limit=100');
+          fetchedItems = res.data?.data?.items || res.data?.data || [];
+        } else if (contentTab === 'READING') {
+          const res = await authApi.get('/reading/articles?limit=100');
+          fetchedItems = res.data?.data?.items || res.data?.data || [];
+        } else if (contentTab === 'KANJI') {
+          const res = await authApi.get('/kanji?limit=100');
+          fetchedItems = res.data?.data?.items || res.data?.data || [];
+        } else if (contentTab === 'VOCAB') {
+          const res = await authApi.get('/vocabulary?limit=100');
+          fetchedItems = res.data?.data?.items || res.data?.data || [];
+        } else if (contentTab === 'EXAM') {
+          const res = await authApi.get('/exam/list');
+          fetchedItems = res.data?.data || [];
+        }
       }
+      setItems(fetchedItems);
     } catch (err) {
       console.error('Fetch admin content error:', err);
     } finally {
