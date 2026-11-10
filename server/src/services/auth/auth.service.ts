@@ -12,6 +12,8 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC
 
 const googleClient = new OAuth2Client();
 
+const ADMIN_EMAILS = ['doantranmanhcuong@gmail.com', 'cuong@nihonai.edu.vn', 'admin@gmail.com', 'admin'];
+
 export interface UserResponse {
   id: string;
   email: string;
@@ -158,9 +160,13 @@ export class AuthService {
       throw new Error(`Tài khoản đã bị khóa: ${user.banReason || 'Vi phạm chính sách.'}`);
     }
 
+    const shouldBeAdmin = user.role === 'ADMIN' || ADMIN_EMAILS.includes(email);
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() }
+      data: {
+        lastLoginAt: new Date(),
+        role: shouldBeAdmin ? 'ADMIN' : user.role
+      }
     });
 
     const tokens = generateTokens(updatedUser.id, updatedUser.email, updatedUser.tokenVersion || 1);
@@ -261,6 +267,7 @@ export class AuthService {
       }
     });
 
+    const shouldBeAdmin = (user && user.role === 'ADMIN') || ADMIN_EMAILS.includes(email);
     if (user) {
       user = await prisma.user.update({
         where: { id: user.id },
@@ -268,6 +275,7 @@ export class AuthService {
           googleId: googleId || user.googleId,
           authProvider: user.authProvider === 'LOCAL' ? 'GOOGLE' : user.authProvider,
           isEmailVerified: true,
+          role: shouldBeAdmin ? 'ADMIN' : user.role,
           lastLoginAt: new Date(),
           avatar: user.avatar || avatar
         }
@@ -285,6 +293,7 @@ export class AuthService {
           avatar,
           googleId,
           authProvider: 'GOOGLE',
+          role: shouldBeAdmin ? 'ADMIN' : 'USER',
           isEmailVerified: true,
           lastLoginAt: new Date(),
           targetLevel: 'N5'
