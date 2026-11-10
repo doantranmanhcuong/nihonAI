@@ -23,9 +23,9 @@ export class GeminiPoolService {
     // De-duplicate keys
     this.keys = [...new Set(this.keys)];
 
-    const validGoogleKeys = this.keys.filter(k => k.startsWith('AIzaSy'));
+    const validGoogleKeys = this.keys.filter(k => k.startsWith('AIzaSy') || k.startsWith('AQ.'));
     if (validGoogleKeys.length === 0 && this.keys.length > 0) {
-      console.warn('⚠️ [GeminiPool] Cảnh báo: Các API key hiện tại không bắt đầu bằng "AIzaSy". Vui lòng kiểm tra lại Google Gemini API Key tại https://aistudio.google.com/app/apikey');
+      console.warn('⚠️ [GeminiPool] Cảnh báo: Các API key hiện tại không bắt đầu bằng "AIzaSy" hoặc "AQ.". Vui lòng kiểm tra lại Google Gemini API Key tại https://aistudio.google.com/app/apikey');
     }
   }
 
@@ -33,17 +33,17 @@ export class GeminiPoolService {
    * Sinh danh sách chuỗi model ưu tiên với cơ chế Fallback tự động
    */
   static getCandidateModels(requestedModel?: string): string[] {
-    const primaryModel = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+    const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     const defaultValidFallbacks = [
-      'gemini-2.5-flash-lite',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-flash-lite-latest'
+      'gemini-3.5-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-3.8-flash',
+      'gemini-flash-latest'
     ];
     const envFallbacks = process.env.GEMINI_MODEL_FALLBACKS
       ? process.env.GEMINI_MODEL_FALLBACKS.split(',')
           .map(s => s.trim())
-          .filter(s => Boolean(s) && !s.includes('3.6') && !s.includes('3.5'))
+          .filter(Boolean)
       : defaultValidFallbacks;
 
     const fullList = [
