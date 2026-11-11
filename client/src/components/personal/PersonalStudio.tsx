@@ -814,8 +814,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white p-6 sm:p-8 shadow-xl border border-indigo-500/20">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold">
-              <BookmarkCheck className="w-3.5 h-3.5 text-indigo-300" />
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold">
               <span>Sổ Tay Thông Minh & Quản Lý Ôn Tập Đa Tầng (SM-2 SRS)</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -827,12 +826,10 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
 
             {/* CHUỖI NGÀY HỌC & TỔNG QUAN NHANH */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 rounded-xl border border-white/15 text-xs">
-                <Flame className={`w-4 h-4 ${(stats?.studyStreak ?? 0) > 0 ? 'text-orange-400' : 'text-slate-400'}`} />
+              <div className="inline-flex items-center px-3.5 py-1.5 bg-white/10 rounded-xl border border-white/15 text-xs">
                 <span className="font-bold text-white">{stats?.studyStreak || 0} ngày streak</span>
               </div>
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 rounded-xl border border-white/15 text-xs">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <div className="inline-flex items-center px-3.5 py-1.5 bg-white/10 rounded-xl border border-white/15 text-xs">
                 <span className="text-slate-200">Đã thành thạo: <strong className="text-white">{stats?.masteredCount || 0}</strong> ({stats?.masteryRate || 0}%)</span>
               </div>
             </div>
@@ -851,15 +848,9 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 }`}
               >
                 {isAutoPlaying ? (
-                  <>
-                    <Square className="w-4 h-4 fill-white" />
-                    <span>Dừng nghe tự động</span>
-                  </>
+                  <span>Dừng nghe tự động</span>
                 ) : (
-                  <>
-                    <Headphones className="w-4 h-4" />
-                    <span>Nghe Từ vựng & Ngữ pháp ({autoPlayCandidates.length})</span>
-                  </>
+                  <span>Nghe Từ vựng & Ngữ pháp ({autoPlayCandidates.length})</span>
                 )}
               </button>
             )}
@@ -876,17 +867,15 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 setIsQuickQuizRevealed(false);
                 setIsFlashcardMode(true);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
+              className="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
             >
-              <Zap className="w-4 h-4 fill-slate-950" />
               <span>Luyện Nhanh & Quiz ({displayedItems.length})</span>
             </button>
 
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
+              className="px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
               <span>Thêm Mục Mới</span>
             </button>
           </div>
@@ -956,17 +945,17 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                 {/* Huy hiệu cảnh báo ôn gấp & câu sai */}
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   {dueCount > 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center ${
                       isActive ? 'bg-amber-400 text-slate-950 font-black' : 'bg-amber-100 text-amber-800'
                     }`}>
-                      🔥 {dueCount}
+                      Ôn gấp: {dueCount}
                     </span>
                   )}
                   {mistakeCount > 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center ${
                       isActive ? 'bg-rose-400 text-slate-950 font-black' : 'bg-rose-100 text-rose-800'
                     }`}>
-                      ❌ {mistakeCount}
+                      Sai: {mistakeCount}
                     </span>
                   )}
                 </div>
@@ -985,8 +974,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
             : 'bg-slate-50 border-slate-200 text-slate-500'
         }`}>
           <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
-              <RotateCw className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
               <span>Ôn Tập Khẩn Cấp (SRS)</span>
             </span>
             <span className="text-2xl font-black text-amber-700">
@@ -1001,9 +989,8 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           {(currentLevelSummary?.due || 0) > 0 ? (
             <button
               onClick={() => setIsReviewingSrs(true)}
-              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-300 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-300 transition-all flex items-center justify-center cursor-pointer active:scale-95"
             >
-              <Zap className="w-3.5 h-3.5 fill-white" />
               <span>Bắt Đầu Ôn Gấp ({currentLevelSummary?.due} thẻ)</span>
             </button>
           ) : (
@@ -1011,7 +998,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
               onClick={() => setSelectedSection('due')}
               className="w-full py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-100 transition-all cursor-pointer"
             >
-              Xem danh sách đến hạn
+              <span>Xem danh sách đến hạn</span>
             </button>
           )}
         </div>
@@ -1023,8 +1010,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
             : 'bg-slate-50 border-slate-200 text-slate-500'
         }`}>
           <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold">
-              <AlertTriangle className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold">
               <span>Ngân Hàng Câu Sai</span>
             </span>
             <span className="text-2xl font-black text-rose-700">
@@ -1038,13 +1024,12 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           </p>
           <button
             onClick={() => setSelectedSection('mistakes')}
-            className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+            className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center cursor-pointer active:scale-95 ${
               selectedSection === 'mistakes'
                 ? 'bg-rose-700 text-white shadow-md'
                 : 'bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-200'
             }`}
           >
-            <BookOpenCheck className="w-3.5 h-3.5" />
             <span>Luyện Lại Câu Sai ({currentLevelSummary?.mistakes || 0})</span>
           </button>
         </div>
@@ -1052,8 +1037,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         {/* CARD 3: MẸO THI & GHI CHÚ CHUYÊN SÂU */}
         <div className="p-5 rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-blue-50/70 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold">
-              <FileText className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold">
               <span>Mẹo Thi & Ghi Chú</span>
             </span>
             <span className="text-2xl font-black text-indigo-700">
@@ -1065,13 +1049,12 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
           </p>
           <button
             onClick={() => setSelectedSection('note')}
-            className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+            className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center cursor-pointer active:scale-95 ${
               selectedSection === 'note'
                 ? 'bg-indigo-700 text-white shadow-md'
                 : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
             <span>Xem Toàn Bộ Mẹo & Ghi Chú</span>
           </button>
         </div>
@@ -1083,15 +1066,14 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { id: 'all', label: 'Tất Cả', icon: Bookmark, count: currentLevelSummary?.total || 0 },
-              { id: 'due', label: 'Cần Ôn Gấp', icon: RotateCw, count: currentLevelSummary?.due || 0 },
-              { id: 'mistakes', label: 'Câu Sai Đề Thi', icon: AlertTriangle, count: currentLevelSummary?.mistakes || 0 },
-              { id: 'vocab', label: 'Từ Vựng', icon: BookOpen, count: currentLevelSummary?.vocab || 0 },
-              { id: 'kanji', label: 'Hán Tự', icon: Languages, count: currentLevelSummary?.kanji || 0 },
-              { id: 'grammar', label: 'Ngữ Pháp', icon: BookOpenCheck, count: currentLevelSummary?.grammar || 0 },
-              { id: 'note', label: 'Mẹo & Ghi Chú', icon: FileText, count: currentLevelSummary?.note || 0 }
+              { id: 'all', label: 'Tất Cả', count: currentLevelSummary?.total || 0 },
+              { id: 'due', label: 'Cần Ôn Gấp', count: currentLevelSummary?.due || 0 },
+              { id: 'mistakes', label: 'Câu Sai Đề Thi', count: currentLevelSummary?.mistakes || 0 },
+              { id: 'vocab', label: 'Từ Vựng', count: currentLevelSummary?.vocab || 0 },
+              { id: 'kanji', label: 'Hán Tự', count: currentLevelSummary?.kanji || 0 },
+              { id: 'grammar', label: 'Ngữ Pháp', count: currentLevelSummary?.grammar || 0 },
+              { id: 'note', label: 'Mẹo & Ghi Chú', count: currentLevelSummary?.note || 0 }
             ].map((tab) => {
-              const Icon = tab.icon;
               const isActive = selectedSection === tab.id;
               return (
                 <button
@@ -1103,7 +1085,6 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
                   <span className={`px-2 py-0.5 text-xs rounded-full ${
                     isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
@@ -1162,8 +1143,8 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
             <div className="inline-flex items-center p-1 rounded-2xl bg-slate-100 border border-slate-200/80 gap-1">
               {[
                 { id: 'ALL' as const, label: 'Tất cả nguồn', count: sourceCounts.all },
-                { id: 'LESSON' as const, label: '📘 Từ Giáo trình', count: sourceCounts.lesson },
-                { id: 'EXAM' as const, label: '🎯 Từ Đề thi', count: sourceCounts.exam }
+                { id: 'LESSON' as const, label: 'Từ Giáo trình', count: sourceCounts.lesson },
+                { id: 'EXAM' as const, label: 'Từ Đề thi', count: sourceCounts.exam }
               ].map((src) => {
                 const isActive = selectedSourceFilter === src.id;
                 return (
@@ -1592,7 +1573,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                           <>
                             <div
                               className="inline-block px-2.5 py-1 rounded-xl bg-teal-50 text-teal-900 border border-teal-200 text-xs font-black mb-1.5"
-                              dangerouslySetInnerHTML={{ __html: `🎯 Trọng tâm: ${cardInfo.compactHeadline}` }}
+                              dangerouslySetInnerHTML={{ __html: `Trọng tâm: ${cardInfo.compactHeadline}` }}
                             />
                             <h3
                               className="text-[15px] font-bold text-slate-900 line-clamp-2 cursor-pointer hover:text-blue-600 transition-colors leading-relaxed whitespace-pre-wrap"
@@ -1636,12 +1617,12 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                         {cardInfo.userOpt && cardInfo.userOpt !== cardInfo.correctOpt && (
                           <span
                             className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold"
-                            dangerouslySetInnerHTML={{ __html: `❌ Chọn: ${cardInfo.userOpt}` }}
+                            dangerouslySetInnerHTML={{ __html: `Chọn: ${cardInfo.userOpt}` }}
                           />
                         )}
                         <span
                           className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold"
-                          dangerouslySetInnerHTML={{ __html: `✅ Đúng: ${cardInfo.correctOpt}` }}
+                          dangerouslySetInnerHTML={{ __html: `Đúng: ${cardInfo.correctOpt}` }}
                         />
                       </div>
                     )}
@@ -1668,10 +1649,9 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                       setSelectedNotebookItem(item);
                       setIsDetailModalOpen(true);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 hover:text-blue-700 text-slate-600 font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                    className="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 hover:text-blue-700 text-slate-600 font-bold text-xs transition-all flex items-center justify-center cursor-pointer active:scale-[0.98]"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Xem giải thích chi tiết (4 tầng & AI)</span>
+                    <span>Xem giải thích chi tiết</span>
                   </button>
                 </div>
               </div>

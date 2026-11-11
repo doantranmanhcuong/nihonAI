@@ -4,20 +4,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Volume2,
   Bookmark,
-  Lightbulb,
-  Layers,
   ArrowRight,
-  Lock,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  BookOpen,
-  Send,
-  Loader2,
-  RefreshCw,
-  Award,
-  ChevronDown,
-  ChevronUp
+  Lock
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiGateway } from '@/services/api-gateway.client';
@@ -389,8 +377,7 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
       {data.constituentKanjis && data.constituentKanjis.length > 0 && (
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               Chữ Hán cấu thành ({data.constituentKanjis.length} chữ)
             </span>
             <span className="text-[11px] text-indigo-600 font-semibold">
@@ -428,64 +415,56 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
         </div>
       )}
 
-      {/* ================== STUDIO AI SENSEI: NGỮ CẢNH ĐA CHIỀU & CHẤM CÂU ================== */}
-      <div className="mt-1 p-5 bg-gradient-to-br from-indigo-50/70 via-white to-sky-50/50 rounded-3xl border border-indigo-100/90 shadow-2xs flex flex-col gap-4">
-        {/* Header Phân Hệ AI */}
-        <div className="flex items-center justify-between border-b border-indigo-100/70 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-2xs">
-              <Lightbulb className="w-4 h-4 text-amber-300 fill-amber-300" />
-            </div>
-            <div>
-              <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-2">
-                Mở Rộng Ngữ Cảnh & Luyện Đặt Câu
-                {aiInsight?.isCached && (
-                  <span className="text-[10px] font-normal text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    Đã lưu CSDL
-                  </span>
-                )}
-              </h4>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Khám phá cách dùng bản xứ và kiểm tra câu bạn tự đặt
-              </p>
-            </div>
+      {/* ================== NGỮ CẢNH ĐA CHIỀU & CHẤM CÂU ================== */}
+      <div className="mt-1 p-5 bg-slate-50/80 rounded-3xl border border-slate-200/90 shadow-2xs flex flex-col gap-4">
+        {/* Header Phân Hệ */}
+        <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+          <div>
+            <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <span>Mở Rộng Ngữ Cảnh & Luyện Đặt Câu</span>
+              {aiInsight?.isCached && (
+                <span className="text-[10px] font-normal text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Đã lưu CSDL
+                </span>
+              )}
+            </h4>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Khám phá cách dùng bản xứ và kiểm tra câu bạn tự đặt
+            </p>
           </div>
 
           <button
             onClick={handleRegenerateAi}
             disabled={isLoadingAi}
-            className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs active:scale-95"
-            title="Nhờ AI phân tích lại ngữ cảnh mới"
+            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs active:scale-95"
+            title="Nhờ hệ thống phân tích lại ngữ cảnh mới"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAi ? 'animate-spin text-indigo-600' : ''}`} />
-            <span className="hidden sm:inline">Làm mới AI</span>
+            <span>{isLoadingAi ? 'Đang tải...' : 'Làm mới'}</span>
           </button>
         </div>
 
         {/* Tab chuyển đổi giữa "3 Tình huống thực tế" và "Thử thách đặt câu" */}
-        <div className="flex items-center gap-2 p-1 bg-indigo-100/50 rounded-xl">
+        <div className="flex items-center gap-2 p-1 bg-slate-200/60 rounded-xl">
           <button
             onClick={() => setActiveAiTab('scenarios')}
-            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
               activeAiTab === 'scenarios'
                 ? 'bg-white text-indigo-700 shadow-2xs'
                 : 'text-slate-600 hover:text-indigo-600'
             }`}
           >
-            <BookOpen className="w-3.5 h-3.5" />
             <span>3 Tình huống thực tế</span>
           </button>
 
           <button
             onClick={() => setActiveAiTab('challenge')}
-            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
               activeAiTab === 'challenge'
                 ? 'bg-white text-indigo-700 shadow-2xs'
                 : 'text-slate-600 hover:text-indigo-600'
             }`}
           >
-            <Award className="w-3.5 h-3.5" />
-            <span>Thử thách đặt câu (AI Chấm)</span>
+            <span>Thử thách đặt câu (Chấm câu)</span>
           </button>
         </div>
 
@@ -494,14 +473,12 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
           <div className="flex flex-col gap-3 animate-in fade-in duration-200">
             {isLoadingAi ? (
               <div className="p-8 flex flex-col items-center justify-center gap-2 text-indigo-600">
-                <Loader2 className="w-6 h-6 animate-spin" />
                 <span className="text-xs font-bold text-indigo-800">
-                  AI Sensei đang phân tích 3 ngữ cảnh thực tế cho từ "{data.word}"...
+                  Đang phân tích 3 ngữ cảnh thực tế cho từ "{data.word}"...
                 </span>
               </div>
             ) : aiError ? (
               <div className="p-3 bg-rose-50 text-rose-700 rounded-2xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{aiError}</span>
               </div>
             ) : (
@@ -573,7 +550,6 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
                 {/* Cảnh báo lỗi người Việt hay mắc (Mistake Warning) */}
                 {aiInsight?.mistakeWarning && (
                   <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl text-xs text-amber-950 font-medium flex items-start gap-2.5">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-amber-800">Lưu ý tránh nhầm lẫn: </span>
                       <span>{aiInsight.mistakeWarning}</span>
@@ -584,7 +560,6 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
                 {/* Sắc thái phân biệt từ đồng nghĩa (Nuance Note) */}
                 {aiInsight?.nuanceNote && (
                   <div className="p-3 bg-sky-50/80 border border-sky-200/80 rounded-2xl text-xs text-sky-950 font-medium flex items-start gap-2.5">
-                    <HelpCircle className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-sky-800">Sắc thái ngôn từ: </span>
                       <span>{aiInsight.nuanceNote}</span>
@@ -596,15 +571,15 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
           </div>
         )}
 
-        {/* TAB 2: THỬ THÁCH ĐẶT CÂU & AI CHẤM CHỮA (ACTIVE RECALL) */}
+        {/* TAB 2: THỬ THÁCH ĐẶT CÂU & CHẤM CHỮA (ACTIVE RECALL) */}
         {activeAiTab === 'challenge' && (
           <div className="flex flex-col gap-3.5 animate-in fade-in duration-200">
-            <div className="p-3 bg-white rounded-2xl border border-indigo-100 flex flex-col gap-1 text-xs">
-              <span className="font-bold text-indigo-900">
-                🎯 Thử thách: Tự đặt một câu tiếng Nhật sử dụng từ "{data.word}" ({data.reading})
+            <div className="p-3 bg-white rounded-2xl border border-slate-200 flex flex-col gap-1 text-xs">
+              <span className="font-bold text-slate-900">
+                Thử thách: Tự đặt một câu tiếng Nhật sử dụng từ "{data.word}" ({data.reading})
               </span>
               <span className="text-slate-500">
-                AI Sensei sẽ chấm điểm, phát hiện lỗi trợ từ và gợi ý cách diễn đạt tự nhiên chuẩn bản xứ.
+                Hệ thống sẽ chấm điểm, phát hiện lỗi trợ từ và gợi ý cách diễn đạt tự nhiên chuẩn bản xứ.
               </span>
             </div>
 
@@ -626,18 +601,12 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
                 <button
                   type="submit"
                   disabled={isDiagnosing || !userSentence.trim()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
                 >
                   {isDiagnosing ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>AI Sensei đang chấm...</span>
-                    </>
+                    <span>Đang chấm câu...</span>
                   ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Gửi AI Chấm</span>
-                    </>
+                    <span>Gửi chấm câu</span>
                   )}
                 </button>
               </div>
@@ -645,12 +614,11 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
 
             {diagnosisError && (
               <div className="p-3 bg-rose-50 text-rose-700 rounded-2xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{diagnosisError}</span>
               </div>
             )}
 
-            {/* KẾT QUẢ CHẨN ĐOÁN CỦA AI SENSEI */}
+            {/* KẾT QUẢ CHẨN ĐOÁN */}
             {diagnosisResult && (
               <div className="p-4 bg-white rounded-2xl border border-indigo-200 shadow-2xs flex flex-col gap-3 animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
@@ -667,7 +635,7 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
                       Điểm: {diagnosisResult.score}/100
                     </span>
                     <span className="text-xs font-bold text-slate-700">
-                      {diagnosisResult.isCorrect ? '✅ Ngữ pháp chính xác' : '⚠️ Cần điều chỉnh'}
+                      {diagnosisResult.isCorrect ? 'Ngữ pháp chính xác' : 'Cần điều chỉnh'}
                     </span>
                   </div>
                 </div>
@@ -701,9 +669,9 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
                   </p>
                 </div>
 
-                {/* Lời khuyên của Sensei */}
+                {/* Lời khuyên */}
                 <div className="text-xs text-slate-600 italic">
-                  💡 <span className="font-semibold">Lời khuyên:</span> {diagnosisResult.explanationVi}
+                  <span className="font-semibold">Lời khuyên:</span> {diagnosisResult.explanationVi}
                 </div>
               </div>
             )}

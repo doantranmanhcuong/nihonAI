@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Volume2, Star, Eye, Lock, Unlock, BookOpen, Lightbulb, Layers, Info, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Volume2, Star, Loader2, AlertCircle } from 'lucide-react';
 import { PhoneticShiftModal } from './PhoneticShiftModal';
 import { useAuth } from '@/context/AuthContext';
 import { apiGateway } from '@/services/api-gateway.client';
@@ -150,17 +150,15 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
         <div className="flex items-center gap-2">
           <button
             onClick={handlePhoneticClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 text-sky-700 border border-sky-200/80 rounded-xl text-xs font-bold hover:bg-sky-100 transition-colors shadow-2xs"
+            className="px-3 py-1.5 bg-sky-50 text-sky-700 border border-sky-200/80 rounded-xl text-xs font-bold hover:bg-sky-100 transition-colors shadow-2xs cursor-pointer"
           >
-            <Layers className="w-3.5 h-3.5 text-sky-600" />
             <span>Quy tắc chuyển âm</span>
           </button>
 
           <button
             onClick={handleViewStrokesClick}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors shadow-xs"
+            className="px-3.5 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors shadow-xs cursor-pointer"
           >
-            <Eye className="w-3.5 h-3.5" />
             <span>Tập viết ({data.strokeCount} nét)</span>
           </button>
         </div>
@@ -215,7 +213,6 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
       {/* Box Quy tắc chuyển âm Hán Việt nếu có */}
       {data.phoneticRule && (
         <div className="p-3 bg-sky-50/80 border border-sky-200 rounded-xl text-xs flex items-start gap-2 text-sky-900">
-          <Info className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
           <div>
             <strong className="font-bold text-sky-800">Quy tắc chuyển âm Hán Việt:</strong>{' '}
             <span className="font-medium">{data.phoneticRule}</span>
@@ -276,9 +273,8 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
       {((data.exampleWords && data.exampleWords.length > 0) || (data.minaVocabularies && data.minaVocabularies.length > 0)) && (
         <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Ví dụ từ vựng thường gặp</span>
+            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+              Ví dụ từ vựng thường gặp
             </h4>
             <span className="text-[11px] text-slate-400 font-medium">
               Bấm loa để nghe phát âm
@@ -333,41 +329,35 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
         </div>
       )}
 
-      {/* STUDIO AI SENSEI: MẸO NHỚ CHIẾT TỰ ĐỘC QUYỀN (GEMINI 3.6 FLASH) */}
-      <div className="mt-2 p-5 bg-gradient-to-br from-indigo-50/70 via-white to-sky-50/50 rounded-2xl border border-indigo-100/90 shadow-2xs flex flex-col gap-3 relative overflow-hidden">
-        <div className="flex items-center justify-between border-b border-indigo-100/70 pb-2.5">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-2xs">
-              <Lightbulb className="w-4 h-4 text-amber-300 fill-amber-300" />
-            </div>
-            <div>
-              <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
-                Mẹo Nhớ Chiết Tự & Bộ Thủ
-                {aiInsight?.isCached && (
-                  <span className="text-[10px] font-normal text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                    Đã lưu CSDL
-                  </span>
-                )}
-              </h4>
-            </div>
+      {/* MẸO NHỚ CHIẾT TỰ & BỘ THỦ */}
+      <div className="mt-2 p-5 bg-slate-50/70 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col gap-3 relative overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-200/70 pb-2.5">
+          <div>
+            <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Mẹo Nhớ Chiết Tự & Bộ Thủ</span>
+              {aiInsight?.isCached && (
+                <span className="text-[10px] font-normal text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                  Đã lưu CSDL
+                </span>
+              )}
+            </h4>
           </div>
 
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleRegenerateAi}
               disabled={isLoadingAi}
-              className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs active:scale-95"
+              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs active:scale-95"
               title="Tạo lại mẹo nhớ chiết tự"
             >
-              <RefreshCw className={`w-3 h-3 ${isLoadingAi ? 'animate-spin text-indigo-600' : ''}`} />
-              <span>Tạo lại</span>
+              <span>{isLoadingAi ? 'Đang tạo...' : 'Tạo lại'}</span>
             </button>
 
             <button
               onClick={() => setShowMnemonic(!showMnemonic)}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              className="px-2 py-1 text-slate-500 hover:text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 bg-white cursor-pointer"
             >
-              {showMnemonic ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+              {showMnemonic ? 'Thu gọn' : 'Mở rộng'}
             </button>
           </div>
         </div>
@@ -378,20 +368,19 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
               <div className="p-6 flex flex-col items-center justify-center gap-2 text-indigo-600">
                 <Loader2 className="w-6 h-6 animate-spin" />
                 <span className="text-xs font-bold text-indigo-800">
-                  AI Sensei đang phân tích các bộ thủ và dệt nên câu chuyện ghi nhớ...
+                  Hệ thống đang phân tích các bộ thủ và tạo câu chuyện ghi nhớ...
                 </span>
               </div>
             ) : aiError ? (
               <div className="p-3 bg-rose-50 text-rose-700 rounded-xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{aiError}</span>
               </div>
             ) : (
               <>
                 {/* Câu chuyện chiết tự hình tượng */}
-                <div className="bg-white p-3.5 rounded-xl border border-indigo-100 shadow-2xs">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
                   <p className="text-slate-800 text-sm leading-relaxed font-semibold">
-                    💡 "{aiInsight?.mnemonicStory || data.mnemonic || 'Đang cập nhật câu chuyện...'}"
+                    "{aiInsight?.mnemonicStory || data.mnemonic || 'Đang cập nhật câu chuyện...'}"
                   </p>
                 </div>
 
@@ -402,9 +391,9 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
                     {aiInsight.radicalBreakdown.map((r, idx) => (
                       <div
                         key={idx}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50/80 border border-indigo-200/80 rounded-lg text-xs"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs"
                       >
-                        <span className="font-black text-indigo-700 text-sm">{r.symbol}</span>
+                        <span className="font-black text-slate-800 text-sm">{r.symbol}</span>
                         <span className="text-slate-600 font-medium text-[11px]">{r.meaning}</span>
                       </div>
                     ))}
@@ -414,7 +403,7 @@ export const KanjiDetailCard: React.FC<KanjiDetailCardProps> = ({ data, onViewSt
                 {/* Cảnh báo tránh nhầm lẫn */}
                 {aiInsight?.confusionWarning && (
                   <div className="p-2.5 bg-amber-50/80 border border-amber-200/70 rounded-xl text-[11px] text-amber-900 font-medium flex items-center gap-2">
-                    <span className="font-bold text-amber-700 shrink-0">⚠️ Lưu ý thi JLPT:</span>
+                    <span className="font-bold text-amber-700 shrink-0">Lưu ý thi JLPT:</span>
                     <span>{aiInsight.confusionWarning}</span>
                   </div>
                 )}

@@ -1,16 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  Languages, 
-  BookOpen, 
-  GraduationCap, 
-  BookOpenCheck, 
-  Headphones, 
-  Award, 
-  Bookmark,
   ChevronDown,
-  ChevronUp,
-  Rocket,
-  Target
+  ChevronUp
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -21,13 +12,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const features = [
-    { id: 'kanji', title: 'Hán Tự (Kanji)', desc: 'Hệ thống tra cứu và học Hán tự theo giáo trình chuẩn, phân rã bộ thủ logic.', icon: Languages, color: 'bg-indigo-50 text-indigo-600', hover: 'hover:border-indigo-300' },
-    { id: 'vocab', title: 'Từ Vựng (Vocab)', desc: 'Kho từ vựng khổng lồ từ N5-N1 kèm ví dụ minh họa và phát âm bản xứ.', icon: BookOpen, color: 'bg-emerald-50 text-emerald-600', hover: 'hover:border-emerald-300' },
-    { id: 'grammar', title: 'Ngữ Pháp', desc: 'Giải thích ngữ pháp chi tiết dễ hiểu, so sánh các mẫu ngữ pháp dễ nhầm lẫn.', icon: GraduationCap, color: 'bg-blue-50 text-blue-600', hover: 'hover:border-blue-300' },
-    { id: 'reading', title: 'Đọc Hiểu & Tin Tức', desc: 'Luyện đọc qua báo chí Nhật Bản thực tế (NHK, Livedoor) kèm câu hỏi trắc nghiệm.', icon: BookOpenCheck, color: 'bg-amber-50 text-amber-600', hover: 'hover:border-amber-300' },
-    { id: 'shadowing', title: 'Luyện Nghe', desc: 'Luyện nghe và nói nhại theo (Shadowing) qua các video YouTube thực tế sinh động.', icon: Headphones, color: 'bg-rose-50 text-rose-600', hover: 'hover:border-rose-300' },
-    { id: 'exam', title: 'Thi Thử JLPT', desc: 'Kho đề thi JLPT chuẩn cấu trúc với đồng hồ bấm giờ như thi thật và chấm điểm tự động.', icon: Award, color: 'bg-violet-50 text-violet-600', hover: 'hover:border-violet-300' },
-    { id: 'personal', title: 'Sổ Tay Cá Nhân', desc: 'Ghi chú, lưu trữ từ vựng, ngữ pháp. Tự động nhắc nhở ôn tập bằng thuật toán Spaced Repetition.', icon: Bookmark, color: 'bg-teal-50 text-teal-600', hover: 'hover:border-teal-300' }
+    { id: 'kanji', title: 'Hán Tự (Kanji)', desc: 'Hệ thống tra cứu và học Hán tự theo giáo trình chuẩn, phân rã bộ thủ logic.' },
+    { id: 'vocab', title: 'Từ Vựng (Vocab)', desc: 'Kho từ vựng khổng lồ từ N5-N1 kèm ví dụ minh họa và phát âm bản xứ.' },
+    { id: 'grammar', title: 'Ngữ Pháp', desc: 'Giải thích ngữ pháp chi tiết dễ hiểu, so sánh các mẫu ngữ pháp dễ nhầm lẫn.' },
+    { id: 'reading', title: 'Đọc Hiểu & Tin Tức', desc: 'Luyện đọc qua báo chí Nhật Bản thực tế (NHK, Livedoor) kèm câu hỏi trắc nghiệm.' },
+    { id: 'shadowing', title: 'Luyện Nghe', desc: 'Luyện nghe và nói nhại theo (Shadowing) qua các video YouTube thực tế sinh động.' },
+    { id: 'exam', title: 'Thi Thử JLPT', desc: 'Kho đề thi JLPT chuẩn cấu trúc với đồng hồ bấm giờ như thi thật và chấm điểm tự động.' },
+    { id: 'personal', title: 'Sổ Tay Cá Nhân', desc: 'Ghi chú, lưu trữ từ vựng, ngữ pháp. Tự động nhắc nhở ôn tập bằng thuật toán Spaced Repetition.' }
   ];
 
   const faqs = [
@@ -41,8 +32,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
     <div className="w-full flex flex-col items-center animate-fade-in-up pb-12">
       {/* Hero Section */}
       <section className="w-full max-w-6xl mx-auto mt-8 mb-16 text-center px-4">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-medium text-sm mb-6">
-          <GraduationCap className="w-4 h-4" /> Nền tảng luyện thi tiếng Nhật thông minh chuẩn JLPT
+        <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs uppercase tracking-wider mb-6">
+          Nền tảng luyện thi tiếng Nhật chuẩn JLPT
         </div>
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-tight mb-6">
           Học tiếng Nhật chuẩn xác <br className="hidden md:block"/> 
@@ -54,15 +45,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="flex flex-wrap justify-center gap-4">
           <button 
             onClick={() => onNavigate('exam')}
-            className="flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-indigo-200 transition-all active:scale-95"
+            className="px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-indigo-200 transition-all active:scale-95 cursor-pointer"
           >
-            <Target className="w-5 h-5" /> Thi thử JLPT ngay
+            Thi thử JLPT ngay
           </button>
           <button 
             onClick={() => onNavigate('kanji')}
-            className="flex items-center gap-2 px-8 py-4 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95 shadow-sm"
+            className="px-8 py-4 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95 shadow-sm cursor-pointer"
           >
-            <Rocket className="w-5 h-5" /> Khám phá Hán tự
+            Khám phá Hán tự
           </button>
         </div>
       </section>
@@ -80,12 +71,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
               <div 
                 key={feature.id} 
                 onClick={() => onNavigate(feature.id)}
-                className={`bg-white border border-slate-200 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/50 ${feature.hover}`}
+                className="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/50"
               >
-                <div className={`w-14 h-14 rounded-2xl ${feature.color} flex items-center justify-center mb-5`}>
-                  <feature.icon className="w-7 h-7" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">{feature.title}</h3>
+                <h3 className="text-lg font-black text-slate-800 mb-2">{feature.title}</h3>
                 <p className="text-slate-500 leading-relaxed text-sm">{feature.desc}</p>
               </div>
             ))}

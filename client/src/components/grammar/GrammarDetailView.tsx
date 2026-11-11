@@ -4,16 +4,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Volume2,
   Bookmark,
-  Lightbulb,
   CheckCircle2,
   XCircle,
-  RotateCcw,
-  AlertTriangle,
-  GitCompare,
-  BookOpen,
-  ArrowRight,
-  Layers,
-  HelpCircle
+  ArrowRight
 } from 'lucide-react';
 import { GrammarMasterItem } from './grammar.types';
 
@@ -127,9 +120,8 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
 
             <button
               onClick={() => onOpenAiAnalysis(item)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all cursor-pointer border border-indigo-200"
+              className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all cursor-pointer border border-indigo-200"
             >
-              <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />
               <span>Phân tích chi tiết</span>
             </button>
           </div>
@@ -170,8 +162,7 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
 
       {/* 2. Bảng Quy Tắc Kết Hợp (Formation Table) */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 lg:p-8 shadow-2xs flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <Layers className="w-5 h-5 text-indigo-600" />
+        <div>
           <h3 className="text-base font-black text-slate-900">
             Quy Tắc Chia & Kết Hợp (接続)
           </h3>
@@ -207,8 +198,7 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
 
       {/* 3. Sắc Thái Ngữ Cảnh & Bản Chất Sử Dụng */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 lg:p-8 shadow-2xs flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-blue-600" />
+        <div>
           <h3 className="text-base font-black text-slate-900">
             Sắc Thái Biểu Đạt & Hoàn Cảnh Dùng
           </h3>
@@ -267,8 +257,7 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {item.cautionNotes && item.cautionNotes.length > 0 && (
             <div className="bg-amber-50/70 border border-amber-200 rounded-3xl p-6 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-amber-800 font-black text-sm">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <div className="text-amber-800 font-black text-sm">
                 <span>Điểm Lưu Ý & Bẫy Thi JLPT</span>
               </div>
               <ul className="space-y-2 text-xs text-amber-900 leading-relaxed">
@@ -284,8 +273,7 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
 
           {item.confusingPairs && item.confusingPairs.length > 0 && (
             <div className="bg-purple-50/70 border border-purple-200 rounded-3xl p-6 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-purple-800 font-black text-sm">
-                <GitCompare className="w-4 h-4 text-purple-600" />
+              <div className="text-purple-800 font-black text-sm">
                 <span>Phân Biệt Cấu Trúc Dễ Nhầm Lẫn</span>
               </div>
               <div className="space-y-2 text-xs text-purple-900 leading-relaxed">
@@ -309,8 +297,7 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
       {item.quickQuiz && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 lg:p-8 shadow-2xs flex flex-col gap-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-indigo-600" />
+            <div>
               <h3 className="text-base font-black text-slate-900">
                 Thử Thách Nhanh: Kiểm Tra Mức Độ Hiểu Bài
               </h3>
@@ -319,9 +306,8 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
             {isQuizSubmitted && (
               <button
                 onClick={handleResetQuiz}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
                 <span>Làm lại</span>
               </button>
             )}
@@ -387,12 +373,11 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
           {/* Giải thích đáp án */}
           {isQuizSubmitted && (
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1 animate-in fade-in duration-150">
-              <div className="font-bold text-indigo-700 flex items-center gap-1.5">
-                <Lightbulb className="w-3.5 h-3.5" />
+              <div className="font-bold text-indigo-700">
                 <span>
                   {selectedQuizAnswer !== null && shuffledQuizOptions[selectedQuizAnswer]?.isCorrect
-                    ? 'Chính xác! 🎉'
-                    : 'Chưa đúng, hãy đọc giải thích bên dưới: 💡'}
+                    ? 'Chính xác!'
+                    : 'Chưa đúng, hãy đọc giải thích bên dưới:'}
                 </span>
               </div>
               <p className="text-slate-700 leading-relaxed">

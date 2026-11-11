@@ -3,23 +3,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiGateway } from '@/services/api-gateway.client';
 import {
-  Trophy,
-  HelpCircle,
   CheckCircle2,
   XCircle,
-  RotateCcw,
-  Lightbulb,
-  ChevronRight,
-  BookOpen,
   Volume2,
   Loader2,
   AlertCircle,
   Check,
-  X,
-  Layers,
-  ArrowRightLeft,
-  Flame,
-  Shuffle
+  X
 } from 'lucide-react';
 
 interface MatchingPair {
@@ -306,8 +296,8 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
         {/* Hàng 1: Giáo trình & Dạng câu hỏi */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <BookOpen className="w-3.5 h-3.5 text-indigo-500" /> Giáo trình luyện thi:
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+              Giáo trình luyện thi:
             </span>
             <select
               value={selectedCurriculum}
@@ -323,8 +313,8 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" /> Dạng câu hỏi:
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+              Dạng câu hỏi:
             </span>
             <select
               value={selectedType}
@@ -411,10 +401,9 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
               onClick={() => startNewQuiz(selectedLevel, questionCount, selectedCurriculum, selectedType)}
               disabled={isLoading}
               title="Tạo bộ câu hỏi ngẫu nhiên mới với các tiêu chí hiện tại"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200/80 shadow-2xs cursor-pointer ml-auto lg:ml-0"
+              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200/80 shadow-2xs cursor-pointer ml-auto lg:ml-0"
             >
-              <Shuffle className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Đổi đề</span>
+              <span>{isLoading ? 'Đang đổi...' : 'Đổi đề'}</span>
             </button>
           </div>
         </div>
@@ -440,10 +429,6 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
       ) : isQuizCompleted ? (
         /* ================= TỔNG KẾT BÀI THI ================= */
         <div className="w-full bg-white p-8 rounded-3xl border-2 border-indigo-200 shadow-sm flex flex-col items-center text-center gap-5 animate-in zoom-in-95 duration-200">
-          <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shadow-inner">
-            <Trophy className="w-8 h-8" />
-          </div>
-
           <div>
             <span className="text-xs font-extrabold text-indigo-600 uppercase tracking-widest">
               Hoàn thành bài kiểm tra {selectedLevel !== 'ALL' ? selectedLevel : 'Tổng hợp'}
@@ -499,7 +484,7 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
               {/* AI Explanation Result */}
               {aiExplanations[currentQ.id] ? (
                 <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs space-y-1.5 mt-2">
-                  <p className="font-bold text-purple-900 flex items-center gap-1"><Lightbulb className="w-3.5 h-3.5 text-purple-600"/> Giải thích chi tiết:</p>
+                  <p className="font-bold text-purple-900">Giải thích chi tiết:</p>
                   <div className="text-purple-950 font-sans whitespace-pre-wrap leading-relaxed">{aiExplanations[currentQ.id]}</div>
                 </div>
               ) : (
@@ -507,10 +492,9 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
                   <button
                     onClick={() => handleRequestAiExplain(currentQ, selectedOption)}
                     disabled={loadingAiId === currentQ.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-white border border-indigo-200 hover:bg-indigo-50 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-white border border-indigo-200 hover:bg-indigo-50 transition-all cursor-pointer"
                   >
-                    {loadingAiId === currentQ.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />}
-                    Xem thêm giải thích chi tiết
+                    {loadingAiId === currentQ.id ? 'Đang tải giải thích...' : 'Xem thêm giải thích chi tiết'}
                   </button>
                 </div>
               )}
@@ -527,9 +511,8 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
 
           <button
             onClick={() => startNewQuiz(selectedLevel, questionCount, selectedCurriculum, selectedType)}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 mt-2"
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs shadow-xs transition-all flex items-center justify-center mt-2 cursor-pointer"
           >
-            <RotateCcw className="w-4 h-4" />
             <span>Làm đề kiểm tra mới</span>
           </button>
         </div>
@@ -764,9 +747,8 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
           {isAnswered && (
             <div className="p-4 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl flex flex-col gap-3 animate-in fade-in duration-200">
               <div className="flex items-start gap-2 text-xs">
-                <Lightbulb className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                 <div className="flex flex-col">
-                  <span className="font-extrabold text-indigo-900">Giải thích chi tiết:</span>
+                  <span className="font-extrabold text-indigo-900">Giải thích:</span>
                   <p className="text-slate-700 font-medium mt-0.5">{currentQ.explanation}</p>
                 </div>
               </div>
@@ -774,7 +756,7 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
               {/* AI Explanation Result */}
               {aiExplanations[currentQ.id] ? (
                 <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs space-y-1.5 mt-2">
-                  <p className="font-bold text-purple-900 flex items-center gap-1"><Lightbulb className="w-3.5 h-3.5 text-purple-600"/> Giải thích chi tiết:</p>
+                  <p className="font-bold text-purple-900">Giải thích chi tiết:</p>
                   <div className="text-purple-950 font-sans whitespace-pre-wrap leading-relaxed">{aiExplanations[currentQ.id]}</div>
                 </div>
               ) : (
@@ -782,10 +764,9 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
                   <button
                     onClick={() => handleRequestAiExplain(currentQ, selectedOption)}
                     disabled={loadingAiId === currentQ.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-white border border-indigo-200 hover:bg-indigo-50 transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-white border border-indigo-200 hover:bg-indigo-50 transition-all cursor-pointer"
                   >
-                    {loadingAiId === currentQ.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />}
-                    Xem thêm giải thích chi tiết
+                    {loadingAiId === currentQ.id ? 'Đang tải giải thích...' : 'Xem thêm giải thích chi tiết'}
                   </button>
                 </div>
               )}
@@ -794,18 +775,17 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
                 {onSelectKanji && currentQ.kanji && (
                   <button
                     onClick={() => onSelectKanji(currentQ.kanji)}
-                    className="text-xs text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-indigo-600 hover:underline font-bold cursor-pointer"
                   >
-                    <BookOpen className="w-3.5 h-3.5" /> Xem chi tiết chữ 【{currentQ.kanji}】
+                    Xem chi tiết chữ 【{currentQ.kanji}】
                   </button>
                 )}
 
                 <button
                   onClick={handleNextQuestion}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all ml-auto cursor-pointer active:scale-95"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs transition-all ml-auto cursor-pointer active:scale-95"
                 >
                   <span>{currentIndex + 1 < questions.length ? 'Câu tiếp theo' : 'Xem kết quả'}</span>
-                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>

@@ -8,16 +8,10 @@ import {
   LogOut,
   User,
   ChevronDown,
-  Languages,
   ShieldCheck,
   ShieldAlert,
   Award,
-  BookOpen,
-  GraduationCap,
-  BookOpenCheck,
-  Headphones,
-  Bookmark,
-  Compass
+  Bookmark
 } from 'lucide-react';
 
 interface TopHeaderProps {
@@ -52,13 +46,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ activeTab = 'kanji', onSel
   const currentLevel = user?.targetLevel || 'N5';
 
   const navTabs = [
-    { id: 'kanji', label: 'Hán tự', icon: Languages },
-    { id: 'vocab', label: 'Từ vựng', icon: BookOpen },
-    { id: 'grammar', label: 'Ngữ pháp', icon: GraduationCap },
-    { id: 'reading', label: 'Đọc hiểu', icon: BookOpenCheck },
-    { id: 'shadowing', label: 'Luyện nghe', icon: Headphones },
-    { id: 'exam', label: 'Thi JLPT', icon: Award },
-    { id: 'personal', label: 'Sổ tay', icon: Bookmark }
+    { id: 'kanji', label: 'Hán tự' },
+    { id: 'vocab', label: 'Từ vựng' },
+    { id: 'grammar', label: 'Ngữ pháp' },
+    { id: 'reading', label: 'Đọc hiểu' },
+    { id: 'shadowing', label: 'Luyện nghe' },
+    { id: 'exam', label: 'Thi JLPT' },
+    { id: 'personal', label: 'Sổ tay' }
   ];
 
   return (
@@ -88,13 +82,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ activeTab = 'kanji', onSel
             <button
               key={tab.id}
               onClick={() => onSelectTab?.(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-bold transition-all duration-200 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-[13px] font-bold transition-all duration-200 cursor-pointer ${
                 activeTab === tab.id
                   ? 'bg-indigo-50 text-indigo-700 shadow-xs shadow-indigo-500/10'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-400'}`} />
               {tab.label}
             </button>
           ))}

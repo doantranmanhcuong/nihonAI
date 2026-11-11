@@ -2124,9 +2124,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
           exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
           exampleVi: q.passageVi ? `${q.passageVi}\n\n${q.questionVi}` : q.questionVi,
           note: [
-            q.explanation ? `💡 Giải thích đáp án & Bẫy thi: ${stripRuby(q.explanation)}` : '',
-            q.keyGrammarOrVocab ? `🎯 Trọng tâm: ${stripRuby(q.keyGrammarOrVocab)}` : '',
-            q.studyTips ? `💡 Mẹo phòng thi: ${stripRuby(q.studyTips)}` : '',
+            q.explanation ? `Giải thích đáp án & Bẫy thi: ${stripRuby(q.explanation)}` : '',
+            q.keyGrammarOrVocab ? `Trọng tâm: ${stripRuby(q.keyGrammarOrVocab)}` : '',
+            q.studyTips ? `Mẹo phòng thi: ${stripRuby(q.studyTips)}` : '',
             metaStr
           ].filter(Boolean).join('\n'),
           tags: `JLPT_${examResult.level},Thi_thử,Câu_sai,${shortExamTitle}`,
@@ -2140,7 +2140,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     }
 
     setIsSavingToNotebook(false);
-    setSavedNotebookMessage(`🎉 Đã lưu thành công ${successCount}/${wrongQuestions.length} câu làm sai và cấu trúc ngữ pháp vào Sổ tay Cá nhân! Bạn có thể chuyển sang tab Sổ tay để ôn luyện Flashcard SRS bất kỳ lúc nào.`);
+    setSavedNotebookMessage(`Đã lưu thành công ${successCount}/${wrongQuestions.length} câu làm sai và cấu trúc ngữ pháp vào Sổ tay Cá nhân! Bạn có thể chuyển sang tab Sổ tay để ôn luyện Flashcard SRS bất kỳ lúc nào.`);
   };
 
   // Lưu riêng lẻ 1 câu vào sổ tay
@@ -2181,9 +2181,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         exampleJp: q.passage ? `${q.passage}\n\n${q.question}` : q.question,
         exampleVi: q.passageVi ? `${q.passageVi}\n\n${q.questionVi}` : q.questionVi,
         note: [
-          q.explanation ? `💡 Giải thích đáp án & Bẫy thi: ${stripRuby(q.explanation)}` : '',
-          q.keyGrammarOrVocab ? `🎯 Trọng tâm: ${stripRuby(q.keyGrammarOrVocab)}` : '',
-          q.studyTips ? `💡 Mẹo phòng thi: ${stripRuby(q.studyTips)}` : '',
+          q.explanation ? `Giải thích đáp án & Bẫy thi: ${stripRuby(q.explanation)}` : '',
+          q.keyGrammarOrVocab ? `Trọng tâm: ${stripRuby(q.keyGrammarOrVocab)}` : '',
+          q.studyTips ? `Mẹo phòng thi: ${stripRuby(q.studyTips)}` : '',
           metaStr
         ].filter(Boolean).join('\n'),
         tags: `JLPT_${examResult.level},Thi_thử,Câu_sai,${shortExamTitle}`,
@@ -2521,40 +2521,37 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
             <div className="pt-2 flex flex-wrap items-center gap-3">
               <button
                 onClick={() => setActiveStudioTab('full_exam')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeStudioTab === 'full_exam'
-                    ? 'bg-white text-indigo-900 shadow-md scale-102 font-black'
+                    ? 'bg-white text-indigo-900 shadow-md font-black'
                     : 'bg-white/15 text-white hover:bg-white/25 border border-white/25 backdrop-blur-xs'
                 }`}
               >
-                <Award className="w-4 h-4 text-amber-500" />
-                <span>🏆 Thi Thử Trọn Bộ (Full Exam - 180đ)</span>
+                <span>Thi Thử Trọn Bộ (Full Exam - 180đ)</span>
               </button>
 
               <button
                 onClick={() => setActiveStudioTab('skill_practice')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeStudioTab === 'skill_practice'
-                    ? 'bg-white text-indigo-900 shadow-md scale-102 font-black'
+                    ? 'bg-white text-indigo-900 shadow-md font-black'
                     : 'bg-white/15 text-white hover:bg-white/25 border border-white/25 backdrop-blur-xs'
                 }`}
               >
-                <Zap className="w-4 h-4 text-amber-300" />
-                <span>🎯 Luyện Đề Theo Chuyên Đề (Skill Practice)</span>
+                <span>Luyện Đề Theo Chuyên Đề</span>
               </button>
 
               <button
                 onClick={() => setActiveStudioTab('mistake_bank')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeStudioTab === 'mistake_bank'
-                    ? 'bg-white text-indigo-900 shadow-md scale-102 font-black'
+                    ? 'bg-white text-indigo-900 shadow-md font-black'
                     : 'bg-white/15 text-white hover:bg-white/25 border border-white/25 backdrop-blur-xs'
                 }`}
               >
-                <RotateCcw className="w-4 h-4 text-rose-300" />
-                <span>📕 Ngân Hàng Câu Sai & SRS (Mistake Bank)</span>
+                <span>Ngân Hàng Câu Sai & SRS</span>
                 {mistakeItems.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-bold">
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-bold">
                     {mistakeItems.length}
                   </span>
                 )}
@@ -2770,9 +2767,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
             <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-5">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <RotateCcw className="w-5 h-5 text-rose-500" />
-                    <span>Ngân Hàng Câu Hỏi Làm Sai & Ôn Tập Ngắt Quãng SRS</span>
+                  <h3 className="text-lg font-black text-slate-900">
+                    Ngân Hàng Câu Hỏi Làm Sai & Ôn Tập Ngắt Quãng SRS
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
                     Hệ thống tự động đồng bộ tất cả câu hỏi bạn làm sai và cấu trúc ngữ pháp bạn đã lưu từ các kỳ thi thử để ôn tập lặp lại ngắt quãng (1 - 3 - 7 - 14 ngày).
@@ -2791,55 +2787,38 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
                     title="Làm mới danh sách câu sai"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMistakes ? 'animate-spin' : ''}`} />
                     <span>Làm mới</span>
                   </button>
 
                   <button
                     onClick={handleStartMistakePractice}
                     disabled={filteredMistakes.length === 0}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700 active:scale-95 shadow-md shadow-rose-200 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-200 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Zap className="w-4 h-4 fill-white" />
-                    <span>🔥 Luyện Lại Các Câu Sai ({filteredMistakes.length})</span>
+                    <span>Luyện Lại Các Câu Sai ({filteredMistakes.length})</span>
                   </button>
                 </div>
               </div>
 
               {/* 3 Thẻ chỉ số SRS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-rose-900 block">Tổng số câu sai lưu trữ</span>
-                    <span className="text-2xl font-black text-rose-700">{mistakeItems.length}</span>
-                  </div>
-                  <div className="p-3 bg-white rounded-2xl shadow-xs text-rose-600">
-                    <XCircle className="w-6 h-6" />
-                  </div>
+                <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/80">
+                  <span className="text-xs font-bold text-rose-900 block">Tổng số câu sai lưu trữ</span>
+                  <span className="text-2xl font-black text-rose-700">{mistakeItems.length}</span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-amber-900 block">Đang ôn tập ngắt quãng (SRS)</span>
-                    <span className="text-2xl font-black text-amber-700">
-                      {mistakeItems.filter((i) => i.masteryStatus !== 'MASTERED').length}
-                    </span>
-                  </div>
-                  <div className="p-3 bg-white rounded-2xl shadow-xs text-amber-600">
-                    <Clock className="w-6 h-6" />
-                  </div>
+                <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80">
+                  <span className="text-xs font-bold text-amber-900 block">Đang ôn tập ngắt quãng (SRS)</span>
+                  <span className="text-2xl font-black text-amber-700">
+                    {mistakeItems.filter((i) => i.masteryStatus !== 'MASTERED').length}
+                  </span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-emerald-900 block">Đã thành thạo (Mastered)</span>
-                    <span className="text-2xl font-black text-emerald-700">
-                      {mistakeItems.filter((i) => i.masteryStatus === 'MASTERED').length}
-                    </span>
-                  </div>
-                  <div className="p-3 bg-white rounded-2xl shadow-xs text-emerald-600">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
+                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80">
+                  <span className="text-xs font-bold text-emerald-900 block">Đã thành thạo (Mastered)</span>
+                  <span className="text-2xl font-black text-emerald-700">
+                    {mistakeItems.filter((i) => i.masteryStatus === 'MASTERED').length}
+                  </span>
                 </div>
               </div>
             </div>
@@ -2875,18 +2854,14 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
               </div>
             ) : filteredMistakes.length === 0 ? (
               <div className="bg-white rounded-3xl p-10 border border-slate-200/80 text-center space-y-3">
-                <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
-                  <BookmarkCheck className="w-8 h-8" />
-                </div>
                 <h3 className="font-black text-slate-800 text-base">Chưa có câu làm sai nào trong Ngân hàng</h3>
                 <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                  Khi bạn tham gia thi thử hoặc luyện đề, tại màn hình xem lại kết quả hãy nhấn <strong>"1-Click Lưu toàn bộ câu sai & Ngữ pháp vào Sổ tay"</strong> hoặc biểu tượng 🔖 ở từng câu để hệ thống đưa vào lộ trình ôn ngắt quãng SRS!
+                  Khi bạn tham gia thi thử hoặc luyện đề, các câu bạn làm sai sẽ tự động được lưu trữ vào lộ trình ôn ngắt quãng SRS!
                 </p>
                 <button
                   onClick={() => setActiveStudioTab('full_exam')}
-                  className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200 cursor-pointer"
+                  className="mt-2 inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200 cursor-pointer"
                 >
-                  <Award className="w-4 h-4" />
                   <span>Vào thi thử ngay</span>
                 </button>
               </div>
@@ -3174,9 +3149,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                       <div>
                         <button
                           onClick={() => handleStartExam(exam, 'practice', selectedSkillSection)}
-                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 shadow-md shadow-indigo-100 transition-all cursor-pointer"
+                          className="w-full flex items-center justify-center py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-100 transition-all cursor-pointer"
                         >
-                          <Zap className="w-3.5 h-3.5" />
                           <span>
                             {selectedSkillSection === 'vocab' && 'Luyện Chuyên Đề: Từ vựng & Hán tự'}
                             {selectedSkillSection === 'grammar' && 'Luyện Chuyên Đề: Ngữ pháp & Dấu sao'}
@@ -3216,9 +3190,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                 {/* LỰA CHỌN 2 PHƯƠNG ÁN THI (YÊU CẦU TRỌNG TÂM CỦA HỌC VIÊN) */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
-                      <span>Chọn 1 Trong 2 Phương Án Thi:</span>
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                      Chọn 1 Trong 2 Phương Án Thi:
                     </span>
                     <span className="text-[11px] font-bold text-indigo-600">
                       {selectedFormat === 'express' ? 'Đang chọn: Phương án 1' : 'Đang chọn: Phương án 2'}
@@ -3236,9 +3209,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                       }`}
                     >
                       <div className="flex items-center justify-between pb-1.5">
-                        <span className="text-xs font-black text-indigo-800 flex items-center gap-1">
-                          <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                          <span>Phương Án 1: Tinh Gọn</span>
+                        <span className="text-xs font-black text-indigo-800">
+                          Phương Án 1: Tinh Gọn
                         </span>
                         {selectedFormat === 'express' && (
                           <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
@@ -3267,9 +3239,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                       }`}
                     >
                       <div className="flex items-center justify-between pb-1.5">
-                        <span className="text-xs font-black text-emerald-800 flex items-center gap-1">
-                          <Award className="w-4 h-4 text-emerald-600" />
-                          <span>Phương Án 2: Thi Thật</span>
+                        <span className="text-xs font-black text-emerald-800">
+                          Phương Án 2: Thi Thật
                         </span>
                         {selectedFormat === 'full' && (
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -4389,10 +4360,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                 <button
                   onClick={handleSaveAllWrongToNotebook}
                   disabled={isSavingToNotebook}
-                  className="ml-2 px-3 py-0.5 rounded-full text-xs font-bold text-slate-900 bg-amber-300 hover:bg-amber-400 border border-amber-400 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                  className="ml-2 px-3 py-0.5 rounded-full text-xs font-bold text-slate-900 bg-amber-300 hover:bg-amber-400 border border-amber-400 transition-all cursor-pointer inline-flex items-center active:scale-95"
                   title="Lưu tất cả câu sai vào Sổ tay SRS"
                 >
-                  <BookmarkPlus className="w-3.5 h-3.5 text-slate-900" />
                   <span>Lưu {wrongCount} câu sai</span>
                 </button>
               )}
@@ -4618,31 +4588,6 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
                     {/* HỘP "GIẢI THÍCH:" ĐƠN GIẢN, THÂN THIỆN (Image 2, 3, 4, 6, 8) */}
                     {renderCleanFriendlyExplanation(q)}
-
-                    {/* Nút lưu vào Sổ tay SRS câu này */}
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 font-sans">
-                      <button
-                        onClick={() => handleSaveSingleToNotebook(q)}
-                        disabled={isSavedToNotebook}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          isSavedToNotebook
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}
-                      >
-                        {isSavedToNotebook ? (
-                          <>
-                            <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Đã lưu vào Sổ tay</span>
-                          </>
-                        ) : (
-                          <>
-                            <BookmarkPlus className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Lưu vào Sổ tay SRS</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
                   </div>
                 );
               })}
