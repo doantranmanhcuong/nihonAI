@@ -7,7 +7,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  Sparkles,
+  Lightbulb,
+  Layers,
   Network,
   BookOpen,
   Shuffle,
@@ -221,7 +222,7 @@ export const KanjiFlashcardView: React.FC<KanjiFlashcardViewProps> = ({
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+          <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
           <span>Mặt sau: Nghĩa & Mẹo nhớ</span>
         </button>
       </div>
@@ -470,7 +471,7 @@ export const KanjiFlashcardView: React.FC<KanjiFlashcardViewProps> = ({
                   className="py-2 px-2 bg-slate-50 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition-all flex flex-col items-center gap-1 text-center shadow-2xs cursor-pointer"
                   title="Xem quy tắc chuyển âm Hán Việt"
                 >
-                  <Sparkles className="w-4 h-4 text-sky-600" />
+                  <Layers className="w-4 h-4 text-sky-600" />
                   <span className="line-clamp-1">Chuyển âm</span>
                 </button>
 

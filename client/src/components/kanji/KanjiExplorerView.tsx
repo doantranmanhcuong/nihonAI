@@ -59,8 +59,6 @@ import {
 
   AlertCircle,
 
-  Sparkles,
-
   Layers,
 
   Award,
@@ -2286,7 +2284,7 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
 
-                  <Sparkles className="w-4 h-4 text-indigo-600" /> Sơ đồ bộ thủ cấu thành chữ 【{modalKanji.character}】
+                  <Layers className="w-4 h-4 text-indigo-600" /> Sơ đồ bộ thủ cấu thành chữ 【{modalKanji.character}】
 
                 </h3>
 

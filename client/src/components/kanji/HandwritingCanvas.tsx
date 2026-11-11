@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { apiGateway } from '@/services/api-gateway.client';
-import { Trash2, Loader2, PenTool, Sparkles } from 'lucide-react';
+import { Trash2, Loader2, PenTool } from 'lucide-react';
 
 interface HandwritingCanvasProps {
   onSelectKanji: (character: string) => void;

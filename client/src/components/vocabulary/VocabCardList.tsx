@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Volume2, Lock, Sparkles, BookOpen } from 'lucide-react';
+import { Volume2, Lock, BookOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export interface VocabularySummary {

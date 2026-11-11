@@ -10,7 +10,6 @@ import {
   RotateCcw,
   CheckCircle2,
   XCircle,
-  Sparkles,
   Layers,
   BookOpen,
   Target,

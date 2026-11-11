@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Bookmark,
-  Sparkles,
+  BookmarkCheck,
+  Lightbulb,
+  Play,
   BookOpen,
   Volume2,
   Trash2,
@@ -783,7 +785,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
             }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200"
           >
-            <Sparkles className="w-4 h-4 text-amber-500" />
+            <Play className="w-4 h-4 text-indigo-600" />
             <span>Trải nghiệm nhanh (Demo)</span>
           </button>
         </div>
@@ -813,7 +815,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <BookmarkCheck className="w-3.5 h-3.5 text-indigo-300" />
               <span>Sổ Tay Thông Minh & Quản Lý Ôn Tập Đa Tầng (SM-2 SRS)</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -1496,8 +1498,8 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                         }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-all"
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Mở bảng Phân tích chuyên sâu 4 tầng & AI</span>
+                        <Lightbulb className="w-3.5 h-3.5" />
+                        <span>Mở bảng Phân tích chuyên sâu</span>
                       </button>
                     </div>
                   </div>
@@ -2200,8 +2202,8 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                           </span>
                         )}
                         {aiDetailed && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" /> Đã phân tích AI
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Đã phân tích
                           </span>
                         )}
                       </div>
@@ -2388,7 +2390,7 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
-                          <Sparkles className="w-4 h-4" />
+                          <Lightbulb className="w-4 h-4" />
                         </div>
                         <div>
                           <h4 className="font-bold text-slate-900 text-sm">
@@ -2396,8 +2398,8 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                           </h4>
                           <p className="text-[11px] text-slate-500">
                             {aiDetailed
-                              ? 'Đã lưu bản phân tích chuyên sâu 4 tầng từ AI vào Sổ tay của bạn'
-                              : 'Bấm nút bên cạnh để AI mổ xẻ từng đáp án, bẫy sai và lưu vĩnh viễn'}
+                              ? 'Đã lưu bản phân tích chuyên sâu vào Sổ tay của bạn'
+                              : 'Bấm nút bên cạnh để mổ xẻ từng đáp án, bẫy sai và lưu vĩnh viễn'}
                           </p>
                         </div>
                       </div>
@@ -2415,8 +2417,8 @@ export const PersonalStudio: React.FC<PersonalStudioProps> = ({ onNavigate }) =>
                           </>
                         ) : (
                           <>
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>{aiDetailed ? 'Phân tích lại với AI' : '✨ Phân tích chuyên sâu với AI'}</span>
+                            <Lightbulb className="w-3.5 h-3.5" />
+                            <span>{aiDetailed ? 'Phân tích lại' : 'Phân tích chuyên sâu'}</span>
                           </>
                         )}
                       </button>

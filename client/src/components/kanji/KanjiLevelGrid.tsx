@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Volume2, BookOpen, Lock, Sparkles } from 'lucide-react';
+import { Volume2, BookOpen, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 interface KanjiCardSummary {

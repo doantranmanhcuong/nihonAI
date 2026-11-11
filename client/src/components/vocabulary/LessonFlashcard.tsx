@@ -13,8 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
-  RotateCw,
-  Sparkles
+  RotateCw
 } from 'lucide-react';
 import { ConstituentKanji } from './VocabDetailCard';
 import { NHKPitchAccentLine } from './NHKPitchAccentLine';

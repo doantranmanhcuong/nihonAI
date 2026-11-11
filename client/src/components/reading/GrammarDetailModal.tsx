@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import React from 'react';
-import { X, GraduationCap, Volume2, BookOpen, Lightbulb, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { X, GraduationCap, Volume2, BookOpen, Lightbulb, Loader2, ArrowRight } from 'lucide-react';
 import { ReadingGrammarItem, DetailedGrammarInfo } from './reading.types';
 
 interface GrammarDetailModalProps {
@@ -139,14 +139,14 @@ export const GrammarDetailModal: React.FC<GrammarDetailModalProps> = ({
           {/* 3. GIẢI THÍCH CHI TIẾT CÁCH DÙNG & SẮC THÁI */}
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500">
-              <Sparkles className="w-4 h-4 text-indigo-500" />
+              <Lightbulb className="w-4 h-4 text-indigo-500" />
               <span>Giải thích chi tiết & Sắc thái sử dụng</span>
             </div>
 
             {isLoading && !currentExplanation ? (
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-2 text-xs text-slate-400">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                <span>AI đang hoàn tất giải thích sắc thái chuyên sâu...</span>
+                <span>Đang tải giải thích sắc thái chuyên sâu...</span>
               </div>
             ) : (
               <div className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans bg-slate-50/60 p-4 rounded-2xl border border-slate-200/60 whitespace-pre-line">

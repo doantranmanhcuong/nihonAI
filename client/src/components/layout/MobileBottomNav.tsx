@@ -2,7 +2,7 @@
 
 import React from 'react';
 import {
-  Sparkles,
+  Languages,
   BookOpen,
   GraduationCap,
   BookOpenCheck,
@@ -21,7 +21,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onSelectTab
 }) => {
   const navItems = [
-    { id: 'kanji', label: 'Hán tự', icon: Sparkles },
+    { id: 'kanji', label: 'Hán tự', icon: Languages },
     { id: 'vocab', label: 'Từ vựng', icon: BookOpen },
     { id: 'grammar', label: 'Ngữ pháp', icon: GraduationCap },
     { id: 'reading', label: 'Đọc hiểu', icon: BookOpenCheck },

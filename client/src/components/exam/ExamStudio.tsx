@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
-  Sparkles,
   ChevronRight,
   ChevronLeft,
   BookOpen,
@@ -40,7 +39,6 @@ import {
   FastForward,
   Rewind,
   Maximize2,
-  BrainCircuit,
   Target,
   TrendingUp,
   Lightbulb,
@@ -2553,7 +2551,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                     : 'bg-white/15 text-white hover:bg-white/25 border border-white/25 backdrop-blur-xs'
                 }`}
               >
-                <BrainCircuit className="w-4 h-4 text-rose-300" />
+                <RotateCcw className="w-4 h-4 text-rose-300" />
                 <span>📕 Ngân Hàng Câu Sai & SRS (Mistake Bank)</span>
                 {mistakeItems.length > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-bold">
@@ -2735,7 +2733,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
               </div>
               <div className="space-y-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-100">
-                  <BrainCircuit className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   <span>Khu Vực Cá Nhân Hóa & Luyện Tập SRS</span>
                 </span>
                 <h3 className="text-xl md:text-2xl font-black text-slate-900">
@@ -2761,7 +2759,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                   }}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <Play className="w-4 h-4 text-indigo-600" />
                   <span>Trải nghiệm nhanh (Demo)</span>
                 </button>
               </div>
@@ -2773,7 +2771,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <BrainCircuit className="w-5 h-5 text-rose-500" />
+                    <RotateCcw className="w-5 h-5 text-rose-500" />
                     <span>Ngân Hàng Câu Hỏi Làm Sai & Ôn Tập Ngắt Quãng SRS</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
@@ -2878,7 +2876,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
             ) : filteredMistakes.length === 0 ? (
               <div className="bg-white rounded-3xl p-10 border border-slate-200/80 text-center space-y-3">
                 <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
-                  <BrainCircuit className="w-8 h-8" />
+                  <BookmarkCheck className="w-8 h-8" />
                 </div>
                 <h3 className="font-black text-slate-800 text-base">Chưa có câu làm sai nào trong Ngân hàng</h3>
                 <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">

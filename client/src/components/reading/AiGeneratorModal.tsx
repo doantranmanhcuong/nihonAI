@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Sparkles, AlertCircle, BookOpen, Layers, CheckCircle2, Loader2, FileText } from 'lucide-react';
+import { X, BookOpenCheck, Play, AlertCircle, BookOpen, Layers, CheckCircle2, Loader2, FileText } from 'lucide-react';
 import { QuotaStatus, ReadingArticle } from './reading.types';
 import { ReadingApi } from './reading.api';
 
@@ -84,8 +84,8 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
         <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 p-6 text-white flex justify-between items-start">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold backdrop-blur-xs mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>AI Dokkai Master · Gemini 3.5 Flash Lite</span>
+              <BookOpenCheck className="w-3.5 h-3.5 text-amber-300" />
+              <span>Biên Soạn Bài Đọc Chuẩn JLPT</span>
             </div>
             <h2 className="text-xl font-black tracking-tight">Tạo Bài Đọc Hiểu Chuẩn JLPT</h2>
             <p className="text-xs text-indigo-100 mt-1">
@@ -161,8 +161,8 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              AI Tự Biên Soạn Theo Cấp Độ
+              <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+              Tự Biên Soạn Theo Cấp Độ
             </button>
             <button
               onClick={() => setActiveMode('CUSTOM_TEXT')}
@@ -292,11 +292,11 @@ export const AiGeneratorModal: React.FC<AiGeneratorModalProps> = ({
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>AI Đang Phân Tích & Soạn Câu Hỏi...</span>
+                <span>Đang phân tích & soạn câu hỏi...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-4 h-4 text-amber-300" />
+                <Play className="w-4 h-4 text-white" />
                 <span>Bắt Đầu Tạo Bài Đọc</span>
               </>
             )}

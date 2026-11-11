@@ -20,7 +20,6 @@ import {
   UserPlus,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
   ArrowLeft
 } from 'lucide-react';
 
@@ -425,7 +424,7 @@ export const AuthModal: React.FC = () => {
                       <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     ) : (
                       <>
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <Mail className="w-3.5 h-3.5" />
                         Gửi mã xác thực OTP
                       </>
                     )}

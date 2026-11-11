@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Volume2, BookOpen, Sparkles, Plus, Bookmark } from 'lucide-react';
+import { Volume2, BookOpen, Plus, Bookmark } from 'lucide-react';
 
 export interface MinaVocabulary {
   word: string;

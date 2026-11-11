@@ -5,7 +5,7 @@ import {
   Volume2,
   Star,
   Layers,
-  Sparkles,
+  Lightbulb,
   BookOpen,
   ArrowRight,
   CheckCircle2,
@@ -243,10 +243,10 @@ export const LessonWordList: React.FC<LessonWordListProps> = ({
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setSelectedVocabModal(item)}
-                    className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold transition-all cursor-pointer border border-amber-200"
+                    className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer border border-indigo-200"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>AI Sensei</span>
+                    <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Chi tiết</span>
                   </button>
                   <button
                     onClick={() => toggleStar(item)}

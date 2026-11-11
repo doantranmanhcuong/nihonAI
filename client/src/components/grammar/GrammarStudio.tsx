@@ -16,8 +16,6 @@ import {
 
   Volume2,
 
-  Sparkles,
-
   ArrowRight,
 
   Filter,

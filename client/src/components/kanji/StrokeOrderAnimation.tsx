@@ -12,7 +12,6 @@ import {
   Gauge,
   CheckCircle2,
   Repeat,
-  Sparkles,
   Trophy,
   HelpCircle,
   Undo2
@@ -480,7 +479,7 @@ export const StrokeOrderAnimation: React.FC<StrokeOrderAnimationProps> = ({
                   : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{practiceFeedback.text}</span>
             </div>
           )}

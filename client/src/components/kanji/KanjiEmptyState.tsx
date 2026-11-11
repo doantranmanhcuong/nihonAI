@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { PenTool, Sparkles, BookOpen, Layers, ArrowLeft } from 'lucide-react';
+import { PenTool, BookOpen, Layers, ArrowLeft } from 'lucide-react';
 
 interface KanjiEmptyStateProps {
   onSelectSample: (char: string) => void;
@@ -24,9 +24,6 @@ export const KanjiEmptyState: React.FC<KanjiEmptyStateProps> = ({ onSelectSample
       {/* Icon biểu tượng bút vẽ cách điệu */}
       <div className="w-20 h-20 bg-indigo-50 border border-indigo-100 rounded-3xl flex items-center justify-center text-indigo-600 shadow-inner relative">
         <PenTool className="w-9 h-9" />
-        <div className="w-4 h-4 bg-amber-400 rounded-full absolute -top-1 -right-1 flex items-center justify-center shadow-xs">
-          <Sparkles className="w-2.5 h-2.5 text-slate-900" />
-        </div>
       </div>
 
       {/* Tiêu đề & Hướng dẫn */}

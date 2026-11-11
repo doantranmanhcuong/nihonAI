@@ -7,7 +7,7 @@ import { LessonPracticeHub } from './LessonPracticeHub';
 import { VocabSearchBar } from './VocabSearchBar';
 import { VocabCardList, VocabularySummary } from './VocabCardList';
 import { VocabDetailCard, VocabularyDetailData } from './VocabDetailCard';
-import { BookOpen, Search, FolderOpen, Folder, FileText, ChevronDown , Sparkles } from 'lucide-react';
+import { BookOpen, Search, FolderOpen, Folder, FileText, ChevronDown, Volume2 } from 'lucide-react';
 import { ComprehensiveQuizDashboard, CompQuizQuestion } from '../shared/ComprehensiveQuizDashboard';
 import {
   getFallbackVocabCurriculumLessons,
@@ -271,7 +271,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
                 Từ Vựng JLPT
               </h1>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-100">
-                <Sparkles className="w-3 h-3 text-amber-400 fill-amber-400" />
+                <Volume2 className="w-3 h-3 text-blue-600" />
                 CSDL Trọng âm NHK
               </span>
             </div>

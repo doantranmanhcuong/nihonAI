@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   BookOpen,
+  BookOpenCheck,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Loader2,
   Clock,
   ArrowRight,
@@ -243,8 +243,8 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
                 Đọc Hiểu & Báo Nhật Dokkai
               </h1>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-100">
-                <Sparkles className="w-3 h-3 text-amber-400 fill-amber-400" />
-                AI Phân Tích
+                <BookOpenCheck className="w-3 h-3 text-blue-600" />
+                Chuẩn JLPT
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">

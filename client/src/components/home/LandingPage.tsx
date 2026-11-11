@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Sparkles, 
+  Languages, 
   BookOpen, 
   GraduationCap, 
   BookOpenCheck, 
@@ -9,7 +9,6 @@ import {
   Bookmark,
   ChevronDown,
   ChevronUp,
-  Brain,
   Rocket,
   Target
 } from 'lucide-react';
@@ -22,18 +21,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const features = [
-    { id: 'kanji', title: 'Hán Tự (Kanji)', desc: 'Hệ thống tra cứu và học Hán tự theo giáo trình chuẩn, phân rã bộ thủ logic.', icon: Sparkles, color: 'bg-indigo-50 text-indigo-600', hover: 'hover:border-indigo-300' },
+    { id: 'kanji', title: 'Hán Tự (Kanji)', desc: 'Hệ thống tra cứu và học Hán tự theo giáo trình chuẩn, phân rã bộ thủ logic.', icon: Languages, color: 'bg-indigo-50 text-indigo-600', hover: 'hover:border-indigo-300' },
     { id: 'vocab', title: 'Từ Vựng (Vocab)', desc: 'Kho từ vựng khổng lồ từ N5-N1 kèm ví dụ minh họa và phát âm bản xứ.', icon: BookOpen, color: 'bg-emerald-50 text-emerald-600', hover: 'hover:border-emerald-300' },
-    { id: 'grammar', title: 'Ngữ Pháp', desc: 'Giải thích ngữ pháp siêu chi tiết bằng AI, so sánh các mẫu ngữ pháp dễ nhầm lẫn.', icon: GraduationCap, color: 'bg-blue-50 text-blue-600', hover: 'hover:border-blue-300' },
-    { id: 'reading', title: 'Đọc Hiểu & Tin Tức', desc: 'Luyện đọc qua báo chí Nhật Bản thực tế (NHK, Livedoor) được AI tạo câu hỏi trắc nghiệm.', icon: BookOpenCheck, color: 'bg-amber-50 text-amber-600', hover: 'hover:border-amber-300' },
+    { id: 'grammar', title: 'Ngữ Pháp', desc: 'Giải thích ngữ pháp chi tiết dễ hiểu, so sánh các mẫu ngữ pháp dễ nhầm lẫn.', icon: GraduationCap, color: 'bg-blue-50 text-blue-600', hover: 'hover:border-blue-300' },
+    { id: 'reading', title: 'Đọc Hiểu & Tin Tức', desc: 'Luyện đọc qua báo chí Nhật Bản thực tế (NHK, Livedoor) kèm câu hỏi trắc nghiệm.', icon: BookOpenCheck, color: 'bg-amber-50 text-amber-600', hover: 'hover:border-amber-300' },
     { id: 'shadowing', title: 'Luyện Nghe', desc: 'Luyện nghe và nói nhại theo (Shadowing) qua các video YouTube thực tế sinh động.', icon: Headphones, color: 'bg-rose-50 text-rose-600', hover: 'hover:border-rose-300' },
-    { id: 'exam', title: 'Thi Thử JLPT', desc: 'Kho đề thi JLPT khổng lồ với đồng hồ bấm giờ như thi thật, AI chấm điểm và giải thích.', icon: Award, color: 'bg-violet-50 text-violet-600', hover: 'hover:border-violet-300' },
+    { id: 'exam', title: 'Thi Thử JLPT', desc: 'Kho đề thi JLPT chuẩn cấu trúc với đồng hồ bấm giờ như thi thật và chấm điểm tự động.', icon: Award, color: 'bg-violet-50 text-violet-600', hover: 'hover:border-violet-300' },
     { id: 'personal', title: 'Sổ Tay Cá Nhân', desc: 'Ghi chú, lưu trữ từ vựng, ngữ pháp. Tự động nhắc nhở ôn tập bằng thuật toán Spaced Repetition.', icon: Bookmark, color: 'bg-teal-50 text-teal-600', hover: 'hover:border-teal-300' }
   ];
 
   const faqs = [
     { q: 'Hệ thống NihonAI phù hợp cho trình độ nào?', a: 'NihonAI được thiết kế cho mọi trình độ từ sơ cấp (N5) đến thượng cấp (N1). Bạn có thể dễ dàng chuyển đổi mục tiêu học tập ở góc phải màn hình để nhận lộ trình phù hợp.' },
-    { q: 'Trí tuệ nhân tạo (AI) giúp tôi học thế nào?', a: 'AI trên hệ thống hoạt động như một gia sư 24/7. Nó giúp phân tích các bài báo Nhật Bản mới nhất, tạo bài tập đọc hiểu tự động, giải thích chi tiết tại sao bạn làm sai trong đề thi thử JLPT.' },
+    { q: 'Hệ thống giúp tôi học tập hiệu quả thế nào?', a: 'Hệ thống tổng hợp bài tập thực tế, phân tích bài đọc tiếng Nhật mới nhất, tạo bài tập tự động và giải thích chi tiết cặn kẽ từng câu hỏi trong đề thi JLPT.' },
     { q: 'Tôi có thể dùng NihonAI trên điện thoại không?', a: 'Hoàn toàn được! Giao diện của chúng tôi được tối ưu hóa hiển thị cực kỳ hoàn hảo trên mọi kích thước màn hình từ Desktop, Tablet cho tới Điện thoại thông minh.' },
     { q: 'Chức năng "Sổ tay cá nhân" hoạt động ra sao?', a: 'Khi đang học bất cứ từ vựng, ngữ pháp hay hán tự nào, bạn chỉ cần bấm "Lưu vào sổ tay". Hệ thống sẽ tự tạo Flashcard và áp dụng thuật toán Lặp lại ngắt quãng (SRS) để nhắc bạn ôn tập đúng thời điểm bộ não chuẩn bị quên.' }
   ];
@@ -43,7 +42,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* Hero Section */}
       <section className="w-full max-w-6xl mx-auto mt-8 mb-16 text-center px-4">
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-medium text-sm mb-6">
-          <Brain className="w-4 h-4" /> Nền tảng EdTech tiên phong ứng dụng Trí tuệ nhân tạo
+          <GraduationCap className="w-4 h-4" /> Nền tảng luyện thi tiếng Nhật thông minh chuẩn JLPT
         </div>
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-tight mb-6">
           Học tiếng Nhật chuẩn xác <br className="hidden md:block"/> 

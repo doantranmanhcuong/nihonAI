@@ -8,7 +8,7 @@ import {
   Headphones,
   Upload,
   Video,
-  Sparkles,
+  Info,
   PlayCircle,
   Loader2,
   Search,
@@ -444,8 +444,8 @@ export const ShadowingStudio: React.FC = () => {
 
             {/* Info box */}
             <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
-              <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>Video cần có phụ đề tiếng Nhật (CC). Quá trình xử lý AI có thể mất 10-30 giây. Hệ thống dùng Kuromoji để gắn Furigana và tách từ tự động.</span>
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>Video cần có phụ đề tiếng Nhật (CC). Quá trình xử lý có thể mất 10-30 giây. Hệ thống dùng Kuromoji để gắn Furigana và tách từ tự động.</span>
             </div>
 
             {/* Error / Success */}
@@ -478,11 +478,11 @@ export const ShadowingStudio: React.FC = () => {
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang xử lý AI...</span>
+                    <span>Đang xử lý video...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Play className="w-3.5 h-3.5" />
                     <span>Xử lý & Thêm bài học</span>
                   </>
                 )}

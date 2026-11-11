@@ -8,7 +8,7 @@ import {
   LogOut,
   User,
   ChevronDown,
-  Sparkles,
+  Languages,
   ShieldCheck,
   ShieldAlert,
   Award,
@@ -52,7 +52,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({ activeTab = 'kanji', onSel
   const currentLevel = user?.targetLevel || 'N5';
 
   const navTabs = [
-    { id: 'kanji', label: 'Hán tự', icon: Sparkles },
+    { id: 'kanji', label: 'Hán tự', icon: Languages },
     { id: 'vocab', label: 'Từ vựng', icon: BookOpen },
     { id: 'grammar', label: 'Ngữ pháp', icon: GraduationCap },
     { id: 'reading', label: 'Đọc hiểu', icon: BookOpenCheck },

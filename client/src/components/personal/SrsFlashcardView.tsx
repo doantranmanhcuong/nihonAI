@@ -11,7 +11,7 @@ import {
   ThumbsUp,
   PartyPopper,
   Volume2,
-  Sparkles,
+  Lightbulb,
   Layers,
   HelpCircle,
   CheckCircle2,
@@ -313,7 +313,7 @@ export const SrsFlashcardView: React.FC<SrsFlashcardViewProps> = ({ onBack, item
                 {/* AI Mnemonic / Giải thích đã lọc sạch META */}
                 {currentCard.note ? (
                   <div className="w-full p-3.5 bg-purple-50 text-purple-900 rounded-2xl text-xs flex items-start gap-2 border border-purple-100 mb-2 leading-relaxed whitespace-pre-wrap">
-                    <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                    <Lightbulb className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
                     <div
                       dangerouslySetInnerHTML={{
                         __html: currentCard.note
@@ -330,8 +330,8 @@ export const SrsFlashcardView: React.FC<SrsFlashcardViewProps> = ({ onBack, item
                     disabled={generatingAi}
                     className="mt-auto flex items-center gap-2 text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl border border-purple-200 transition cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{generatingAi ? 'AI đang tạo mẹo nhớ...' : 'Tạo mẹo nhớ bằng AI'}</span>
+                    <Lightbulb className="w-3.5 h-3.5" />
+                    <span>{generatingAi ? 'Đang tạo mẹo nhớ...' : 'Tạo mẹo nhớ'}</span>
                   </button>
                 )}
               </div>

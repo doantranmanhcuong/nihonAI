@@ -19,7 +19,9 @@ import {
   LogOut,
   Smartphone,
   Check,
-  Sparkles,
+  GraduationCap,
+  Languages,
+  Layers,
   Volume2,
   Calendar,
   Sliders,
@@ -320,7 +322,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
                 {user?.displayName || 'Học viên NihonAI'}
               </h1>
               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-200 border border-indigo-400/30">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-300" />
                 Học viên JLPT {targetLevel}
               </span>
             </div>
@@ -469,7 +471,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
             <div className="bg-white p-6 border border-slate-200 rounded-3xl shadow-sm space-y-5">
               <div>
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  <User className="w-4 h-4 text-indigo-500" />
                   Ảnh đại diện (Avatar)
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -638,7 +640,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
           <div className="bg-white p-6 sm:p-8 border border-slate-200 rounded-3xl shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-                <Sparkles className="w-5 h-5" />
+                <Languages className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">Hiển thị Furigana (Cách đọc chữ Hán)</h3>
@@ -795,7 +797,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 shadow-xs">
-                  <Sparkles className="w-6 h-6 text-indigo-600" />
+                  <Layers className="w-6 h-6 text-indigo-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
@@ -828,7 +830,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({ onNavigate }) 
               <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Languages className="w-3.5 h-3.5" />
                     1. Hiển thị Furigana
                   </span>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold">

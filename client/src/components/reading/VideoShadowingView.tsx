@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   XCircle,
   Volume2,
-  Sparkles,
   Shuffle,
   RotateCw,
   Repeat,
@@ -879,7 +878,7 @@ export const VideoShadowingView: React.FC<VideoShadowingViewProps> = ({
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Mic className="w-3.5 h-3.5" />
             <span>Bắt chước phát âm</span>
           </button>
           <button

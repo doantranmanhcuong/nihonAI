@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import React from 'react';
-import { Volume2, X, GraduationCap, BookOpen, Loader2, Sparkles, BookmarkPlus } from 'lucide-react';
+import { Volume2, X, GraduationCap, BookOpen, Loader2, BookmarkPlus } from 'lucide-react';
 import { QuickWordLookup } from './reading.types';
 
 interface QuickLookupPopoverProps {
@@ -116,7 +116,7 @@ export const QuickLookupPopover: React.FC<QuickLookupPopoverProps> = ({
 
           {wordInfo.grammarNotes && (
             <div className="text-[11px] text-indigo-300 bg-indigo-950/40 p-1.5 rounded border border-indigo-800/40 font-sans flex items-center gap-1">
-              <Sparkles className="w-3 h-3 shrink-0" />
+              <GraduationCap className="w-3 h-3 shrink-0" />
               <span>Ngữ pháp: {wordInfo.grammarNotes}</span>
             </div>
           )}

@@ -97,6 +97,13 @@ export class ReadingCronService {
       return { success: false, message: 'Hệ thống đang cập nhật báo, vui lòng đợi giây lát...' };
     }
 
+    // Bảo vệ tràn RAM (512MB RAM Container trên Render)
+    const mem = process.memoryUsage();
+    if (mem.rss > 350 * 1024 * 1024) {
+      console.warn(`⚠️ [ReadingCronService] Bộ nhớ RAM đang cao (${Math.round(mem.rss / (1024 * 1024))}MB), tạm hoãn cào báo nền để bảo đảm tốc độ truy vấn cho người dùng.`);
+      return { success: false, message: 'Bộ nhớ hệ thống đang được ưu tiên phục vụ người học.' };
+    }
+
     this.isRunning = true;
     const processedResults: any[] = [];
     const createdArticles: any[] = [];

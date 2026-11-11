@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Volume2,
   Bookmark,
-  Sparkles,
+  Lightbulb,
   Layers,
   ArrowRight,
   Lock,
@@ -434,11 +434,11 @@ export const VocabDetailCard: React.FC<VocabDetailCardProps> = ({
         <div className="flex items-center justify-between border-b border-indigo-100/70 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-2xs">
-              <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
+              <Lightbulb className="w-4 h-4 text-amber-300 fill-amber-300" />
             </div>
             <div>
               <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-2">
-                AI Sensei • Đa Ngữ Cảnh & Chấm Câu
+                Mở Rộng Ngữ Cảnh & Luyện Đặt Câu
                 {aiInsight?.isCached && (
                   <span className="text-[10px] font-normal text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                     Đã lưu CSDL

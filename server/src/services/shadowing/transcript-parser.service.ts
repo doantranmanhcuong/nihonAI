@@ -77,14 +77,23 @@ export class TranscriptParserService {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = new Promise((resolve, reject) => {
-      const candidatePaths = [
-        path.join(process.cwd(), 'node_modules/kuromoji/dict'),
-        path.join(__dirname, '../../../../node_modules/kuromoji/dict'),
-        path.join(__dirname, '../../../node_modules/kuromoji/dict'),
-        'c:/Users/cuong/Documents/antigravity/cool-hopper/server/node_modules/kuromoji/dict'
-      ];
+      let dictPath = '';
+      try {
+        const pkgPath = require.resolve('kuromoji/package.json');
+        const resolvedDict = path.join(path.dirname(pkgPath), 'dict');
+        if (fs.existsSync(resolvedDict)) {
+          dictPath = resolvedDict;
+        }
+      } catch {}
 
-      const dictPath = candidatePaths.find((p) => fs.existsSync(p)) || candidatePaths[0];
+      if (!dictPath) {
+        const candidatePaths = [
+          path.join(process.cwd(), 'node_modules/kuromoji/dict'),
+          path.join(__dirname, '../../../../node_modules/kuromoji/dict'),
+          path.join(__dirname, '../../../node_modules/kuromoji/dict')
+        ];
+        dictPath = candidatePaths.find((p) => fs.existsSync(p)) || candidatePaths[0];
+      }
 
       kuromoji.builder({ dicPath: dictPath }).build((err: any, tok: any) => {
         if (err) {

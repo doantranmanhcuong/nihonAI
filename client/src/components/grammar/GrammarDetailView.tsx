@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Volume2,
   Bookmark,
-  Sparkles,
+  Lightbulb,
   CheckCircle2,
   XCircle,
   RotateCcw,
@@ -129,8 +129,8 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
               onClick={() => onOpenAiAnalysis(item)}
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all cursor-pointer border border-indigo-200"
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Phân tích AI</span>
+              <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Phân tích chi tiết</span>
             </button>
           </div>
         </div>
@@ -388,7 +388,7 @@ export const GrammarDetailView: React.FC<GrammarDetailViewProps> = ({
           {isQuizSubmitted && (
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1 animate-in fade-in duration-150">
               <div className="font-bold text-indigo-700 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
+                <Lightbulb className="w-3.5 h-3.5" />
                 <span>
                   {selectedQuizAnswer !== null && shuffledQuizOptions[selectedQuizAnswer]?.isCorrect
                     ? 'Chính xác! 🎉'

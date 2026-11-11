@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
-  Sparkles,
+  Lightbulb,
   ChevronRight,
   BookOpen,
   Volume2,
@@ -499,7 +499,7 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
               {/* AI Explanation Result */}
               {aiExplanations[currentQ.id] ? (
                 <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs space-y-1.5 mt-2">
-                  <p className="font-bold text-purple-900 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5 text-purple-600"/> NihonAI Sensei giải thích thêm:</p>
+                  <p className="font-bold text-purple-900 flex items-center gap-1"><Lightbulb className="w-3.5 h-3.5 text-purple-600"/> Giải thích chi tiết:</p>
                   <div className="text-purple-950 font-sans whitespace-pre-wrap leading-relaxed">{aiExplanations[currentQ.id]}</div>
                 </div>
               ) : (
@@ -509,8 +509,8 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
                     disabled={loadingAiId === currentQ.id}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-white border border-indigo-200 hover:bg-indigo-50 transition-all cursor-pointer"
                   >
-                    {loadingAiId === currentQ.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
-                    Hỏi thêm AI Sensei
+                    {loadingAiId === currentQ.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />}
+                    Xem thêm giải thích chi tiết
                   </button>
                 </div>
               )}
@@ -764,7 +764,7 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
           {isAnswered && (
             <div className="p-4 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl flex flex-col gap-3 animate-in fade-in duration-200">
               <div className="flex items-start gap-2 text-xs">
-                <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                <Lightbulb className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                 <div className="flex flex-col">
                   <span className="font-extrabold text-indigo-900">Giải thích chi tiết:</span>
                   <p className="text-slate-700 font-medium mt-0.5">{currentQ.explanation}</p>
@@ -774,7 +774,7 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
               {/* AI Explanation Result */}
               {aiExplanations[currentQ.id] ? (
                 <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs space-y-1.5 mt-2">
-                  <p className="font-bold text-purple-900 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5 text-purple-600"/> NihonAI Sensei giải thích thêm:</p>
+                  <p className="font-bold text-purple-900 flex items-center gap-1"><Lightbulb className="w-3.5 h-3.5 text-purple-600"/> Giải thích chi tiết:</p>
                   <div className="text-purple-950 font-sans whitespace-pre-wrap leading-relaxed">{aiExplanations[currentQ.id]}</div>
                 </div>
               ) : (
@@ -784,8 +784,8 @@ Sensei h�y gi?i th�ch ng?n g?n, phân tích Kanji ho?c t? v?ng li�n quan d
                     disabled={loadingAiId === currentQ.id}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-white border border-indigo-200 hover:bg-indigo-50 transition-all cursor-pointer"
                   >
-                    {loadingAiId === currentQ.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
-                    Hỏi thêm AI Sensei
+                    {loadingAiId === currentQ.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5 text-indigo-600" />}
+                    Xem thêm giải thích chi tiết
                   </button>
                 </div>
               )}
