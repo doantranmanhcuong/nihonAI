@@ -4,6 +4,7 @@ import { CanvasOverlay } from './CanvasOverlay';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
+  Coffee,
   Pen, ToggleLeft, ToggleRight, LayoutGrid, Info,
   Award,
   Timer,
@@ -87,6 +88,137 @@ const resolveAudioUrl = (url?: string) => {
     : 'http://localhost:5000';
   return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
 };
+
+export interface ExamTakingSession {
+  id: string;
+  title: string;
+  nextTitle: string;
+  sections: ExamSectionType[];
+  durationMinutes: number;
+}
+
+export function getExamSessions(
+  level: JLPTLevel | string,
+  examFormat: 'full' | 'express',
+  allQuestions: ExamQuestionItem[] = []
+): ExamTakingSession[] {
+  const normLevel = (level || 'N3').toUpperCase();
+  const hasVocab = allQuestions.some((q) => q.section === 'vocab');
+  const hasGrammar = allQuestions.some((q) => q.section === 'grammar');
+  const hasReading = allQuestions.some((q) => q.section === 'reading');
+  const hasListening = allQuestions.some((q) => q.section === 'listening');
+
+  if (normLevel === 'N3') {
+    const list: ExamTakingSession[] = [];
+    if (hasVocab) {
+      list.push({
+        id: 'vocab',
+        title: 'KANJI • TỪ VỰNG',
+        nextTitle: hasGrammar || hasReading ? 'Ngữ pháp • Đọc hiểu' : (hasListening ? 'Nghe hiểu' : 'Kết quả bài thi'),
+        sections: ['vocab'],
+        durationMinutes: examFormat === 'express' ? 10 : 30
+      });
+    }
+    if (hasGrammar || hasReading) {
+      list.push({
+        id: 'grammar_reading',
+        title: 'NGỮ PHÁP • ĐỌC HIỂU',
+        nextTitle: hasListening ? 'Nghe hiểu' : 'Kết quả bài thi',
+        sections: ['grammar', 'reading'],
+        durationMinutes: examFormat === 'express' ? 25 : 70
+      });
+    }
+    if (hasListening) {
+      list.push({
+        id: 'listening',
+        title: 'NGHE HIỂU',
+        nextTitle: 'Kết quả bài thi',
+        sections: ['listening'],
+        durationMinutes: examFormat === 'express' ? 15 : 40
+      });
+    }
+    return list.length > 0 ? list : [{
+      id: 'all',
+      title: 'ĐỀ THI TỔNG HỢP N3',
+      nextTitle: 'Kết quả bài thi',
+      sections: ['vocab', 'grammar', 'reading', 'listening'],
+      durationMinutes: 140
+    }];
+  }
+
+  if (normLevel === 'N1' || normLevel === 'N2') {
+    const list: ExamTakingSession[] = [];
+    const dur1 = normLevel === 'N1' ? (examFormat === 'express' ? 35 : 110) : (examFormat === 'express' ? 35 : 105);
+    const dur2 = normLevel === 'N1' ? (examFormat === 'express' ? 15 : 60) : (examFormat === 'express' ? 15 : 50);
+
+    if (hasVocab || hasGrammar || hasReading) {
+      list.push({
+        id: 'vocab_grammar_reading',
+        title: 'TỪ VỰNG • NGỮ PHÁP • ĐỌC HIỂU',
+        nextTitle: hasListening ? 'Nghe hiểu' : 'Kết quả bài thi',
+        sections: ['vocab', 'grammar', 'reading'],
+        durationMinutes: dur1
+      });
+    }
+    if (hasListening) {
+      list.push({
+        id: 'listening',
+        title: 'NGHE HIỂU',
+        nextTitle: 'Kết quả bài thi',
+        sections: ['listening'],
+        durationMinutes: dur2
+      });
+    }
+    return list.length > 0 ? list : [{
+      id: 'all',
+      title: `ĐỀ THI TỔNG HỢP ${normLevel}`,
+      nextTitle: 'Kết quả bài thi',
+      sections: ['vocab', 'grammar', 'reading', 'listening'],
+      durationMinutes: 155
+    }];
+  }
+
+  // N4 & N5
+  const list: ExamTakingSession[] = [];
+  const durVocab = normLevel === 'N4' ? (examFormat === 'express' ? 10 : 25) : (examFormat === 'express' ? 8 : 20);
+  const durGR = normLevel === 'N4' ? (examFormat === 'express' ? 20 : 55) : (examFormat === 'express' ? 15 : 40);
+  const durListen = normLevel === 'N4' ? (examFormat === 'express' ? 12 : 35) : (examFormat === 'express' ? 10 : 30);
+
+  if (hasVocab) {
+    list.push({
+      id: 'vocab',
+      title: 'TỪ VỰNG',
+      nextTitle: hasGrammar || hasReading ? 'Ngữ pháp • Đọc hiểu' : (hasListening ? 'Nghe hiểu' : 'Kết quả bài thi'),
+      sections: ['vocab'],
+      durationMinutes: durVocab
+    });
+  }
+  if (hasGrammar || hasReading) {
+    list.push({
+      id: 'grammar_reading',
+      title: 'NGỮ PHÁP • ĐỌC HIỂU',
+      nextTitle: hasListening ? 'Nghe hiểu' : 'Kết quả bài thi',
+      sections: ['grammar', 'reading'],
+      durationMinutes: durGR
+    });
+  }
+  if (hasListening) {
+    list.push({
+      id: 'listening',
+      title: 'NGHE HIỂU',
+      nextTitle: 'Kết quả bài thi',
+      sections: ['listening'],
+      durationMinutes: durListen
+    });
+  }
+  return list.length > 0 ? list : [{
+    id: 'all',
+    title: `ĐỀ THI TỔNG HỢP ${normLevel}`,
+    nextTitle: 'Kết quả bài thi',
+    sections: ['vocab', 'grammar', 'reading', 'listening'],
+    durationMinutes: 115
+  }];
+}
 
 // Cấu hình các dạng bài Mondai chuyên sâu cho từng phân môn (Tiện ích 1: Mondai Drills)
 const MONDAI_OPTIONS: Record<string, { id: string; label: string; desc: string }[]> = {
@@ -836,6 +968,11 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
   const [isDrawingMode, setIsDrawingMode] = useState<boolean>(false);
 
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  // Quản lý các phiên thi (Exam Sessions) chuẩn JLPT (Từ vựng -> Nghỉ -> Ngữ pháp Đọc hiểu -> Nghỉ -> Nghe)
+  const [currentSessionIndex, setCurrentSessionIndex] = useState<number>(0);
+  const [isBreakModalOpen, setIsBreakModalOpen] = useState<boolean>(false);
+  const [breakTimeRemaining, setBreakTimeRemaining] = useState<number>(300); // 5 phút = 300 giây
+  const [showSectionFinishConfirm, setShowSectionFinishConfirm] = useState<boolean>(false);
   const [examList, setExamList] = useState<any[]>([]);
   const [confirmModal, setConfirmModal] = useState<any>(null);
   
@@ -916,6 +1053,38 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
   const [isSavingToNotebook, setIsSavingToNotebook] = useState<boolean>(false);
   const [savedNotebookMessage, setSavedNotebookMessage] = useState<string | null>(null);
   const [savedSingleNotebookIds, setSavedSingleNotebookIds] = useState<{ [qId: string]: boolean }>({});
+
+  // Cấu hình các phiên thi (Exam Sessions) chuẩn JLPT
+  const examSessions = useMemo(() => {
+    if (!activeExam || !activeExam.questions) return [];
+    return getExamSessions(activeExam.level, activeExam.format || selectedFormat, activeExam.questions);
+  }, [activeExam, selectedFormat]);
+
+  const currentSession = examSessions[currentSessionIndex] || examSessions[0] || {
+    id: 'all',
+    title: 'TẤT CẢ PHẦN THI',
+    nextTitle: 'Kết quả bài thi',
+    sections: ['vocab', 'grammar', 'reading', 'listening'] as ExamSectionType[],
+    durationMinutes: 140
+  };
+
+  const nextSession = examSessions[currentSessionIndex + 1] || null;
+
+  // Danh sách câu hỏi của session hiện tại (nếu thi exam) hoặc tất cả (nếu practice)
+  const currentSessionQuestions = useMemo(() => {
+    if (!activeExam?.questions) return [];
+    if (examMode === 'practice') return activeExam.questions;
+    const filtered = activeExam.questions.filter((q: ExamQuestionItem) => currentSession.sections.includes(q.section));
+    return filtered.length > 0 ? filtered : activeExam.questions;
+  }, [activeExam?.questions, currentSession, examMode]);
+
+  const answeredSessionCount = useMemo(() => {
+    return currentSessionQuestions.filter((q: ExamQuestionItem) => userAnswers[q.id] !== undefined).length;
+  }, [currentSessionQuestions, userAnswers]);
+
+  const unansweredSessionCount = useMemo(() => {
+    return Math.max(0, currentSessionQuestions.length - answeredSessionCount);
+  }, [currentSessionQuestions.length, answeredSessionCount]);
 
   // State Nghe lại Audio & Xem Script trong màn hình Kết quả
   const [reviewAudioPlayingId, setReviewAudioPlayingId] = useState<string | null>(null);
@@ -1082,8 +1251,15 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         setTimeRemainingSeconds((prev) => {
           if (prev <= 1) {
             clearInterval(interval!);
-            handleForceSubmit();
-            return 0;
+            if (examMode === 'exam' && examSessions.length > 0 && currentSessionIndex < examSessions.length - 1) {
+              setIsTimerRunning(false);
+              setIsBreakModalOpen(true);
+              setBreakTimeRemaining(300);
+              return 0;
+            } else {
+              handleForceSubmit();
+              return 0;
+            }
           }
           return prev - 1;
         });
@@ -1093,7 +1269,43 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [currentScreen, isTimerRunning, timeRemainingSeconds]);
+  }, [currentScreen, isTimerRunning, timeRemainingSeconds, examMode, examSessions, currentSessionIndex]);
+
+  // Bộ đếm thời gian nghỉ giải lao giữa các phiên thi (Image 10)
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (isBreakModalOpen && breakTimeRemaining > 0) {
+      timer = setInterval(() => {
+        setBreakTimeRemaining((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer!);
+            handleSkipBreak();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isBreakModalOpen, breakTimeRemaining, currentSessionIndex, examSessions]);
+
+  const handleSkipBreak = () => {
+    setIsBreakModalOpen(false);
+    if (currentSessionIndex < examSessions.length - 1) {
+      const nextIdx = currentSessionIndex + 1;
+      setCurrentSessionIndex(nextIdx);
+      const nextSess = examSessions[nextIdx];
+      setTimeRemainingSeconds(nextSess ? nextSess.durationMinutes * 60 : 2400);
+      setIsTimerRunning(true);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } else {
+      handleForceSubmit();
+    }
+  };
 
   // Mở modal bìa đề thi trước khi vào thi chính thức
   const handleOpenCoverModal = (exam: JLPTExam) => {
@@ -1147,6 +1359,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     setShowTranslations(false);
     setShowListeningScript(false);
     setSavedNotebookMessage(null);
+    setCurrentSessionIndex(0);
+    setIsBreakModalOpen(false);
+    setBreakTimeRemaining(300);
 
     if (mode === 'exam') {
       // Don't start timer yet, show intro screen
@@ -1158,11 +1373,18 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     }
   };
 
-const handleConfirmStartRealExam = () => {
+  const handleConfirmStartRealExam = () => {
     if (!activeExam) return;
-    const minutes = activeExam.format === 'express'
-      ? (activeExam.expressDurationMinutes || activeExam.durationMinutes || 50)
-      : (activeExam.fullDurationMinutes || activeExam.durationMinutes || 155);
+    setCurrentSessionIndex(0);
+    setIsBreakModalOpen(false);
+    setBreakTimeRemaining(300);
+    const sessions = getExamSessions(activeExam.level, activeExam.format || selectedFormat, activeExam.questions || []);
+    const initialSession = sessions[0];
+    const minutes = initialSession ? initialSession.durationMinutes : (
+      activeExam.format === 'express'
+        ? (activeExam.expressDurationMinutes || activeExam.durationMinutes || 50)
+        : (activeExam.fullDurationMinutes || activeExam.durationMinutes || 155)
+    );
     setTimeRemainingSeconds(minutes * 60);
     setIsTimerRunning(true);
     setCurrentScreen('taking');
@@ -3210,20 +3432,55 @@ const handleConfirmStartRealExam = () => {
   }
 
 // ========================================================
-  // MÀN HÌNH 2: PHÒNG THI CHUẨN JEES VỚI ĐỌC HIỂU 2 CỘT & CHOUKAI PLAYER
   // ========================================================
-  if (currentScreen === 'taking' && activeExam && currentQuestion) {
-    const isAnswered = userAnswers[currentQuestion.id] !== undefined;
-    const isUrgent = timeRemainingSeconds < 300;
-    const isListening = currentQuestion.section === 'listening';
-    const isReading = currentQuestion.section === 'reading';
-    const isPassageGrammar = currentQuestion.subType === 'passage_grammar';
-    const hasPassageContent = Boolean(effectiveReadingData.passage);
-    const showSplitPanePassage = (isReading || isPassageGrammar) && hasPassageContent;
+  // MÀN HÌNH 2: PHÒNG THI CHUẨN JLPT THEO PHIÊN & GIẢI LAO (IMAGES 9 & 10)
+  // ========================================================
+  if (currentScreen === 'taking' && activeExam) {
+    const isUrgent = timeRemainingSeconds < 300 && examMode === 'exam';
+
+    // Nhóm các câu hỏi trong phiên hiện tại theo từng Mondai
+    const sessionMondaiGroups: {
+      key: string;
+      label: string;
+      instruction: string;
+      questions: ExamQuestionItem[];
+    }[] = [];
+
+    let currentGroupKey = '';
+    let currentGroupList: ExamQuestionItem[] = [];
+
+    currentSessionQuestions.forEach((q: ExamQuestionItem) => {
+      const key = q.subTypeLabel || q.subType || q.section;
+      if (key !== currentGroupKey) {
+        if (currentGroupList.length > 0) {
+          const first = currentGroupList[0];
+          sessionMondaiGroups.push({
+            key: currentGroupKey,
+            label: first.subTypeLabel || currentGroupKey,
+            instruction: getMondaiInstruction(first.subType, first.subTypeLabel),
+            questions: currentGroupList
+          });
+        }
+        currentGroupKey = key;
+        currentGroupList = [q];
+      } else {
+        currentGroupList.push(q);
+      }
+    });
+
+    if (currentGroupList.length > 0) {
+      const first = currentGroupList[0];
+      sessionMondaiGroups.push({
+        key: currentGroupKey,
+        label: first.subTypeLabel || currentGroupKey,
+        instruction: getMondaiInstruction(first.subType, first.subTypeLabel),
+        questions: currentGroupList
+      });
+    }
 
     return (
       <div 
-        className={`min-h-screen bg-slate-50/80 pb-20 animate-fadeIn ${(!showFurigana || currentQuestion.section === 'vocab') ? 'hide-furigana' : ''} ${examMode === 'exam' ? 'disable-selection' : ''}`}
+        className={`min-h-screen bg-[#F8FAFC] pb-24 animate-fadeIn ${!showFurigana ? 'hide-furigana' : ''} ${examMode === 'exam' ? 'disable-selection' : ''}`}
         onCopy={(e) => { if (examMode === 'exam') e.preventDefault(); }}
         onContextMenu={(e) => { if (examMode === 'exam') e.preventDefault(); }}
       >
@@ -3231,6 +3488,7 @@ const handleConfirmStartRealExam = () => {
         <style>{`
           ${examMode === 'exam' ? '#global-top-header { display: none !important; }' : ''}
           .hide-furigana rt {
+            display: none !important;
             opacity: 0 !important;
             visibility: hidden !important;
           }
@@ -3240,766 +3498,397 @@ const handleConfirmStartRealExam = () => {
             -ms-user-select: none;
             user-select: none;
           }
-          .disable-selection * {
-            pointer-events: auto;
-          }
-          .disable-selection ruby {
-            pointer-events: none;
-          }
         `}</style>
-        {/* Audio element phát giọng đọc tiếng Nhật bản xứ cho Choukai */}
-        {currentQuestion.audioUrl && (
-          <audio
-            key={currentQuestion.id}
-            ref={audioRef}
-            src={resolveAudioUrl(currentQuestion.audioUrl)}
-            preload="auto"
-            onTimeUpdate={(e) => setAudioCurrentTime(e.currentTarget.currentTime)}
-            onLoadedMetadata={(e) => {
-              if (e.currentTarget.duration && !isNaN(e.currentTarget.duration) && isFinite(e.currentTarget.duration)) {
-                setAudioDuration(e.currentTarget.duration);
-              }
-            }}
-            onDurationChange={(e) => {
-              if (e.currentTarget.duration && !isNaN(e.currentTarget.duration) && isFinite(e.currentTarget.duration)) {
-                setAudioDuration(e.currentTarget.duration);
-              }
-            }}
-            onCanPlay={(e) => {
-              if (e.currentTarget.duration && !isNaN(e.currentTarget.duration) && isFinite(e.currentTarget.duration)) {
-                setAudioDuration(e.currentTarget.duration);
-              }
-            }}
-            onPlay={() => setIsPlayingAudio(true)}
-            onPause={() => setIsPlayingAudio(false)}
-            onEnded={() => {
-              setIsPlayingAudio(false);
-              setAudioCurrentTime(0);
-            }}
-            onError={() => setIsPlayingAudio(false)}
-          />
-        )}
 
-        {/* Header phòng thi Sticky */}
-        <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
-          <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={() => setShowExitModal(true)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                title="Quay lại danh sách"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
+        {/* TOP BAR PHÒNG THI (IMAGE 9) */}
+        <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
+          <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
+            {/* Left: Nút quay lại */}
+            <button
+              type="button"
+              onClick={() => setShowExitModal(true)}
+              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              title="Quay lại danh sách đề thi"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
 
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-indigo-600 text-white">
-                    {activeExam.level}
-                  </span>
-                  <h2 className="text-xs md:text-sm font-bold text-slate-800 truncate">
-                    {activeExam.title}
-                  </h2>
-                </div>
-                <p className="text-[10px] text-slate-500 truncate">
-                  {currentQuestion.officialSource || 'Kỳ thi thật JLPT chuẩn hóa JEES'}
-                </p>
-              </div>
-            </div>
+            {/* Center: Nút NỘP BÀI (Image 9) */}
+            <button
+              type="button"
+              onClick={() => setShowSectionFinishConfirm(true)}
+              className="px-8 py-2 rounded-xl text-xs font-black text-white bg-[#4F46E5] hover:bg-[#4338CA] active:scale-95 transition-all shadow-md shadow-indigo-100 cursor-pointer tracking-wider font-sans"
+            >
+              NỘP BÀI
+            </button>
 
-            {/* Các công cụ & Đồng hồ & Nộp bài */}
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-1 border-r border-slate-200 pr-4">
-                <button
-                  onClick={() => setIsDrawingMode(!isDrawingMode)}
-                  className={`flex flex-col items-center justify-center w-14 h-12 rounded-xl text-[10px] font-bold transition-all ${isDrawingMode ? 'text-rose-600 bg-rose-50 border border-rose-200' : 'text-slate-500 hover:bg-slate-100 border border-transparent'}`}
-                >
-                  <Pen className="w-4 h-4 mb-0.5" />
-                  BÚT VẼ
-                </button>
-                <button
-                  onClick={() => {
-                  if (currentQuestion?.section === 'vocab') {
-                    showNotification('Furigana bị vô hiệu hóa trong phần Từ vựng & Hán tự để tránh lộ đáp án.', 'error');
-                  } else {
-                    setShowFurigana(!showFurigana);
-                  }
-                }}
-                  className={`flex flex-col items-center justify-center w-16 h-12 rounded-xl text-[10px] font-bold transition-all ${(showFurigana && currentQuestion?.section !== 'vocab') ? 'text-indigo-600 bg-indigo-50 border border-indigo-200' : 'text-slate-500 hover:bg-slate-100 border border-transparent'} ${currentQuestion?.section === 'vocab' ? 'opacity-50' : ''}`}
-                >
-                  {(showFurigana && currentQuestion?.section !== 'vocab') ? <ToggleRight className="w-5 h-5 mb-0.5 text-indigo-600" /> : <ToggleLeft className="w-5 h-5 mb-0.5 text-slate-400" />}
-                  FURIGANA
-                </button>
-                <button
-                  onClick={() => setShowProgressSidebar(!showProgressSidebar)}
-                  className={`flex flex-col items-center justify-center w-14 h-12 rounded-xl text-[10px] font-bold transition-all ${showProgressSidebar ? 'text-indigo-600 bg-indigo-50 border border-indigo-200' : 'text-slate-500 hover:bg-slate-100 border border-transparent'}`}
-                >
-                  <LayoutGrid className="w-4 h-4 mb-0.5" />
-                  TIẾN ĐỘ
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
+            {/* Right: Đồng hồ, Bút vẽ, Furigana, Tiến độ (Image 9) */}
+            <div className="flex items-center gap-3 sm:gap-4 font-sans">
+              {/* Đồng hồ đếm ngược */}
               {examMode === 'exam' ? (
                 <div
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-colors ${
                     isUrgent
                       ? 'bg-rose-50 text-rose-600 border border-rose-200 animate-pulse'
                       : 'bg-slate-100 text-slate-700'
                   }`}
                 >
-                  <Timer className="w-3.5 h-3.5" />
+                  <Timer className="w-3.5 h-3.5 text-slate-500" />
                   <span>{formatTime(timeRemainingSeconds)}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-semibold">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700">
                   <BookOpen className="w-3.5 h-3.5" />
                   <span>Luyện tự do</span>
                 </div>
               )}
 
+              {/* Bút vẽ */}
               <button
-                onClick={() => setShowSubmitModal(true)}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition-all cursor-pointer shadow-xs"
+                type="button"
+                onClick={() => setIsDrawingMode(!isDrawingMode)}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  isDrawingMode
+                    ? 'text-indigo-600 bg-indigo-50 border border-indigo-200'
+                    : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                }`}
               >
-                Nộp bài
+                <Pen className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">BÚT VẼ</span>
               </button>
-            </div>
-            </div>
-          </div>
 
-          {/* Thanh phân môn */}
-          <div className="bg-slate-100/80 border-t border-slate-200 px-4 py-1.5 overflow-x-auto">
-            <div className="max-w-6xl mx-auto flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
-                Phân môn:
-              </span>
-              {[
-                { sec: 'vocab', label: '🔤 1. Từ vựng & Hán tự' },
-                { sec: 'grammar', label: '📑 2. Ngữ pháp' },
-                { sec: 'reading', label: '📖 3. Đọc hiểu Dokkai' },
-                { sec: 'listening', label: '🎧 4. Nghe hiểu Choukai' }
-              ].map((s) => {
-                const isCurrentSec = currentQuestion.section === s.sec;
-                const firstIdx = activeExam.questions?.findIndex((q) => q.section === s.sec);
-                if (firstIdx === -1 || firstIdx === undefined) return null;
-
-                return (
-                  <button
-                    key={s.sec}
-                    onClick={() => setCurrentQuestionIndex(firstIdx)}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                      isCurrentSec
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200/60'
+              {/* Furigana toggle */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFurigana(!showFurigana)}
+                  className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors cursor-pointer ${
+                    showFurigana ? 'bg-[#4F46E5]' : 'bg-slate-300'
+                  }`}
+                  title="Bật/Tắt Furigana"
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                      showFurigana ? 'translate-x-4.5 sm:translate-x-6' : 'translate-x-1'
                     }`}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
+                  />
+                </button>
+                <span className="text-[11px] font-bold text-slate-600 hidden sm:inline">FURIGANA</span>
+              </div>
+
+              {/* Tiến độ toggle */}
+              <button
+                type="button"
+                onClick={() => setShowProgressSidebar(!showProgressSidebar)}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  showProgressSidebar
+                    ? 'text-indigo-600 bg-indigo-50 border border-indigo-200'
+                    : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                }`}
+                title="Hiện/Ẩn bảng tiến độ câu hỏi"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">TIẾN ĐỘ</span>
+              </button>
             </div>
           </div>
         </header>
 
-        {/* Thanh Gợi Ý Nhịp Độ Thời Gian (Pacing Guide) & Cảnh Báo Làm Quá Lâu (Đánh giá đa chiều) */}
-        {examMode === 'exam' && (
-          <div className="bg-slate-900 text-white text-[11px] py-1.5 px-4 shadow-inner border-b border-slate-800">
-            <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-amber-400 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Gợi ý nhịp độ thi thật:</span>
-                </span>
-                <span className="text-slate-300">
-                  {activeExam.level === 'N5' && 'Kiến thức ngôn ngữ: ~25 phút • Đọc hiểu: ~25 phút • Nghe hiểu: ~30 phút'}
-                  {activeExam.level === 'N4' && 'Kiến thức ngôn ngữ: ~30 phút • Đọc hiểu: ~30 phút • Nghe hiểu: ~35 phút'}
-                  {activeExam.level === 'N3' && 'Từ vựng & Ngữ pháp: ~40 phút • Đọc hiểu: ~65 phút • Nghe hiểu: ~40 phút'}
-                  {activeExam.level === 'N2' && 'Kiến thức ngôn ngữ & Đọc: ~105 phút • Nghe hiểu: ~50 phút'}
-                  {activeExam.level === 'N1' && 'Kiến thức ngôn ngữ & Đọc: ~110 phút • Nghe hiểu: ~60 phút'}
-                </span>
-              </div>
-              {questionTimeSpentSeconds >= 180 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-bold animate-pulse text-[11px]">
-                  <span>⏱️ Nhịp độ: Bạn đã dừng ở câu này {Math.floor(questionTimeSpentSeconds / 60)}p {questionTimeSpentSeconds % 60}s. Hãy chọn tạm phương án khả dĩ và đi tiếp để tránh hụt giờ Đọc hiểu!</span>
-                  <button onClick={() => setQuestionTimeSpentSeconds(0)} className="text-slate-950 hover:text-white font-black ml-1 cursor-pointer">✕</button>
-                </div>
-              )}
+        {/* KHU VỰC LÀM BÀI CHÍNH */}
+        <main className="max-w-6xl mx-auto px-4 py-6">
+          {/* Header Banner Phân môn (Image 9) */}
+          <div className="bg-[#F1F5F9] border border-slate-200/80 rounded-2xl p-6 text-center mb-8 shadow-xs">
+            <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-wide mb-2 uppercase font-sans">
+              {activeExam.title} • {currentSession.title}
+            </h1>
+            <div className="flex items-center justify-center gap-2">
+              <span className="px-3 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-200">
+                {activeExam.level}
+              </span>
+              <span className="px-3 py-0.5 rounded-full text-xs font-semibold bg-slate-200/90 text-slate-700">
+                {currentSessionQuestions.length} câu
+              </span>
             </div>
           </div>
-        )}
 
-        {/* Khu vực nội dung bài thi */}
-        <main className="max-w-6xl mx-auto px-4 py-6">
-          <div className={`grid grid-cols-1 ${showProgressSidebar ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-6`}>
-            {/* Cột chính: Câu hỏi & Nội dung */}
-            <div className="lg:col-span-3 space-y-4">
-              <div
-                id="exam-question-card"
-                onMouseUp={handleTextMouseUp}
-                className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200/80 shadow-xs space-y-6"
-              >
-                {/* Header câu hỏi: Mondai, Số câu, Trạng thái làm bài */}
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-2.5 py-1 rounded-xl bg-slate-900 text-white font-black text-xs">
-                      Câu {currentQuestion.orderNumber} / {activeExam.questions?.length}
-                    </span>
-                    <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${getSectionBadge(currentQuestion.section).color}`}>
-                      {getSectionBadge(currentQuestion.section).label}
-                    </span>
-                    <span className="text-xs font-bold text-slate-700">
-                      {currentQuestion.subTypeLabel}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {isAnswered ? (
-                      <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 shadow-xs">
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Đã chọn: Phương án {formatOptLabel(userAnswers[currentQuestion.id])}</span>
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 font-medium text-xs border border-slate-200">
-                        Chưa chọn đáp án
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                
-
-                {/* 1. THANH ĐIỀU KHIỂN ÂM THANH CHOUKAI TÁCH BIỆT HOÀN TOÀN (AUDIO PLAYER BAR) */}
-                {isListening && (
-                  <div className="p-4 md:p-5 rounded-2xl bg-slate-900 text-white shadow-lg space-y-3.5">
-                    {/* Hàng 1: Tiêu đề, trạng thái và tốc độ phát */}
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-                          <Headphones className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
-                              JLPT Official Choukai Player
-                            </span>
-                            <span className="text-[10px] text-indigo-300/80 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30 font-semibold">
-                              🎙️ Đa Giọng Đọc (Nam / Nữ / Người thứ 3) + Hiệu Ứng 🔔
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[11px] text-slate-400">
-                              {isPlayingAudio ? '🔊 Đang phát băng nghe...' : '⏸️ Băng nghe tạm dừng'}
-                            </span>
-                            {isPlayingAudio && currentSpeakerRole && (
-                              <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold animate-pulse ${
-                                  currentSpeakerRole === 'male' || currentSpeakerRole === 'male_senior'
-                                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                                    : currentSpeakerRole === 'female' || currentSpeakerRole === 'female_senior'
-                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                                    : currentSpeakerRole === 'sfx'
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                }`}
-                              >
-                                {currentSpeakerRole === 'male' && `👨 [男] ${currentSpeakerName || 'Nhân vật Nam'}`}
-                                {currentSpeakerRole === 'male_senior' && `👨‍💼 [${currentSpeakerName || 'Quản lý'}] ${currentSpeakerName || 'Lãnh đạo / Người thứ 3'}`}
-                                {currentSpeakerRole === 'female' && `👩 [女] ${currentSpeakerName || 'Nhân vật Nữ'}`}
-                                {currentSpeakerRole === 'female_senior' && `👩‍💼 [${currentSpeakerName || 'Khách'}] ${currentSpeakerName || 'Nhân vật Nữ 2'}`}
-                                {currentSpeakerRole === 'narrator' && '🎙️ [MC] Người dẫn đề'}
-                                {currentSpeakerRole === 'sfx' && `🔔 [Hiệu ứng] ${currentSpeakerName || 'Âm thanh thực tế'}`}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Tốc độ phát */}
-                      <div className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
-                        <span className="text-[10px] text-slate-400 px-1 font-mono">Tốc độ:</span>
-                        {[0.8, 1.0, 1.2].map((rate) => (
-                          <button
-                            key={rate}
-                            onClick={() => handleChangePlaybackRate(rate)}
-                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                              audioPlaybackRate === rate
-                                ? 'bg-indigo-600 text-white shadow-xs'
-                                : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            {rate}x
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Hàng 2: Thanh Timeline Scrubber */}
-                    <div className="space-y-1">
-                      <input
-                        type="range"
-                        min={0}
-                        max={audioDuration || 100}
-                        value={audioCurrentTime}
-                        onChange={(e) => handleAudioSeek(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                      />
-                      <div className="flex justify-between text-[11px] font-mono text-slate-400">
-                        <span>{formatTime(Math.floor(audioCurrentTime))}</span>
-                        <span>{formatTime(Math.floor(audioDuration || 0))}</span>
-                      </div>
-                    </div>
-
-                    {/* Hàng 3: Bộ nút phát & Visualizer sóng âm */}
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="flex items-center gap-2">
-                        {/* Lùi 5s */}
-                        <button
-                          onClick={() => handleSkipAudio(-5)}
-                          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all cursor-pointer"
-                          title="Lùi 5 giây"
-                        >
-                          <Rewind className="w-4 h-4" />
-                        </button>
-
-                        {/* Nút Play/Tạm dừng/Phát tiếp chính */}
-                        <button
-                          onClick={() => togglePlayAudio(currentQuestion)}
-                          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-xs active:scale-95 text-white shadow-lg transition-all cursor-pointer ${
-                            isPlayingAudio
-                              ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-500/30'
-                              : isAudioPaused
-                              ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/30'
-                              : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/30'
-                          }`}
-                        >
-                          {isPlayingAudio ? (
-                            <>
-                              <Pause className="w-4 h-4 fill-white" />
-                              <span>Tạm dừng</span>
-                            </>
-                          ) : isAudioPaused ? (
-                            <>
-                              <Play className="w-4 h-4 fill-white" />
-                              <span>Phát tiếp</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-4 h-4 fill-white" />
-                              <span>Phát bài nghe</span>
-                            </>
-                          )}
-                        </button>
-
-                        {/* Tiến 5s */}
-                        <button
-                          onClick={() => handleSkipAudio(5)}
-                          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all cursor-pointer"
-                          title="Tua tới 5 giây"
-                        >
-                          <FastForward className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Visualizer sóng âm thanh nhỏ gọn */}
-                      <div className="flex items-center gap-1 h-6 px-3 bg-slate-950/60 rounded-xl border border-slate-800">
-                        {[30, 60, 20, 85, 55, 95, 25, 75, 45, 90, 40, 80].map((h, i) => (
-                          <div
-                            key={i}
-                            className={`w-0.5 rounded-full bg-indigo-400 transition-all duration-300 ${
-                              isPlayingAudio ? 'animate-pulse' : 'opacity-25'
-                            }`}
-                            style={{ height: isPlayingAudio ? `${h}%` : '25%' }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Hàng 4: Kịch bản Script (khi luyện thi) */}
-                    {examMode === 'practice' && (
-                      <div className="pt-2 border-t border-slate-800">
-                        <button
-                          onClick={() => setShowListeningScript(!showListeningScript)}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1.5 cursor-pointer"
-                        >
-                          {showListeningScript ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          <span>{showListeningScript ? 'Ẩn kịch bản hội thoại' : 'Xem kịch bản hội thoại (Script & Dịch nghĩa)'}</span>
-                        </button>
-                        {showListeningScript && currentQuestion.passage && (
-                          <div className="mt-3 p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs space-y-2">
-                            <p className="text-slate-200 font-japanese leading-relaxed whitespace-pre-line">
-                              <div dangerouslySetInnerHTML={{ __html: currentQuestion.passage }} />
-                            </p>
-                            {currentQuestion.passageVi && (
-                              <p className="text-slate-400 italic pt-2 border-t border-slate-800/80 whitespace-pre-line leading-relaxed">
-                                {currentQuestion.passageVi}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 2. TỜ ĐỀ THI GIẤY TRẮNG ĐEN (問題用紙) TÁCH BIỆT HOÀN TOÀN CHUẨN JEES */}
-
-                {/* BỐ CỤC ĐỌC HIỂU HOẶC NGỮ PHÁP ĐOẠN VĂN 2 CỘT (DOKKAI / PASSAGE GRAMMAR SPLIT-PANE) */}
-                {showSplitPanePassage ? (
-                  <div className="flex flex-col gap-6 pt-2">
-                    {/* Cột trái: Văn bản đọc hiểu & hình ảnh */}
-                    <div className="p-5 rounded-3xl bg-amber-50/30 border border-amber-200/70 space-y-3">
-                      <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
-                        <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                          <BookOpenCheck className="w-4 h-4 text-amber-600" />
-                          <span>{isPassageGrammar ? 'Văn Bản Ngữ Pháp Đoạn Văn (文章の文法本文)' : 'Văn Bản Đọc Hiểu (読解本文)'}</span>
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* Cột trái: Danh sách câu hỏi theo phiên (Image 9) */}
+            <div className="flex-1 w-full min-w-0 space-y-6">
+              {sessionMondaiGroups.map((group, gIdx) => {
+                return (
+                  <div key={group.key || gIdx} className="space-y-4">
+                    {/* Hướng dẫn Mondai chuẩn JLPT (Image 9) */}
+                    <div className="pt-2 pb-1">
+                      <div className="text-sm md:text-base font-bold text-slate-800 font-japanese leading-relaxed">
+                        <span className="text-slate-900 mr-2 font-black">
+                          {group.label.includes('Mondai') || group.label.includes('問題')
+                            ? group.label.split(':')[0]
+                            : `問題${gIdx + 1}`}
                         </span>
-                        <span className="text-[10px] text-amber-800 font-semibold bg-amber-100/80 px-2 py-0.5 rounded-md">
-                          {currentQuestion.subTypeLabel}
-                        </span>
-                      </div>
-
-                      {/* Tranh ảnh/biểu bảng nếu có */}
-                      {effectiveReadingData.imageUrl && (
-                        <div className="text-center py-1">
-                          <img
-                            src={effectiveReadingData.imageUrl}
-                            alt="Biểu bảng tra cứu thông tin"
-                            className="rounded-xl border border-amber-200 max-h-48 mx-auto object-cover"
-                          />
-                        </div>
-                      )}
-
-                      {/* Nội dung đoạn văn font Nhật Bản với ô trống được highlight nổi bật */}
-                      <div dangerouslySetInnerHTML={{ __html: renderPassageWithHighlight(effectiveReadingData.passage, isPassageGrammar ? currentQuestion.orderNumber : undefined) }} />
-
-                      {/* Bản dịch tiếng Việt đoạn văn */}
-                      {effectiveReadingData.passageVi && examMode !== 'exam' && (
-                        <div className="pt-3 border-t border-amber-200/60">
-                          <button
-                            onClick={() => setShowTranslations(!showTranslations)}
-                            className="text-xs text-amber-900 font-bold flex items-center gap-1 cursor-pointer"
-                          >
-                            {showTranslations ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            <span>{showTranslations ? 'Ẩn bản dịch đoạn văn' : 'Xem bản dịch tiếng Việt đoạn văn'}</span>
-                          </button>
-                          {showTranslations && (
-                            <p className="mt-2 text-xs text-slate-600 italic bg-white p-3 rounded-xl border border-amber-200 leading-relaxed whitespace-pre-line">
-                              {effectiveReadingData.passageVi}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Cột phải: Câu hỏi & 4 Phương án */}
-                    <div className="space-y-4 flex flex-col justify-between">
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <h4 className="text-base font-bold text-slate-900 leading-relaxed font-japanese">
-                            <span dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(currentQuestion.question, currentQuestion.orderNumber)) }} />
-                          </h4>
-                          {currentQuestion.questionVi && examMode !== 'exam' && (
-                            <p className="text-xs text-slate-500 italic">
-                              {cleanQuestionVi(currentQuestion.questionVi, currentQuestion.orderNumber)}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* 4 Phương án lựa chọn (có hỗ trợ gạch bỏ loại trừ phương án sai) */}
-                        <div className="space-y-2.5 pt-2">
-                          {currentQuestion.options.map((option, optIdx) => {
-                            const isSelected = userAnswers[currentQuestion.id] === optIdx;
-                            const isEliminated = (eliminatedOptions[currentQuestion.id] || []).includes(optIdx);
-                            const hasAnswered = userAnswers[currentQuestion.id] !== undefined;
-                            const correctIdx = currentQuestion.correctIndex;
-                            const isCorrectOption = examMode === 'practice' && hasAnswered && correctIdx !== undefined && correctIdx >= 0 && optIdx === correctIdx;
-                            const isWrongOption = examMode === 'practice' && hasAnswered && isSelected && correctIdx !== undefined && correctIdx >= 0 && optIdx !== correctIdx;
-                            return (
-                              <button
-                                key={optIdx}
-                                onClick={() => handleSelectOption(currentQuestion.id, optIdx)}
-                                onContextMenu={(e) => handleToggleEliminate(currentQuestion.id, optIdx, e)}
-                                className={`w-full text-left p-3.5 rounded-2xl border text-xs md:text-sm font-medium transition-all flex items-start gap-3 cursor-pointer group ${
-                                  isEliminated
-                                    ? 'opacity-40 line-through bg-slate-100/90 border-dashed border-slate-300 text-slate-400'
-                                    : isCorrectOption
-                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold shadow-xs'
-                                    : isWrongOption
-                                    ? 'bg-rose-50 border-rose-400 text-rose-900 font-bold shadow-xs'
-                                    : isSelected
-                                    ? 'bg-indigo-50/80 border-indigo-500 text-indigo-900 font-bold shadow-xs'
-                                    : 'bg-white border-slate-200 hover:border-indigo-200 hover:bg-slate-50 text-slate-800'
-                                }`}
-                              >
-                                <span
-                                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm font-black transition-colors ${
-                                    isEliminated
-                                      ? 'bg-slate-200 text-slate-400 line-through'
-                                      : isCorrectOption
-                                      ? 'bg-emerald-600 text-white shadow-xs'
-                                      : isWrongOption
-                                      ? 'bg-rose-500 text-white shadow-xs'
-                                      : isSelected
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'bg-slate-100 text-slate-700'
-                                  }`}
-                                >
-                                  {isCorrectOption ? '✓' : isWrongOption ? '✕' : formatOptLabel(optIdx)}
-                                </span>
-                                <span className="pt-0.5 leading-relaxed font-japanese flex-1" dangerouslySetInnerHTML={{ __html: option }} />
-                                {!isCorrectOption && !isWrongOption && (
-                                  <span
-                                    onClick={(e) => handleToggleEliminate(currentQuestion.id, optIdx, e)}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition-opacity ${
-                                      isEliminated
-                                        ? 'text-rose-600 bg-rose-50 opacity-100'
-                                        : 'text-slate-400 hover:text-rose-600 hover:bg-slate-100 opacity-0 group-hover:opacity-100'
-                                    }`}
-                                    title={isEliminated ? "Bỏ gạch loại trừ" : "Gạch bỏ phương án sai này (chuột phải)"}
-                                  >
-                                    {isEliminated ? '↺ Bỏ gạch' : '✕ Loại trừ'}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Nguồn tài liệu */}
-                      <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                        <span>Đề thi chuẩn hóa JEES</span>
-                        <span>Phím tắt: [1], [2], [3], [4]</span>
+                        <span>{group.instruction}</span>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  /* BỐ CỤC CÂU HỎI TIÊU CHUẨN (CHO TỪ VỰNG, NGỮ PHÁP, NGHE HIỂU) */
-                  <div className="space-y-6">
-                    
 
-                    {/* Hướng dẫn đặc biệt cho dạng bài sắp xếp câu dấu sao ★ */}
-                    {(currentQuestion.subType === 'sentence_order' || currentQuestion.question.includes('★') || currentQuestion.subTypeLabel?.includes('文の組み立て')) && (
-                      <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-300 space-y-1.5 animate-fadeIn">
-                        <div className="flex items-center gap-2 text-xs font-black text-amber-900">
-                          <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                          <span>DẠNG BÀI: SẮP XẾP THỨ TỰ CÂU (文の組み立て)</span>
-                        </div>
-                        <p className="text-xs text-amber-900 leading-relaxed font-medium">
-                          👉 Hãy ghép 4 phương án bên dưới theo trật tự câu hoàn chỉnh, sau đó <strong>chọn phương án nằm ở vị trí có ngôi sao 【★】</strong> làm đáp án đúng.
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <h4 className="text-base md:text-lg font-bold text-slate-900 leading-relaxed font-japanese">
-                        <span dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(currentQuestion.question, currentQuestion.orderNumber)) }} />
-                      </h4>
-                      {currentQuestion.questionVi && examMode !== 'exam' && (
-                        <p className="text-xs text-slate-500 italic">
-                          {cleanQuestionVi(currentQuestion.questionVi, currentQuestion.orderNumber)}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* 4 Phương án (có hỗ trợ gạch bỏ loại trừ phương án sai) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {currentQuestion.options.map((option, optIdx) => {
-                        const isSelected = userAnswers[currentQuestion.id] === optIdx;
-                        const isEliminated = (eliminatedOptions[currentQuestion.id] || []).includes(optIdx);
-                        const hasAnswered = userAnswers[currentQuestion.id] !== undefined;
-                        // Trong practice mode: hiển thị đáp án đúng/sai ngay sau khi chọn
-                        const correctIdx = currentQuestion.correctIndex;
-                        const isCorrectOption = examMode === 'practice' && hasAnswered && correctIdx !== undefined && correctIdx >= 0 && optIdx === correctIdx;
-                        const isWrongOption = examMode === 'practice' && hasAnswered && isSelected && correctIdx !== undefined && correctIdx >= 0 && optIdx !== correctIdx;
-                        return (
-                          <button
-                            key={optIdx}
-                            onClick={() => handleSelectOption(currentQuestion.id, optIdx)}
-                            onContextMenu={(e) => handleToggleEliminate(currentQuestion.id, optIdx, e)}
-                            className={`text-left p-4 rounded-2xl border text-xs md:text-sm font-medium transition-all flex items-start gap-3 cursor-pointer group ${
-                              isEliminated
-                                ? 'opacity-40 line-through bg-slate-100/90 border-dashed border-slate-300 text-slate-400'
-                                : isCorrectOption
-                                ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold shadow-xs'
-                                : isWrongOption
-                                ? 'bg-rose-50 border-rose-400 text-rose-900 font-bold shadow-xs'
-                                : isSelected
-                                ? 'bg-indigo-50/80 border-indigo-500 text-indigo-900 font-bold shadow-xs'
-                                : 'bg-white border-slate-200 hover:border-indigo-200 hover:bg-slate-50 text-slate-800'
-                            }`}
-                          >
-                            <span
-                              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-sm font-black transition-colors ${
-                                isEliminated
-                                  ? 'bg-slate-200 text-slate-400 line-through'
-                                  : isCorrectOption
-                                  ? 'bg-emerald-600 text-white shadow-xs'
-                                  : isWrongOption
-                                  ? 'bg-rose-500 text-white shadow-xs'
-                                  : isSelected
-                                  ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              {isCorrectOption ? '✓' : isWrongOption ? '✕' : formatOptLabel(optIdx)}
-                            </span>
-                            <span className="pt-0.5 leading-relaxed font-japanese flex-1" dangerouslySetInnerHTML={{ __html: option }} />
-                            {!isCorrectOption && !isWrongOption && (
-                              <span
-                                onClick={(e) => handleToggleEliminate(currentQuestion.id, optIdx, e)}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition-opacity ${
-                                  isEliminated
-                                    ? 'text-rose-600 bg-rose-50 opacity-100'
-                                    : 'text-slate-400 hover:text-rose-600 hover:bg-slate-100 opacity-0 group-hover:opacity-100'
-                                }`}
-                                title={isEliminated ? "Bỏ gạch loại trừ" : "Gạch bỏ phương án sai này (chuột phải)"}
-                              >
-                                {isEliminated ? '↺ Bỏ gạch' : '✕ Loại trừ'}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* THANH ĐIỀU HƯỚNG TRƯỚC / SAU CÂU HỎI */}
-                <div className="flex items-center justify-between pt-6 border-t border-slate-100 select-none no-lookup">
-                  <button
-                    onClick={() => {
-                      setSelectionPopup(null);
-                      setCurrentQuestionIndex((prev) => Math.max(0, prev - 1));
-                    }}
-                    disabled={currentQuestionIndex === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer select-none no-lookup"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    <span>Câu trước</span>
-                  </button>
-
-                  <span className="text-xs text-slate-400 font-medium select-none no-lookup">
-                    Câu {currentQuestionIndex + 1} / {activeExam.questions?.length}
-                  </span>
-
-                  {currentQuestionIndex < (activeExam.questions?.length || 0) - 1 ? (
-                    <button
-                      onClick={() => {
-                        setSelectionPopup(null);
-                        setCurrentQuestionIndex((prev: any) => prev + 1);
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all cursor-pointer shadow-xs select-none no-lookup"
-                    >
-                      <span>Câu tiếp</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setSelectionPopup(null);
-                        setShowSubmitModal(true);
-                      }}
-                      className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-all cursor-pointer shadow-md select-none no-lookup"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>Hoàn tất & Nộp bài</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Cột phải: Phiếu tô đáp án OMR (Answer Sheet Matrix) */}
-            {showProgressSidebar && (
-            <div className="space-y-4">
-              <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4 sticky top-24">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <FileText className="w-4 h-4 text-indigo-600" />
-                    <span>Phiếu Trả Lời (OMR Sheet)</span>
-                  </div>
-                  <span className="text-[11px] font-bold text-indigo-600">
-                    {Object.keys(userAnswers).length}/{activeExam.questions?.length} câu
-                  </span>
-                </div>
-
-                {/* Ma trận số câu hỏi */}
-                <div className="max-h-[380px] overflow-y-auto pr-1">
-                  <div className="grid grid-cols-5 gap-2">
-                    {activeExam.questions?.map((q: any, idx: any) => {
-                      const isCurrent = idx === currentQuestionIndex;
-                      const isAns = userAnswers[q.id] !== undefined;
+                    {/* Danh sách câu hỏi trong Mondai */}
+                    {group.questions.map((q, qSubIdx) => {
+                      const isAnswered = userAnswers[q.id] !== undefined;
+                      const globalOrSessionNum = q.orderNumber || (qSubIdx + 1);
 
                       return (
-                        <button
+                        <div
                           key={q.id}
-                          onClick={() => setCurrentQuestionIndex(idx)}
-                          className={`h-11 rounded-xl text-xs font-bold flex flex-col items-center justify-center relative transition-all cursor-pointer ${
-                            isCurrent
-                              ? 'ring-2 ring-indigo-600 ring-offset-2 bg-indigo-600 text-white z-10 scale-105 shadow-sm'
-                              : isAns
-                              ? 'bg-emerald-600 text-white font-black shadow-xs border-2 border-emerald-500 hover:bg-emerald-700'
-                              : 'bg-slate-100/70 text-slate-500 hover:bg-slate-200 hover:text-slate-800 border border-slate-200/80'
+                          id={`question-card-${q.id}`}
+                          className={`bg-white rounded-2xl border transition-all p-5 md:p-6 shadow-xs ${
+                            isAnswered ? 'border-slate-300' : 'border-slate-200/80'
                           }`}
-                          title={`Câu ${idx + 1}: ${isAns ? `Đã chọn đáp án ${formatOptLabel(userAnswers[q.id])}` : 'Chưa làm'}`}
                         >
-                          <span className="text-[11px] leading-tight font-mono">{idx + 1}</span>
-                          {isAns && (
-                            <span className="text-[10px] leading-tight text-emerald-100 font-bold">
-                              {formatOptLabel(userAnswers[q.id])}
-                            </span>
+                          {/* ĐOẠN VĂN ĐỌC HIỂU NẾU CÓ */}
+                          {q.passage && (
+                            <div className="p-4 md:p-5 rounded-2xl bg-amber-50/40 border border-amber-200/80 mb-5 font-japanese text-sm md:text-base leading-relaxed text-slate-900 whitespace-pre-line">
+                              {q.imageUrl && (
+                                <img
+                                  src={q.imageUrl}
+                                  alt="Bài đọc Dokkai"
+                                  className="max-h-56 mx-auto rounded-xl border border-amber-200 mb-3 object-contain"
+                                />
+                              )}
+                              <div dangerouslySetInnerHTML={{ __html: renderPassageWithHighlight(q.passage, q.orderNumber) }} />
+                            </div>
                           )}
-                        </button>
+
+                          {/* TRÌNH PHÁT AUDIO CHO CHOUKAI NẾU CÓ */}
+                          {q.section === 'listening' && q.audioUrl && (
+                            <div className="p-4 rounded-xl bg-slate-900 text-white mb-4 flex items-center justify-between gap-4 font-sans">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-600/40 flex items-center justify-center text-indigo-300">
+                                  <Headphones className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-bold text-slate-200">Âm thanh nghe hiểu Choukai</div>
+                                  <div className="text-[11px] text-slate-400">Câu hỏi số {globalOrSessionNum}</div>
+                                </div>
+                              </div>
+                              <audio
+                                controls
+                                src={resolveAudioUrl(q.audioUrl)}
+                                className="h-9 w-64 max-w-full"
+                              />
+                            </div>
+                          )}
+
+                          {/* DÒNG CÂU HỎI (IMAGE 9) */}
+                          <div className="flex items-start gap-3">
+                            <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                              {globalOrSessionNum}
+                            </span>
+                            <div
+                              className="text-base md:text-lg font-japanese text-slate-900 leading-relaxed font-japanese flex-1"
+                              dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(q.question, q.orderNumber)) }}
+                            />
+                          </div>
+
+                          {/* 4 ĐÁP ÁN XẾP LƯỚI 2x2 (IMAGE 9) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 ml-0 sm:ml-10">
+                            {q.options.map((option, optIdx) => {
+                              const isSelected = userAnswers[q.id] === optIdx;
+                              return (
+                                <button
+                                  key={optIdx}
+                                  type="button"
+                                  onClick={() => {
+                                    setUserAnswers((prev: any) => ({ ...prev, [q.id]: optIdx }));
+                                  }}
+                                  className={`p-3.5 rounded-xl border text-left text-sm font-japanese transition-all flex items-center gap-3 cursor-pointer ${
+                                    isSelected
+                                      ? 'border-2 border-[#4F46E5] bg-indigo-50/50 text-[#4F46E5] font-bold shadow-xs'
+                                      : 'border-slate-200 bg-white hover:border-indigo-300 text-slate-700'
+                                  }`}
+                                >
+                                  <span className={`text-xs font-bold ${isSelected ? 'text-[#4F46E5]' : 'text-slate-400'}`}>
+                                    {optIdx + 1}
+                                  </span>
+                                  <span
+                                    className="flex-1 leading-relaxed"
+                                    dangerouslySetInnerHTML={{ __html: renderQuestionText(option) }}
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
-                </div>
-
-                {/* Chú thích trạng thái trực quan */}
-                <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 text-[11px] text-center">
-                  <div className="flex items-center justify-center gap-1.5 font-bold text-emerald-700 bg-emerald-50 py-1.5 rounded-xl border border-emerald-200">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-emerald-600 inline-block shadow-xs" />
-                    <span>Đã chọn (Sáng)</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-1.5 font-semibold text-slate-500 bg-slate-100 py-1.5 rounded-xl border border-slate-200">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-white border border-slate-300 inline-block" />
-                    <span>Chưa làm (Tối)</span>
-                  </div>
-                </div>
-
-                {/* Nút nộp bài trực tiếp */}
-                <button
-                  onClick={() => setShowSubmitModal(true)}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition-all cursor-pointer shadow-xs"
-                >
-                  Nộp bài thi ngay
-                </button>
-              </div>
+                );
+              })}
             </div>
+
+            {/* Cột phải: NGĂN KÉO TIẾN ĐỘ (IMAGE 9) */}
+            {showProgressSidebar && (
+              <aside className="w-full lg:w-80 shrink-0 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs sticky top-20 font-sans">
+                {/* Header Tiến độ & Nút ĐÓNG */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                  <span className="font-bold text-slate-800 text-sm">Tiến độ</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowProgressSidebar(false)}
+                    className="text-xs font-bold text-rose-500 hover:text-rose-600 cursor-pointer"
+                  >
+                    ĐÓNG
+                  </button>
+                </div>
+
+                {/* Tên phân môn phiên hiện tại */}
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">
+                  {currentSession.title}
+                </div>
+
+                {/* Lưới 5 cột các câu hỏi (Image 9) */}
+                <div className="grid grid-cols-5 gap-2 mb-6 max-h-[60vh] overflow-y-auto pr-1">
+                  {currentSessionQuestions.map((sq, idx) => {
+                    const isAnswered = userAnswers[sq.id] !== undefined;
+                    return (
+                      <button
+                        key={sq.id}
+                        type="button"
+                        onClick={() => {
+                          const el = document.getElementById(`question-card-${sq.id}`);
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }
+                        }}
+                        className={`h-10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                          isAnswered
+                            ? 'bg-[#4F46E5] text-white shadow-xs'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {idx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Footer đếm câu đã làm / chưa làm (Image 9) */}
+                <div className="pt-4 border-t border-slate-100 space-y-2.5 text-xs font-medium text-slate-600">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded-sm bg-[#4F46E5]" />
+                      <span>Đã trả lời</span>
+                    </div>
+                    <span className="font-bold text-slate-800">{answeredSessionCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded-sm bg-white border border-slate-300" />
+                      <span>Chưa trả lời</span>
+                    </div>
+                    <span className="font-bold text-slate-800">{unansweredSessionCount}</span>
+                  </div>
+                </div>
+              </aside>
             )}
           </div>
         </main>
 
-        {/* MODAL XÁC NHẬN THOÁT BÀI THI */}
-        {showExitModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
-            <div className="bg-white rounded-3xl max-w-sm w-full p-8 space-y-6 shadow-2xl border border-slate-100 animate-scaleUp text-center flex flex-col items-center">
-              <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center mb-2">
-                <AlertCircle className="w-8 h-8" />
+        {/* MODAL GIẢI LAO CHUẨN JLPT (IMAGE 10) */}
+        {isBreakModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn font-sans">
+            <div className="bg-white rounded-[32px] p-8 max-w-sm w-full mx-auto text-center shadow-2xl space-y-5 border border-slate-100 animate-scaleUp">
+              {/* Ly cà phê icon */}
+              <div className="w-20 h-20 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
+                <Coffee className="w-9 h-9 text-blue-500" />
               </div>
-              
-              <div className="space-y-2">
-                <h3 className="text-2xl font-bold text-slate-800">
-                  Thoát bài tập?
+
+              {/* Tiêu đề */}
+              <h3 className="text-2xl font-bold text-slate-800">Giải lao</h3>
+
+              {/* Phụ đề */}
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Nghỉ một chút trước khi sang <span className="font-bold text-slate-900">{nextSession?.title || 'phần tiếp theo'}</span>.
+              </p>
+
+              {/* Đồng hồ to đếm ngược */}
+              <div className="text-5xl font-black tracking-wider text-slate-900 font-mono py-2">
+                {Math.floor(breakTimeRemaining / 60).toString().padStart(2, '0')}:{(breakTimeRemaining % 60).toString().padStart(2, '0')}
+              </div>
+
+              {/* Nút BỎ QUA */}
+              <button
+                type="button"
+                onClick={handleSkipBreak}
+                className="w-full py-4 rounded-2xl font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-lg shadow-indigo-100 transition-all active:scale-98 cursor-pointer text-base"
+              >
+                BỎ QUA
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL XÁC NHẬN KHI BẤM NỘP BÀI TRONG PHÒNG THI */}
+        {showSectionFinishConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn font-sans">
+            <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full mx-auto shadow-2xl space-y-5 border border-slate-100 animate-scaleUp">
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold text-slate-800">
+                  {nextSession ? `Hoàn thành ${currentSession.title}?` : 'Nộp bài thi JLPT?'}
                 </h3>
-                <p className="text-sm text-slate-600">
-                  Thoát bây giờ bạn sẽ <strong className="text-amber-600">MẤT TIẾN ĐỘ</strong> làm bài này.
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {nextSession ? (
+                    <>
+                      Bạn đã hoàn thành <span className="font-bold text-indigo-600">{answeredSessionCount}/{currentSessionQuestions.length}</span> câu của phần này. Bạn có muốn kết thúc phần thi để chuyển sang thời gian <span className="font-bold text-slate-900">Giải lao</span> không?
+                    </>
+                  ) : (
+                    <>
+                      Bạn đã hoàn thành tất cả các phần thi của kỳ thi JLPT. Bạn có muốn nộp bài ngay để hệ thống chấm điểm và xuất báo cáo kết quả chi tiết không?
+                    </>
+                  )}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 w-full pt-2">
+              <div className="flex gap-3 pt-2">
                 <button
+                  type="button"
+                  onClick={() => setShowSectionFinishConfirm(false)}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
+                >
+                  Tiếp tục làm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSectionFinishConfirm(false);
+                    if (nextSession) {
+                      setIsTimerRunning(false);
+                      setIsBreakModalOpen(true);
+                      setBreakTimeRemaining(300);
+                    } else {
+                      handleForceSubmit();
+                    }
+                  }}
+                  className="flex-1 py-3 rounded-xl text-xs font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-md shadow-indigo-100 transition-all cursor-pointer"
+                >
+                  {nextSession ? 'Nộp & Nghỉ giải lao' : 'Nộp bài chấm điểm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL XÁC NHẬN THOÁT PHÒNG THI */}
+        {showExitModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn font-sans">
+            <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-100 animate-scaleUp">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 mx-auto flex items-center justify-center">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Thoát phòng thi?</h3>
+                <p className="text-xs text-slate-500 mt-1">Kết quả bài làm hiện tại sẽ không được lưu nếu bạn thoát bây giờ.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
                   onClick={() => {
                     setShowExitModal(false);
                     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -4007,229 +3896,19 @@ const handleConfirmStartRealExam = () => {
                     }
                     setCurrentScreen('catalog');
                   }}
-                  className="py-3 rounded-xl text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
+                  className="py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
                 >
-                  THOÁT
+                  Thoát
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowExitModal(false)}
-                  className="py-3 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all cursor-pointer shadow-md"
+                  className="py-2.5 rounded-xl text-xs font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] transition-all cursor-pointer shadow-md"
                 >
-                  LÀM TIẾP
+                  Làm tiếp
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* MODAL XÁC NHẬN NỘP BÀI THI */}
-        {showSubmitModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-slate-100 animate-scaleUp">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Xác nhận nộp bài thi?
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Bạn đã làm {Object.keys(userAnswers).length} / {activeExam.questions?.length} câu hỏi.
-                  </p>
-                </div>
-              </div>
-
-              {Object.keys(userAnswers).length < (activeExam.questions?.length || 0) && (
-                <div className="p-3 bg-amber-50 rounded-xl text-xs text-amber-800 border border-amber-200/80">
-                  ⚠️ Còn <strong>{(activeExam.questions?.length || 0) - Object.keys(userAnswers).length} câu</strong> bạn chưa chọn đáp án. Bạn vẫn muốn nộp chứ?
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  onClick={() => setShowSubmitModal(false)}
-                  className="py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
-                >
-                  Tiếp tục làm bài
-                </button>
-                <button
-                  onClick={handleForceSubmit}
-                  disabled={isSubmitting}
-                  className="py-2.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 transition-all cursor-pointer shadow-md"
-                >
-                  {isSubmitting ? 'Đang chấm điểm...' : 'Nộp bài ngay'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* POPUP TRA CỨU BÔI ĐEN / NHẤN ĐÚP TƯƠNG TỰ EXTENSION EJOY ENGLISH */}
-        {selectionPopup && (
-          <div
-            ref={selectionPopupRef}
-            style={{
-              position: 'absolute',
-              left: `${selectionPopup.x}px`,
-              top: `${selectionPopup.y}px`,
-              zIndex: 9999
-            }}
-            className="w-[330px] md:w-[380px] bg-white/98 backdrop-blur-md rounded-2xl shadow-2xl border border-indigo-200 p-4 space-y-3 animate-fadeIn text-slate-800 ring-1 ring-black/5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header Popup */}
-            <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
-              <div className="flex items-center gap-1.5 text-xs font-black text-indigo-700">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Tra cứu nhanh • eJOY JLPT</span>
-              </div>
-              <button
-                onClick={() => setSelectionPopup(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                title="Đóng popup"
-              >
-                <XCircle className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Đoạn văn bản bôi đen */}
-            <div className="p-2.5 bg-indigo-50/70 rounded-xl border border-indigo-100 text-xs font-bold text-indigo-950 font-serif leading-relaxed select-text">
-              "{selectionPopup.text}"
-            </div>
-
-            {/* Trạng thái Loading hoặc Dữ liệu */}
-            {selectionPopup.loading ? (
-              <div className="flex items-center justify-center py-4 text-xs text-indigo-600 gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Đang tra cứu nghĩa & sinh ví dụ tương tự...</span>
-              </div>
-            ) : (
-              <div className="space-y-2.5 text-xs">
-                {selectionPopup.data?.type === 'word' ? (
-                  /* GIAO DIỆN TRA CỨU TỪ VỰNG: Chữ Hán + Furigana, Ý nghĩa, 1 Ví dụ đơn */
-                  <div className="space-y-2.5">
-                    {/* Chữ Hán có Furigana */}
-                    <div className="p-2 bg-indigo-50/80 rounded-xl border border-indigo-100/90 flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 block">Hán tự & Furigana:</span>
-                        <p className="text-base font-black font-serif text-indigo-950 leading-relaxed">
-                          {selectionPopup.data.kanjiWithFurigana || selectionPopup.text}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Ý nghĩa tiếng Việt của từ */}
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ý nghĩa:</span>
-                      <p className="font-bold text-emerald-800 text-sm leading-snug">
-                        {selectionPopup.data.translation}
-                      </p>
-                    </div>
-
-                    {/* Giải thích cách dùng ngắn */}
-                    {selectionPopup.data.explanation && (
-                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200/70 text-[11px] text-slate-600 leading-relaxed">
-                        {selectionPopup.data.explanation}
-                      </div>
-                    )}
-
-                    {/* 1 Câu ví dụ đơn giản */}
-                    {selectionPopup.data.example && (
-                      <div className="space-y-1 pt-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                          <Lightbulb className="w-3 h-3 text-amber-600" />
-                          <span>Câu ví dụ đơn giản:</span>
-                        </span>
-                        <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-0.5">
-                          <p className="font-serif font-bold text-slate-900 text-xs leading-relaxed">
-                            {selectionPopup.data.example.jp}
-                          </p>
-                          <p className="text-[11px] text-slate-600 italic">
-                            {selectionPopup.data.example.vi}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* GIAO DIỆN TRA CỨU CẢ CÂU: Dịch nghĩa cả câu, Mẫu ngữ pháp tương ứng, 1 Ví dụ */
-                  <div className="space-y-2.5">
-                    {/* Dịch nghĩa toàn bộ câu */}
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Dịch nghĩa câu:</span>
-                      <p className="font-bold text-emerald-800 text-sm leading-relaxed">
-                        {selectionPopup.data?.translation}
-                      </p>
-                    </div>
-
-                    {/* Khối Ngữ pháp tương ứng được dùng trong câu */}
-                    {selectionPopup.data?.grammarPoint && (
-                      <div className="p-2.5 bg-indigo-50/80 rounded-xl border border-indigo-200 text-xs space-y-1.5 text-slate-800">
-                        <div className="font-bold text-indigo-950 flex items-center gap-1.5">
-                          <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Mẫu ngữ pháp: {selectionPopup.data.grammarPoint}</span>
-                        </div>
-                        {selectionPopup.data.grammarStructure && (
-                          <div className="text-[11px] font-mono text-indigo-800 bg-white/90 px-2 py-0.5 rounded-lg border border-indigo-100">
-                            Cấu trúc: {selectionPopup.data.grammarStructure}
-                          </div>
-                        )}
-                        {selectionPopup.data.grammarMeaning && (
-                          <p className="text-[11px] text-slate-700 leading-relaxed pt-0.5">
-                            {selectionPopup.data.grammarMeaning}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 1 Câu ví dụ minh họa ngữ pháp */}
-                    {selectionPopup.data?.example && (
-                      <div className="space-y-1 pt-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                          <Lightbulb className="w-3 h-3 text-amber-600" />
-                          <span>Ví dụ minh họa ngữ pháp:</span>
-                        </span>
-                        <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-0.5">
-                          <p className="font-serif font-bold text-slate-900 text-xs leading-relaxed">
-                            {selectionPopup.data.example.jp}
-                          </p>
-                          <p className="text-[11px] text-slate-600 italic">
-                            {selectionPopup.data.example.vi}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Footer: Lưu nhanh vào Sổ tay */}
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <button
-                    onClick={async () => {
-                      try {
-                        await NotebookApi.createItem({
-                          itemType: 'VOCAB',
-                          title: selectionPopup.text,
-                          meaningVi: selectionPopup.data?.translation || '',
-                          exampleJp: selectionPopup.data?.examples?.[0]?.jp || '',
-                          exampleVi: selectionPopup.data?.examples?.[0]?.vi || '',
-                          tags: 'Tra cứu phòng thi JLPT'
-                        });
-                        showNotification('Đã lưu thành công vào Sổ tay học tập!', 'success');
-                      } catch {
-                        showNotification('Không thể lưu vào Sổ tay lúc này.', 'error');
-                      }
-                    }}
-                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"
-                  >
-                    <BookmarkPlus className="w-3.5 h-3.5" />
-                    <span>Lưu vào Sổ tay</span>
-                  </button>
-                  <span className="text-[10px] text-slate-400 italic">Bôi đen đoạn khác để tra tiếp</span>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
