@@ -553,7 +553,7 @@ const parseDialogueTurns = (q: ExamQuestionItem, fallbackPassage?: string): Dial
 const renderPassageWithHighlight = (passage: string, activeOrderNumber?: number) => {
     if (!passage) return '';
     if (!activeOrderNumber) {
-      return `<p class="text-slate-900 text-sm md:text-base leading-loose whitespace-pre-line font-serif">${passage}</p>`;
+      return `<p class="text-slate-900 text-sm md:text-base leading-loose whitespace-pre-line font-japanese">${passage}</p>`;
     }
 
     const parts = passage.split(/(【\s*\d+\s*】|\[\s*\d+\s*\]|（\s*\d+\s*）)/g);
@@ -570,7 +570,7 @@ const renderPassageWithHighlight = (passage: string, activeOrderNumber?: number)
       return part;
     }).join('');
     
-    return `<div class="text-slate-900 text-sm md:text-base leading-loose whitespace-pre-line font-serif">${innerHtml}</div>`;
+    return `<div class="text-slate-900 text-sm md:text-base leading-loose whitespace-pre-line font-japanese">${innerHtml}</div>`;
   };
 
 const stripRuby = (str?: string | null): string => {
@@ -895,8 +895,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
   // State kết quả & AI
   const [examResult, setExamResult] = useState<ExamEvaluationResult | null>(null);
-  const [resultFilter, setResultFilter] = useState<'all' | 'wrong' | 'correct'>('wrong');
+  const [resultFilter, setResultFilter] = useState<'all' | 'wrong' | 'correct'>('all');
   const [resultSectionFilter, setResultSectionFilter] = useState<string>('all');
+  const [showResultSidebar, setShowResultSidebar] = useState<boolean>(true);
   const [aiExplanations, setAiExplanations] = useState<{ [questionId: string]: AIExplanationResult }>({});
   const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
   const [diagnosticReport, setDiagnosticReport] = useState<ExamDiagnosticReport | null>(null);
@@ -1714,8 +1715,8 @@ const handleConfirmStartRealExam = () => {
   const renderQuestionText = (txt: string) => {
     if (!txt) return '';
     let cleaned = txt;
-    // Replace markdown bold WITHOUT padding so furigana aligns
-    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-600 font-bold">$1</strong>');
+    // Replace markdown bold WITHOUT padding so furigana aligns, with clean underline for target word
+    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-950 font-bold underline decoration-indigo-600 decoration-2 underline-offset-4">$1</strong>');
     
     // Replace stars
     cleaned = cleaned.replace(/【?★】?/g, '<span class="inline-flex items-center justify-center w-5 h-5 bg-amber-100 text-amber-600 rounded-full mx-1 text-xs font-black border border-amber-300">★</span>');
@@ -3625,7 +3626,7 @@ const handleConfirmStartRealExam = () => {
                         </button>
                         {showListeningScript && currentQuestion.passage && (
                           <div className="mt-3 p-4 bg-slate-950 rounded-2xl border border-slate-800 text-xs space-y-2">
-                            <p className="text-slate-200 font-serif leading-relaxed whitespace-pre-line">
+                            <p className="text-slate-200 font-japanese leading-relaxed whitespace-pre-line">
                               <div dangerouslySetInnerHTML={{ __html: currentQuestion.passage }} />
                             </p>
                             {currentQuestion.passageVi && (
@@ -3668,7 +3669,7 @@ const handleConfirmStartRealExam = () => {
                         </div>
                       )}
 
-                      {/* Nội dung đoạn văn font Serif Nhật Bản với ô trống được highlight nổi bật */}
+                      {/* Nội dung đoạn văn font Nhật Bản với ô trống được highlight nổi bật */}
                       <div dangerouslySetInnerHTML={{ __html: renderPassageWithHighlight(effectiveReadingData.passage, isPassageGrammar ? currentQuestion.orderNumber : undefined) }} />
 
                       {/* Bản dịch tiếng Việt đoạn văn */}
@@ -3694,7 +3695,7 @@ const handleConfirmStartRealExam = () => {
                     <div className="space-y-4 flex flex-col justify-between">
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <h4 className="text-base font-bold text-slate-900 leading-relaxed font-serif">
+                          <h4 className="text-base font-bold text-slate-900 leading-relaxed font-japanese">
                             <span dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(currentQuestion.question, currentQuestion.orderNumber)) }} />
                           </h4>
                           {currentQuestion.questionVi && examMode !== 'exam' && (
@@ -3745,7 +3746,7 @@ const handleConfirmStartRealExam = () => {
                                 >
                                   {isCorrectOption ? '✓' : isWrongOption ? '✕' : formatOptLabel(optIdx)}
                                 </span>
-                                <span className="pt-0.5 leading-relaxed font-serif flex-1" dangerouslySetInnerHTML={{ __html: option }} />
+                                <span className="pt-0.5 leading-relaxed font-japanese flex-1" dangerouslySetInnerHTML={{ __html: option }} />
                                 {!isCorrectOption && !isWrongOption && (
                                   <span
                                     onClick={(e) => handleToggleEliminate(currentQuestion.id, optIdx, e)}
@@ -3791,7 +3792,7 @@ const handleConfirmStartRealExam = () => {
                     )}
 
                     <div className="space-y-2">
-                      <h4 className="text-base md:text-lg font-bold text-slate-900 leading-relaxed font-serif">
+                      <h4 className="text-base md:text-lg font-bold text-slate-900 leading-relaxed font-japanese">
                         <span dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(currentQuestion.question, currentQuestion.orderNumber)) }} />
                       </h4>
                       {currentQuestion.questionVi && examMode !== 'exam' && (
@@ -3843,7 +3844,7 @@ const handleConfirmStartRealExam = () => {
                             >
                               {isCorrectOption ? '✓' : isWrongOption ? '✕' : formatOptLabel(optIdx)}
                             </span>
-                            <span className="pt-0.5 leading-relaxed font-serif flex-1" dangerouslySetInnerHTML={{ __html: option }} />
+                            <span className="pt-0.5 leading-relaxed font-japanese flex-1" dangerouslySetInnerHTML={{ __html: option }} />
                             {!isCorrectOption && !isWrongOption && (
                               <span
                                 onClick={(e) => handleToggleEliminate(currentQuestion.id, optIdx, e)}
@@ -4236,16 +4237,15 @@ const handleConfirmStartRealExam = () => {
   }
 
   // ========================================================
-  // MÀN HÌNH 3: BÁO CÁO KẾT QUẢ THI THẬT 180 ĐIỂM & ĐỐI CHIẾU AI (GEMINI 3.5 FLASH)
+  // MÀN HÌNH 3: BÁO CÁO KẾT QUẢ & CHẤM ĐÚNG SAI TINH GỌN (CHUẨN MINH HỌA)
   // ========================================================
   if (currentScreen === 'result' && examResult) {
     const isPassed = examResult.isPassed;
-    const hasSectionalFailure = examResult.hasSectionalFailure;
-
     const wrongCount = examResult.questionResults.filter((q) => !q.isCorrect).length;
     const correctCount = examResult.questionResults.filter((q) => q.isCorrect).length;
     const totalCount = examResult.questionResults.length;
 
+    // Filter question list
     const filteredQuestionResults = examResult.questionResults.filter((q) => {
       if (resultFilter === 'wrong' && q.isCorrect) return false;
       if (resultFilter === 'correct' && !q.isCorrect) return false;
@@ -4257,1080 +4257,792 @@ const handleConfirmStartRealExam = () => {
       return true;
     });
 
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6 animate-fadeIn">
-        {/* 1. BANNER TỔNG KẾT ĐIỂM & TRẠNG THÁI ĐỖ / TRƯỢT */}
-        <div
-          className={`rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden ${
-            isPassed
-              ? 'bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-900'
-              : 'bg-gradient-to-br from-rose-700 via-red-800 to-slate-900'
-          }`}
-        >
-          <div className="relative z-10 space-y-4 max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/20 backdrop-blur-md uppercase tracking-wider">
-                JLPT {examResult.level} • Báo Cáo Điểm Thi Chuẩn 180
-              </span>
-              
-            </div>
+    // 3 Section summary for the score card (Image 1)
+    const langQuestions = examResult.questionResults.filter(q => q.section === 'vocab' || q.section === 'grammar');
+    const readingQuestions = examResult.questionResults.filter(q => q.section === 'reading');
+    const listeningQuestions = examResult.questionResults.filter(q => q.section === 'listening');
 
-            <div className="space-y-1">
-              <h2 className="text-3xl md:text-4xl font-black">
-                {isPassed ? '🎉 CHÚC MỪNG BẠN ĐÃ ĐỖ (PASSED)!' : '❌ BẠN CHƯA ĐẠT KỲ THI NÀY (FAILED)'}
-              </h2>
-              <p className="text-xs md:text-sm text-white/80 leading-relaxed">
-                {examResult.summaryMessage}
-              </p>
-            </div>
+    const langCorrect = langQuestions.filter(q => q.isCorrect).length;
+    const readingCorrect = readingQuestions.filter(q => q.isCorrect).length;
+    const listeningCorrect = listeningQuestions.filter(q => q.isCorrect).length;
 
-            {/* Điểm tổng và tỷ lệ đúng */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/20">
-                <span className="text-[10px] text-white/70 block uppercase font-bold">TỔNG ĐIỂM CHUẨN</span>
-                <span className="text-2xl font-black">{examResult.totalScore} / 180</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/20">
-                <span className="text-[10px] text-white/70 block uppercase font-bold">SỐ CÂU ĐÚNG</span>
-                <span className="text-2xl font-black">
-                  {examResult.totalCorrect} / {examResult.totalQuestions} ({Math.round((examResult.totalCorrect / examResult.totalQuestions) * 100)}%)
-                </span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/20">
-                <span className="text-[10px] text-white/70 block uppercase font-bold">THỜI GIAN LÀM</span>
-                <span className="text-2xl font-black">{formatTime(examResult.timeSpentSeconds)}</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/20">
-                <span className="text-[10px] text-white/70 block uppercase font-bold">CHUẨN ĐỖ</span>
-                <span className="text-2xl font-black">{examResult.passingScore} đ</span>
-              </div>
-            </div>
+    const vocabFound = examResult.sectionResults?.find(s => s.section === 'vocab');
+    const grammarFound = examResult.sectionResults?.find(s => s.section === 'grammar');
+    const readingFound = examResult.sectionResults?.find(s => s.section === 'reading');
+    const listeningFound = examResult.sectionResults?.find(s => s.section === 'listening');
 
-            {hasSectionalFailure && (
-              <div className="p-3 bg-rose-500/30 backdrop-blur-md rounded-2xl border border-rose-400/40 text-xs text-rose-100 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-200" />
-                <span>Bạn bị dính <strong>Điểm liệt (&lt; 19/60đ)</strong> ở ít nhất 1 phân môn nên không đạt kỳ thi này.</span>
-              </div>
-            )}
+    const langScore = (vocabFound && grammarFound)
+      ? Math.min(60, Math.round(((vocabFound.score + grammarFound.score) / 120) * 60))
+      : vocabFound?.score || grammarFound?.score || (langQuestions.length > 0 ? Math.round((langCorrect / langQuestions.length) * 60) : 0);
 
-            {/* Nút hành động nhanh */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={() => setCurrentScreen('catalog')}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all cursor-pointer backdrop-blur-md"
-              >
-                ⬅️ Về danh sách đề thi
-              </button>
-              {activeExam && (
-                <button
-                  onClick={() => handleStartExam(activeExam, 'practice')}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 transition-all cursor-pointer shadow-sm"
-                >
-                  🔄 Làm lại bài thi này
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+    const readingScore = readingFound?.score ?? (readingQuestions.length > 0 ? Math.round((readingCorrect / readingQuestions.length) * 60) : 0);
+    const listeningScore = listeningFound?.score ?? (listeningQuestions.length > 0 ? Math.round((listeningCorrect / listeningQuestions.length) * 60) : 0);
 
-        {/* 2. ĐIỂM CHI TIẾT 4 PHÂN MÔN THANG 60 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {examResult.sectionResults?.map((sec) => (
-            <div
-              key={sec.section}
-              className={`bg-white rounded-2xl p-4 border shadow-xs space-y-2 ${
-                sec.isFailedSection ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200/80'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700">{sec.title}</span>
-                {sec.isFailedSection && (
-                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md">
-                    Liệt (&lt;19)
-                  </span>
+    const totalMinutesSpent = Math.floor(examResult.timeSpentSeconds / 60);
+    const totalSecondsSpent = examResult.timeSpentSeconds % 60;
+    const totalAllowedMinutes = activeExam?.timeLimitMinutes || (examResult.level === 'N1' ? 170 : examResult.level === 'N2' ? 155 : examResult.level === 'N3' ? 140 : 115);
+
+    // Sidebar groupings (Image 2, 3)
+    const sidebarSections: { title: string; questions: QuestionResultItem[] }[] = [];
+    const vocabOnly = examResult.questionResults.filter(q => q.section === 'vocab');
+    const grammarOnly = examResult.questionResults.filter(q => q.section === 'grammar');
+    const readingOnly = examResult.questionResults.filter(q => q.section === 'reading');
+    const listeningOnly = examResult.questionResults.filter(q => q.section === 'listening');
+
+    if (vocabOnly.length > 0) sidebarSections.push({ title: 'KANJI • TỪ VỰNG', questions: vocabOnly });
+    if (grammarOnly.length > 0 || readingOnly.length > 0) {
+      sidebarSections.push({ title: 'NGỮ PHÁP • ĐỌC HIỂU', questions: [...grammarOnly, ...readingOnly] });
+    }
+    if (listeningOnly.length > 0) {
+      sidebarSections.push({ title: 'NGHE HIỂU', questions: listeningOnly });
+    }
+    if (sidebarSections.length === 0) {
+      sidebarSections.push({ title: 'TIẾN ĐỘ BÀI THI', questions: examResult.questionResults });
+    }
+
+    // Circular gauge calculations (Image 1)
+    const radius = 38;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (Math.min(180, Math.max(0, examResult.totalScore)) / 180) * circumference;
+    const gaugeColor = isPassed ? '#10B981' : '#EF4444';
+
+    // Helper render listening script with translation under each turn (Image 9)
+    const renderListeningScriptWithVi = (passage: string, passageVi?: string) => {
+      const jpLines = passage.split('\n').map(l => l.trim()).filter(Boolean);
+      const viLines = (passageVi || '').split('\n').map(l => l.trim()).filter(Boolean);
+
+      return (
+        <div className="space-y-3 font-japanese leading-relaxed">
+          {jpLines.map((line, idx) => {
+            const viLine = viLines[idx] || '';
+            return (
+              <div key={idx} className="space-y-0.5">
+                <div 
+                  className="text-slate-900 text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: line }}
+                />
+                {viLine && (
+                  <p className="text-blue-600 font-medium text-xs font-sans leading-relaxed">
+                    {viLine}
+                  </p>
                 )}
               </div>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-slate-900">{sec.score}/60</span>
-                <span className="text-xs font-semibold text-slate-500">
-                  {sec.correctCount}/{sec.totalQuestions} câu
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${sec.isFailedSection ? 'bg-rose-500' : 'bg-indigo-600'}`}
-                  style={{ width: `${Math.min(100, (sec.score / 60) * 100)}%` }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      );
+    };
 
-        {/* 2.5. ĐÁNH GIÁ NĂNG LỰC ĐA CHIỀU (THU GỌN) */}
-        <details className="group p-1 border border-slate-200 rounded-3xl bg-white shadow-xs mb-6">
-          <summary className="flex items-center justify-between p-4 cursor-pointer select-none">
-            <div className="flex items-center gap-3">
-              <span className="p-2 rounded-xl bg-indigo-50">
-                <Target className="w-5 h-5 text-indigo-600" />
-              </span>
-              <h3 className="text-base font-bold text-slate-800">
-                Bấm để xem: Đánh Giá Năng Lực Đa Chiều (Radar Assessment)
-              </h3>
+    // Helper render clean friendly explanation (Image 2, 3, 4, 6, 8)
+    const renderCleanFriendlyExplanation = (q: QuestionResultItem) => {
+      const cleanVi = cleanQuestionVi(q.questionVi, q.orderNumber);
+
+      // 1. Reading question (Image 6, 8)
+      if (q.section === 'reading') {
+        const exp = q.explanation || '';
+        return (
+          <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100/70 text-xs font-sans space-y-2">
+            <div className="font-black text-blue-600 tracking-wider text-xs uppercase">
+              GIẢI THÍCH:
             </div>
-            <span className="text-indigo-600 group-open:rotate-180 transition-transform">
-              ▼
-            </span>
-          </summary>
-          <div className="p-4 pt-0 border-t border-slate-100 mt-2">
-{/* 2.5. ĐÁNH GIÁ NĂNG LỰC ĐA CHIỀU (COMPETENCY RADAR & MULTI-DIMENSIONAL ASSESSMENT) */}
-        {(() => {
-          const dims = [
-            {
-              id: 'vocab',
-              name: '🔤 Hán tự & Từ vựng',
-              desc: 'Cách đọc Hán tự, chữ Hán, điền từ theo ngữ cảnh & từ đồng nghĩa',
-              filter: (q: QuestionResultItem) => q.section === 'vocab'
-            },
-            {
-              id: 'grammar',
-              name: '📑 Ngữ pháp & Dấu sao ★',
-              desc: 'Cấu trúc ngữ pháp chuẩn JEES, ghép câu có dấu sao & liên từ đoạn văn',
-              filter: (q: QuestionResultItem) => q.section === 'grammar'
-            },
-            {
-              id: 'short_med_dokkai',
-              name: '📖 Đọc hiểu Ngắn & Trung văn',
-              desc: 'Nắm bắt ý chính, tìm lý do & thông điệp tác giả trong bài 150-550 chữ',
-              filter: (q: QuestionResultItem) => q.section === 'reading' && (q.subTypeLabel?.includes('短文') || q.subTypeLabel?.includes('中文') || (!q.subTypeLabel?.includes('長文') && !q.subTypeLabel?.includes('情報')))
-            },
-            {
-              id: 'long_info_dokkai',
-              name: '📊 Trường văn & Tra cứu tin',
-              desc: 'Đọc quét thông tin trên tờ rơi biểu bảng & luận điểm bài văn dài 900-1200 chữ',
-              filter: (q: QuestionResultItem) => q.section === 'reading' && (q.subTypeLabel?.includes('長文') || q.subTypeLabel?.includes('情報'))
-            },
-            {
-              id: 'listening',
-              name: '🎧 Nghe hiểu Tình huống & Phản xạ',
-              desc: 'Bắt hành động nhân vật, điểm cốt lõi & đối đáp phản xạ tức thì',
-              filter: (q: QuestionResultItem) => q.section === 'listening'
-            }
-          ];
-
-          const evaluatedDims = dims.map(d => {
-            const matched = examResult.questionResults.filter(d.filter);
-            const total = matched.length;
-            const correct = matched.filter(q => q.isCorrect).length;
-            const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
-            return { ...d, total, correct, pct };
-          }).filter(d => d.total > 0);
-
-          const lowestDim = [...evaluatedDims].sort((a, b) => a.pct - b.pct)[0];
-          const highestDim = [...evaluatedDims].sort((a, b) => b.pct - a.pct)[0];
-
-          return (
-            <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200/90 shadow-md space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-                      <Target className="w-5 h-5 text-indigo-600" />
-                    </span>
-                    <h3 className="text-lg md:text-xl font-black text-slate-900">
-                      Đánh Giá Năng Lực Đa Chiều (Competency Radar Assessment)
-                    </h3>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Phân tích 5 chiều năng lực khảo thí chuyên sâu theo chuẩn cấu trúc JEES & giáo trình Shin Kanzen Master.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    ≥80%: Vững vàng
-                  </span>
-                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                    50-79%: Cần củng cố
-                  </span>
-                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                    &lt;50%: Báo động
-                  </span>
-                </div>
-              </div>
-
-              {/* Lưới 5 thanh năng lực */}
-              <div className="space-y-4">
-                {evaluatedDims.map((dim) => {
-                  const isHigh = dim.pct >= 80;
-                  const isMed = dim.pct >= 50 && dim.pct < 80;
-                  const colorClass = isHigh ? 'bg-emerald-500' : isMed ? 'bg-amber-500' : 'bg-rose-500';
-                  const badgeClass = isHigh ? 'text-emerald-700 bg-emerald-50' : isMed ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50';
-                  const statusText = isHigh ? 'Xuất sắc' : isMed ? 'Đạt chuẩn' : 'Cần rèn luyện thêm';
-
+            {cleanVi && (
+              <p className="font-bold text-slate-800">
+                Dịch câu hỏi: {cleanVi}
+              </p>
+            )}
+            {/* Nếu explanation có cấu trúc 1. ... 2. ... (Image 6, 8) */}
+            {/\d\.\s/.test(exp) ? (
+              <div className="space-y-2 pt-1 text-slate-700 leading-relaxed">
+                {exp.split('\n').map((line, lIdx) => {
+                  const isRightLine = /Đúng\.|Chính xác\./i.test(line);
+                  const isWrongLine = /Sai\./i.test(line);
+                  const isNumHeader = /^\d\.\s/.test(line);
                   return (
-                    <div key={dim.id} className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-slate-900">{dim.name}</span>
-                          <span className="text-[11px] text-slate-500 block">{dim.desc}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-black text-slate-900">{dim.pct}%</span>
-                          <span className="text-[11px] text-slate-500 block">({dim.correct}/{dim.total} câu)</span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
-                          style={{ width: `${dim.pct}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400">Chuẩn mục tiêu: ≥ 80%</span>
-                        <span className={`font-bold px-2 py-0.5 rounded-md ${badgeClass}`}>{statusText}</span>
-                      </div>
-                    </div>
+                    <p
+                      key={lIdx}
+                      className={
+                        isNumHeader
+                          ? 'font-bold text-slate-800 mt-1'
+                          : isRightLine
+                          ? 'text-emerald-700 font-medium pl-2'
+                          : isWrongLine
+                          ? 'text-rose-600 pl-2'
+                          : 'text-slate-600'
+                      }
+                    >
+                      {line}
+                    </p>
                   );
                 })}
               </div>
-
-              {/* Lời khuyên Sư phạm & Chiến thuật Thi Thật */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                {highestDim && (
-                  <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 space-y-1">
-                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Thế mạnh vượt trội: {highestDim.name} ({highestDim.pct}%)</span>
-                    </span>
-                    <p className="text-xs text-emerald-800 leading-relaxed">
-                      Bạn đã nắm rất vững nhóm kỹ năng này. Hãy duy trì tốc độ làm bài nhanh ở phần này để dành thời gian quý báu cho các phần đọc hiểu dài.
-                    </p>
-                  </div>
-                )}
-                {lowestDim && (
-                  <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 space-y-1">
-                    <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-rose-600" />
-                      <span>Vùng cần đột phá: {lowestDim.name} ({lowestDim.pct}%)</span>
-                    </span>
-                    <p className="text-xs text-rose-800 leading-relaxed">
-                      Đây là điểm mất điểm nhiều nhất của bạn. Đề xuất: Dùng tính năng <strong>Luyện Chuyên Sâu (Mondai Drills)</strong> để làm riêng 30 câu của dạng này trước khi thi lần tới.
-                    </p>
-                  </div>
-                )}
+            ) : q.optionsVi && q.optionsVi.length > 0 ? (
+              <div className="space-y-2 pt-1 text-slate-700 leading-relaxed">
+                {q.options.map((opt, optIdx) => {
+                  const isRight = optIdx === q.correctAnswer;
+                  const optVi = q.optionsVi?.[optIdx] || stripRuby(opt);
+                  return (
+                    <div key={optIdx} className="space-y-0.5">
+                      <p className="font-bold text-slate-800">{optIdx + 1}. {optVi}</p>
+                      <p className={isRight ? 'text-emerald-700 font-medium pl-2' : 'text-rose-600 pl-2'}>
+                        {isRight ? 'Đúng.' : 'Sai.'}
+                      </p>
+                    </div>
+                  );
+                })}
+                {exp && <p className="text-slate-600 pt-2 border-t border-blue-100/60">{exp}</p>}
               </div>
-            </div>
-          );
-        })()}
+            ) : (
+              <p className="text-slate-700 leading-relaxed whitespace-pre-line pt-1">
+                {exp || 'Tham khảo câu dẫn chứng trực tiếp trong bài đọc.'}
+              </p>
+            )}
           </div>
-        </details>
-        <div className="bg-white rounded-3xl p-6 md:p-8 border border-indigo-200 shadow-md space-y-8">
-          {/* Header khối AI */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-indigo-100">
-            <div className="flex items-start gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
-                <BrainCircuit className="w-6 h-6 text-indigo-600" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg md:text-xl font-black text-slate-900">
-                    Phân Tích Năng Lực & Bài Học Rút Kinh Nghiệm
-                  </h3>
-                  
-                </div>
-                <p className="text-xs text-slate-500">
-                  Hội đồng Giám khảo AI chẩn đoán toàn diện bài làm, chỉ ra lý do sai và tích hợp bản xem lại bài thi để học viên rút kinh nghiệm trực tiếp.
-                </p>
-              </div>
-            </div>
+        );
+      }
 
-            <div className="flex items-center gap-2 self-start md:self-auto">
+      // 2. Grammar question (Image 4)
+      if (q.section === 'grammar') {
+        const rightOpt = stripRuby(q.options[q.correctAnswer] || '');
+        const rightVi = q.optionsVi?.[q.correctAnswer] || '';
+        let grammarTitle = '';
+        if (q.keyGrammarOrVocab) {
+          grammarTitle = q.keyGrammarOrVocab
+            .replace(/^Mẫu ngữ pháp trọng tâm:\s*/i, '')
+            .replace(/^Cấu trúc cốt lõi.*?:\s*/i, '')
+            .replace(/— Nghĩa:\s*/i, ' ')
+            .replace(/Đối chiếu[\s\S]*$/, '')
+            .replace(/Phân biệt[\s\S]*$/, '')
+            .replace(/Các mảnh ghép[\s\S]*$/, '')
+            .trim();
+        } else {
+          grammarTitle = `${rightOpt} ${rightVi}`.trim();
+        }
+
+        return (
+          <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100/70 text-xs font-sans space-y-2">
+            <div className="font-black text-blue-600 tracking-wider text-xs uppercase">
+              GIẢI THÍCH:
+            </div>
+            {grammarTitle && (
+              <p className="font-bold text-blue-800 text-sm">
+                {grammarTitle}
+              </p>
+            )}
+            {cleanVi && (
+              <div className="space-y-0.5">
+                <span className="font-bold text-slate-800 block">Dịch:</span>
+                <p className="text-slate-700 leading-relaxed">{cleanVi}</p>
+              </div>
+            )}
+            {q.explanation && !q.explanation.includes('Hội đồng') && !q.explanation.includes('Chiến thuật') && (
+              <p className="text-slate-600 leading-relaxed pt-1 border-t border-blue-100/50">
+                {q.explanation}
+              </p>
+            )}
+          </div>
+        );
+      }
+
+      // 3. Vocab / Kanji question (Image 2, 3)
+      if (q.section === 'vocab') {
+        const rightOpt = stripRuby(q.options[q.correctAnswer] || '');
+        const rightVi = q.optionsVi?.[q.correctAnswer] || '';
+        const boldMatch = (q.question || '').match(/\*\*(.*?)\*\*/);
+        const kanjiWord = boldMatch ? stripRuby(boldMatch[1]) : '';
+
+        let vocabTitle = '';
+        if (kanjiWord && rightOpt && kanjiWord !== rightOpt) {
+          vocabTitle = `${kanjiWord} (${rightOpt}): ${rightVi}`;
+        } else if (q.keyGrammarOrVocab) {
+          vocabTitle = q.keyGrammarOrVocab
+            .replace(/^Từ khóa trọng tâm:\s*/i, '')
+            .replace(/— Nghĩa:\s*/i, ': ')
+            .replace(/Đối chiếu[\s\S]*$/, '')
+            .trim();
+        } else {
+          vocabTitle = rightVi ? `${rightOpt}: ${rightVi}` : rightOpt;
+        }
+
+        return (
+          <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100/70 text-xs font-sans space-y-2">
+            <div className="font-black text-blue-600 tracking-wider text-xs uppercase">
+              GIẢI THÍCH:
+            </div>
+            {vocabTitle && (
+              <p className="font-bold text-blue-800 text-sm">
+                {vocabTitle}
+              </p>
+            )}
+            {cleanVi && (
+              <p className="text-slate-700 leading-relaxed font-normal">
+                {cleanVi}
+              </p>
+            )}
+          </div>
+        );
+      }
+
+      // 4. Listening or other question (Image 9, 10)
+      return (
+        <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100/70 text-xs font-sans space-y-1.5">
+          <div className="font-black text-blue-600 tracking-wider text-xs uppercase">
+            GIẢI THÍCH:
+          </div>
+          {cleanVi && (
+            <p className="font-bold text-slate-800">
+              Dịch câu hỏi: {cleanVi}
+            </p>
+          )}
+          {q.explanation && (
+            <p className="text-slate-700 leading-relaxed">
+              {q.explanation}
+            </p>
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div className={`min-h-screen bg-[#F8FAFC] pb-24 font-japanese ${!showFurigana ? 'hide-furigana' : ''}`}>
+        {/* TOP ACTION & TOGGLE BAR (Image 1, 2) */}
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            {/* Left: Back button */}
+            <button
+              onClick={() => setCurrentScreen('catalog')}
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 cursor-pointer py-1.5 px-3 rounded-xl hover:bg-slate-100 transition-all font-sans"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Danh sách đề thi</span>
+            </button>
+
+            {/* Center: LÀM LẠI Button (Image 1) */}
+            {activeExam && (
               <button
-                onClick={() => fetchAiDiagnostic(examResult)}
-                disabled={isLoadingDiagnostic}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                onClick={() => handleStartExam(activeExam, 'practice')}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-indigo-600 bg-white hover:bg-indigo-50 border border-indigo-200 transition-all cursor-pointer shadow-xs flex items-center gap-2 active:scale-95 font-sans"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingDiagnostic ? 'animate-spin' : ''}`} />
-                <span>{isLoadingDiagnostic ? 'Đang phân tích...' : 'Làm mới phân tích AI'}</span>
+                <RotateCcw className="w-4 h-4 text-indigo-600" />
+                <span>LÀM LẠI</span>
+              </button>
+            )}
+
+            {/* Right: Furigana, Dịch, Grid buttons (Image 1) */}
+            <div className="flex items-center gap-3 sm:gap-4 font-sans">
+              {/* Furigana toggle */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFurigana(!showFurigana)}
+                  className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors cursor-pointer ${
+                    showFurigana ? 'bg-indigo-600' : 'bg-slate-300'
+                  }`}
+                  title="Bật/Tắt Furigana"
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                      showFurigana ? 'translate-x-4 sm:translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 tracking-wider">
+                  FURIGANA
+                </span>
+              </div>
+
+              {/* Dịch toggle */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTranslations(!showTranslations)}
+                  className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors cursor-pointer ${
+                    showTranslations ? 'bg-indigo-600' : 'bg-slate-300'
+                  }`}
+                  title="Bật/Tắt dịch tiếng Việt"
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                      showTranslations ? 'translate-x-4 sm:translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 tracking-wider">
+                  DỊCH
+                </span>
+              </div>
+
+              {/* Grid toggle sidebar button */}
+              <button
+                type="button"
+                onClick={() => setShowResultSidebar(!showResultSidebar)}
+                className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer ${
+                  showResultSidebar
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+                title="Bật/Tắt bảng tiến độ"
+              >
+                <LayoutGrid className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Loading Skeleton */}
-          {isLoadingDiagnostic && (
-            <div className="p-8 rounded-2xl bg-indigo-50/40 border border-indigo-100/60 text-center space-y-3 animate-pulse">
-              <Sparkles className="w-8 h-8 text-indigo-500 mx-auto animate-bounce" />
-              <div className="space-y-1">
-                <h4 className="text-sm font-bold text-indigo-900">
-                  Giám khảo AI (Gemini 3.5 Flash) đang đọc bài thi và tổng hợp bài học...
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Hệ thống đang rà soát từng phương án bạn đã chọn, phân tích bẫy đề thi và lập lộ trình ôn tập.
-                </p>
+        {/* 1 & 2: THẺ KẾT QUẢ TỔNG QUAN & ĐIỂM TỪNG PHẦN (Image 1) */}
+        <div className="max-w-4xl mx-auto px-4 pt-8 pb-6 space-y-6">
+          {/* 1. THẺ KẾT QUẢ TỔNG QUAN */}
+          <div className="rounded-3xl border border-blue-100 bg-white p-6 sm:p-8 text-center shadow-xs space-y-4">
+            {/* Circular Gauge */}
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 mx-auto flex items-center justify-center">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 90 90">
+                <circle
+                  cx="45"
+                  cy="45"
+                  r={radius}
+                  stroke="#F1F5F9"
+                  strokeWidth="7"
+                  fill="transparent"
+                />
+                <circle
+                  cx="45"
+                  cy="45"
+                  r={radius}
+                  stroke={gaugeColor}
+                  strokeWidth="7"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <span className={`absolute text-3xl font-black ${isPassed ? 'text-emerald-600' : 'text-red-600'}`}>
+                {examResult.totalScore}
+              </span>
+            </div>
+
+            {/* TRƯỢT / ĐỖ */}
+            <div className="space-y-1">
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-wider uppercase ${
+                isPassed ? 'text-emerald-600' : 'text-red-600'
+              }`}>
+                {isPassed ? 'ĐỖ' : 'TRƯỢT'}
+              </h2>
+              <p className="text-xl font-black text-slate-800">
+                {examResult.totalScore}/180 ĐIỂM
+              </p>
+            </div>
+
+            {/* Đúng & Sai Badges */}
+            <div className="flex items-center justify-center gap-3 font-sans">
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span>✓</span>
+                <span>Đúng: {correctCount}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                <span>✕</span>
+                <span>Sai: {wrongCount}</span>
+              </span>
+            </div>
+
+            {/* Thời gian */}
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider font-sans">
+              THỜI GIAN: {totalMinutesSpent} PHÚT {totalSecondsSpent} GIÂY / {totalAllowedMinutes} PHÚT
+            </p>
+          </div>
+
+          {/* 2. ĐIỂM TỪNG PHẦN (Image 1) */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-3 font-sans">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest text-center">
+              ĐIỂM TỪNG PHẦN
+            </h3>
+
+            <div className="space-y-2.5">
+              {/* Row 1: Kanji • Từ vựng • Ngữ pháp */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
+                <span className="text-sm font-bold text-slate-800">
+                  Kanji • Từ vựng • Ngữ pháp
+                </span>
+                <div className="text-right">
+                  <span className="text-sm font-black text-slate-900 block">{langScore}/60</span>
+                  <span className="text-xs text-slate-500 block">{langCorrect}/{langQuestions.length} câu đúng</span>
+                </div>
+              </div>
+
+              {/* Row 2: Đọc hiểu */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
+                <span className="text-sm font-bold text-slate-800">
+                  Đọc hiểu
+                </span>
+                <div className="text-right">
+                  <span className="text-sm font-black text-slate-900 block">{readingScore}/60</span>
+                  <span className="text-xs text-slate-500 block">{readingCorrect}/{readingQuestions.length} câu đúng</span>
+                </div>
+              </div>
+
+              {/* Row 3: Nghe hiểu */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
+                <span className="text-sm font-bold text-slate-800">
+                  Nghe hiểu
+                </span>
+                <div className="text-right">
+                  <span className="text-sm font-black text-slate-900 block">{listeningScore}/60</span>
+                  <span className="text-xs text-slate-500 block">{listeningCorrect}/{listeningQuestions.length} câu đúng</span>
+                </div>
               </div>
             </div>
-          )}
+          </div>
+        </div>
 
-          {/* Diagnostic Error */}
-          {diagnosticError && !isLoadingDiagnostic && (
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
-              <span>⚠️ {diagnosticError}</span>
-              <button
-                onClick={() => fetchAiDiagnostic(examResult)}
-                className="font-bold underline text-amber-950 cursor-pointer"
-              >
-                Thử lại ngay
-              </button>
-            </div>
-          )}
-
-          {/* Diagnostic Content */}
-          {diagnosticReport && !isLoadingDiagnostic && (
-            <div className="space-y-6">
-              {/* Thẻ Ước tính Đỗ & Nhận xét sư phạm */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Cột 1: Thước đo xác suất đỗ */}
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/90 to-purple-50/70 border border-indigo-100 flex flex-col justify-between space-y-3">
-                  <span className="text-[11px] font-bold text-indigo-800 uppercase tracking-wide flex items-center gap-1.5">
-                    <Target className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Dự Đoán Kỳ Thi Thật</span>
-                  </span>
-                  <div className="space-y-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-black text-indigo-950">
-                        {diagnosticReport.passingProbability}%
-                      </span>
-                      <span className="text-xs font-bold text-indigo-700">Xác suất đỗ</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 leading-tight">
-                      {diagnosticReport.scoreAssessment?.statusText}
-                    </p>
-                  </div>
-                  <div className="w-full bg-white/80 h-2.5 rounded-full overflow-hidden border border-indigo-200/60">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all"
-                      style={{ width: `${diagnosticReport.passingProbability}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Cột 2 & 3: Lời nhận xét tổng quan của Giám khảo AI */}
-                <div className="md:col-span-2 p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <MessageSquareQuote className="w-4 h-4 text-indigo-600" />
-                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                      Đánh Giá Năng Lực Từ Giám Khảo AI
-                    </span>
-                  </div>
-                  <p className="text-xs md:text-sm text-slate-700 leading-relaxed font-normal">
-                    {diagnosticReport.overallVerdict}
-                  </p>
-                  {diagnosticReport.scoreAssessment?.sectionalRisk && (
-                    <div className="pt-1.5 border-t border-slate-200/60 text-xs text-slate-600 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                      <span>{diagnosticReport.scoreAssessment.sectionalRisk}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Thẻ So Sánh 2 Cột: Điểm Mạnh vs Lỗ Hổng Kiến Thức */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Điểm mạnh */}
-                <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/70 space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wide">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    <span>Điểm Mạnh Cần Phát Huy</span>
-                  </div>
-                  <ul className="space-y-2">
-                    {diagnosticReport.strengthAreas?.map((item, idx) => (
-                      <li key={idx} className="text-xs text-emerald-950 flex items-start gap-2 leading-relaxed">
-                        <span className="text-emerald-600 font-bold shrink-0">✓</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Lỗ hổng cần khắc phục */}
-                <div className="p-5 rounded-2xl bg-rose-50/50 border border-rose-200/70 space-y-3">
-                  <div className="flex items-center gap-2 text-rose-900 font-bold text-xs uppercase tracking-wide">
-                    <AlertCircle className="w-4 h-4 text-rose-600" />
-                    <span>Lỗ Hổng Cần Khắc Phục Ngay</span>
-                  </div>
-                  <ul className="space-y-2">
-                    {diagnosticReport.criticalWeaknesses?.map((item, idx) => (
-                      <li key={idx} className="text-xs text-rose-950 flex items-start gap-2 leading-relaxed">
-                        <span className="text-rose-600 font-bold shrink-0">!</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              {/* Lộ trình ôn tập 7 ngày */}
-              {diagnosticReport.actionPlan7Days && diagnosticReport.actionPlan7Days.length > 0 && (
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                  <div className="flex items-center gap-2 text-slate-800 font-bold text-xs uppercase tracking-wide">
-                    <Clock className="w-4 h-4 text-indigo-600" />
-                    <span>Lộ Trình 7 Ngày Bứt Phá Do AI Đề Xuất</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {diagnosticReport.actionPlan7Days.map((plan, idx) => (
-                      <div key={idx} className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-1 shadow-2xs">
-                        <span className="text-[11px] font-black text-indigo-600 block">
-                          {plan.dayRange}: {plan.focusArea}
-                        </span>
-                        <p className="text-xs text-slate-600 leading-relaxed">{plan.action}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Lời động viên từ Giám khảo AI */}
-              {diagnosticReport.encouragement && (
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-100 text-xs text-purple-950 flex items-center gap-3">
-                  <Sparkles className="w-5 h-5 text-purple-600 shrink-0" />
-                  <p className="italic leading-relaxed font-medium">"{diagnosticReport.encouragement}"</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ================================================================ */}
-          {/* PHẦN CỐT LÕI: BẢN XEM LẠI BÀI THI & BÀI HỌC RÚT KINH NGHIỆM TRỰC TIẾP */}
-          {/* ================================================================ */}
-          <div className="pt-6 border-t border-slate-200 space-y-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <h4 className="text-base md:text-lg font-black text-slate-900 flex items-center gap-2">
-                  <BookOpenCheck className="w-5 h-5 text-indigo-600" />
-                  <span>Bản Xem Lại Bài Thi & Bài Học Rút Kinh Nghiệm Trực Tiếp</span>
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Đối chiếu lựa chọn của bạn, phân tích bẫy đề thi và đúc kết bài học rút kinh nghiệm cho từng câu.
-                </p>
-              </div>
-
-              {/* Nút 1-Click lưu tất cả câu sai vào Sổ tay */}
+        {/* 3. CHI TIẾT BÀI LÀM & THANH TIẾN ĐỘ BÊN PHẢI (Image 2 -> 10) */}
+        <div className="max-w-7xl mx-auto px-4 pt-4">
+          {/* Header of Question Section (Image 2) */}
+          <div className="text-center space-y-2 mb-6 font-sans">
+            <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-wide uppercase">
+              {examResult.examTitle || 'ĐỀ THI JLPT CHUẨN'}
+            </h2>
+            <div className="flex items-center justify-center gap-2">
+              <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {examResult.level}
+              </span>
+              <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                {totalCount} câu
+              </span>
               {wrongCount > 0 && (
                 <button
                   onClick={handleSaveAllWrongToNotebook}
                   disabled={isSavingToNotebook}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition-all cursor-pointer shadow-sm flex items-center gap-2 active:scale-95 shrink-0"
+                  className="ml-2 px-3 py-0.5 rounded-full text-xs font-bold text-slate-900 bg-amber-300 hover:bg-amber-400 border border-amber-400 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                  title="Lưu tất cả câu sai vào Sổ tay SRS"
                 >
-                  <BookmarkPlus className="w-4 h-4 text-slate-950" />
-                  <span>
-                    {isSavingToNotebook
-                      ? 'Đang lưu vào Sổ tay...'
-                      : `📌 Lưu ${wrongCount} câu sai vào Sổ tay Flashcard SRS`}
-                  </span>
+                  <BookmarkPlus className="w-3.5 h-3.5 text-slate-900" />
+                  <span>Lưu {wrongCount} câu sai</span>
                 </button>
               )}
             </div>
-
             {savedNotebookMessage && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 animate-fadeIn">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{savedNotebookMessage}</span>
+              <div className="inline-block p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 animate-fadeIn">
+                ✓ {savedNotebookMessage}
               </div>
             )}
 
-            {/* Thanh công cụ bộ lọc đơn giản & thân thiện */}
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
-              {/* Tab lọc: Câu sai / Tất cả / Câu đúng */}
-              <div className="flex items-center gap-1.5 overflow-x-auto">
-                <button
-                  onClick={() => setResultFilter('wrong')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    resultFilter === 'wrong'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/60'
-                  }`}
-                >
-                  ❌ Chỉ câu làm sai ({wrongCount})
-                </button>
-                <button
-                  onClick={() => setResultFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    resultFilter === 'all'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/60'
-                  }`}
-                >
-                  📋 Tất cả câu hỏi ({totalCount})
-                </button>
-                <button
-                  onClick={() => setResultFilter('correct')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    resultFilter === 'correct'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/60'
-                  }`}
-                >
-                  ✅ Chỉ câu làm đúng ({correctCount})
-                </button>
-              </div>
-
-              {/* Lọc theo kỹ năng */}
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <Filter className="w-3.5 h-3.5" />
-                <select
-                  value={resultSectionFilter}
-                  onChange={(e) => setResultSectionFilter(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-700 outline-hidden"
-                >
-                  <option value="all">Tất cả phân môn</option>
-                  <option value="vocab">Chữ Hán & Từ vựng</option>
-                  <option value="grammar">Cấu trúc Ngữ pháp</option>
-                  <option value="reading">Đọc hiểu</option>
-                  <option value="listening">Nghe hiểu</option>
-                </select>
-              </div>
+            {/* Filter buttons (Tất cả / Câu sai / Câu đúng) */}
+            <div className="flex items-center justify-center gap-1.5 pt-2">
+              <button
+                onClick={() => setResultFilter('all')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  resultFilter === 'all'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+                }`}
+              >
+                Tất cả ({totalCount})
+              </button>
+              <button
+                onClick={() => setResultFilter('wrong')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  resultFilter === 'wrong'
+                    ? 'bg-red-500 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+                }`}
+              >
+                Câu sai ({wrongCount})
+              </button>
+              <button
+                onClick={() => setResultFilter('correct')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  resultFilter === 'correct'
+                    ? 'bg-emerald-500 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+                }`}
+              >
+                Câu đúng ({correctCount})
+              </button>
             </div>
+          </div>
 
-            {/* Danh sách từng câu hỏi xem lại & rút kinh nghiệm */}
-            <div className="space-y-4">
-              {filteredQuestionResults.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
-                  Không có câu hỏi nào thỏa mãn bộ lọc hiện tại.
-                </div>
-              ) : (
-                filteredQuestionResults.map((q) => {
-                  const lesson = lessonByOrderMap.get(q.orderNumber);
-                  const aiRes = aiExplanations[q.questionId];
-                  const isLoadingAi = loadingAiId === q.questionId;
-                  const isSavedToNotebook = savedSingleNotebookIds[q.questionId];
+          {/* Main 2-column Layout */}
+          <div className="flex flex-col lg:flex-row items-start gap-6 relative">
+            {/* Left Column: Questions List */}
+            <div className="flex-1 w-full space-y-6">
+              {filteredQuestionResults.map((q) => {
+                const isSavedToNotebook = savedSingleNotebookIds[q.questionId];
 
-                  const userAnsText =
-                    q.userAnswer !== null && q.userAnswer !== undefined && q.options[q.userAnswer]
-                      ? q.options[q.userAnswer]
-                      : 'Chưa chọn đáp án (bỏ trống)';
-                  const correctAnsText = q.options[q.correctAnswer] || '';
+                return (
+                  <div
+                    key={q.questionId}
+                    id={`question-result-${q.questionId}`}
+                    className={`bg-white rounded-3xl p-5 sm:p-6 border relative space-y-4 shadow-xs scroll-mt-24 transition-all ${
+                      q.isCorrect ? 'border-emerald-400' : 'border-rose-300'
+                    }`}
+                  >
+                    {/* Badge ĐÚNG / SAI góc trên bên phải (Image 2, 3) */}
+                    <div className="absolute top-0 right-0">
+                      <span className={`px-4 py-1 text-xs font-black uppercase text-white rounded-tr-2xl rounded-bl-xl ${
+                        q.isCorrect ? 'bg-emerald-500' : 'bg-red-500'
+                      }`}>
+                        {q.isCorrect ? 'ĐÚNG' : 'SAI'}
+                      </span>
+                    </div>
 
-                  return (
-                    <div
-                      key={q.questionId}
-                      className={`bg-white rounded-3xl p-5 md:p-6 border shadow-xs space-y-4 transition-all ${
-                        q.isCorrect ? 'border-emerald-200/80 bg-emerald-50/10' : 'border-rose-200/80 bg-rose-50/10'
-                      }`}
-                    >
-                      {/* Header của câu hỏi */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2.5 py-1 rounded-xl text-xs font-bold ${
-                              q.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                            }`}
-                          >
-                            Câu {q.orderNumber}: {q.isCorrect ? 'ĐÚNG ✅' : 'LÀM SAI ❌'}
-                          </span>
-                          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-xl">
-                            {q.subTypeLabel}
-                          </span>
-                          <span className="text-[11px] text-indigo-600 font-semibold uppercase">
-                            {q.section}
-                          </span>
-                        </div>
-
-                        <span className="text-[11px] text-slate-400">
-                          {q.officialSource}
-                        </span>
-                      </div>
-
-                      {/* BĂNG NGHE CHOUKAI & TỜ ĐỀ THI GIẤY TRẮNG ĐEN (CHO CÂU HỎI NGHE HIỂU) */}
-                      {(q.section === 'listening' || q.audioUrl) && (
-                        <div className="p-3.5 bg-slate-900 text-white rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => handleToggleReviewAudio(q)}
-                              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white shadow transition-all cursor-pointer"
-                            >
-                              {reviewAudioPlayingId === q.questionId ? (
-                                <>
-                                  <Pause className="w-3.5 h-3.5 fill-white" />
-                                  <span>Tạm dừng</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="w-3.5 h-3.5 fill-white" />
-                                  <span>Nghe lại bài nghe</span>
-                                </>
-                              )}
-                            </button>
-                            <span className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                              <Headphones className="w-3.5 h-3.5 text-indigo-400" />
-                              <span>{reviewAudioPlayingId === q.questionId ? '🔊 Đang phát băng nghe...' : 'Băng nghe gốc'}</span>
-                            </span>
-
-                            {/* Bộ chỉnh tốc độ âm thanh: 0.8x, 1.0x, 1.2x (Tiện ích 2) */}
-                            <div className="flex items-center gap-1 bg-slate-800/90 px-2 py-1 rounded-xl border border-slate-700">
-                              <span className="text-[10px] font-semibold text-slate-400 mr-0.5">Tốc độ:</span>
-                              {[0.8, 1.0, 1.2].map((rate) => (
-                                <button
-                                  key={rate}
-                                  onClick={() => handleChangePlaybackRate(rate)}
-                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                                    audioPlaybackRate === rate
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'text-slate-400 hover:text-white'
-                                  }`}
-                                  title={`Phát ở tốc độ ${rate}x`}
-                                >
-                                  {rate}x
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {q.passage && (
-                            <button
-                              onClick={() => setReviewExpandedScriptId(reviewExpandedScriptId === q.questionId ? null : q.questionId)}
-                              className="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 cursor-pointer"
-                            >
-                              {reviewExpandedScriptId === q.questionId ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              <span>{reviewExpandedScriptId === q.questionId ? 'Ẩn kịch bản hội thoại' : 'Xem kịch bản hội thoại (Script & Dịch)'}</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Kịch bản hội thoại khi học viên bấm mở rộng */}
-                      {reviewExpandedScriptId === q.questionId && q.passage && (
-                        <div className="p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 text-xs space-y-2">
-                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                            📝 Kịch bản hội thoại gốc (Script):
-                          </div>
-                          <p className="text-slate-200 font-serif leading-relaxed whitespace-pre-line">
-                            {q.passage}
-                          </p>
-                          {q.passageVi && (
-                            <p className="text-slate-400 italic pt-2 border-t border-slate-800 whitespace-pre-line leading-relaxed">
-                              {q.passageVi}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Đoạn văn đọc hiểu hoặc ngữ pháp đoạn văn */}
-                      {q.section !== 'listening' && !q.audioUrl && q.passage && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                            <span className="flex items-center gap-1.5">
-                              <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
-                              <span>Bài đọc hiểu (Passage):</span>
-                            </span>
-                            {q.passageVi && (
-                              <button
-                                onClick={() =>
-                                  setReviewExpandedReadingViId(
-                                    reviewExpandedReadingViId === q.questionId ? null : q.questionId
-                                  )
-                                }
-                                className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 cursor-pointer"
-                              >
-                                {reviewExpandedReadingViId === q.questionId ? (
-                                  <EyeOff className="w-3.5 h-3.5" />
-                                ) : (
-                                  <Eye className="w-3.5 h-3.5" />
-                                )}
-                                <span>
-                                  {reviewExpandedReadingViId === q.questionId
-                                    ? 'Ẩn bản dịch tiếng Việt'
-                                    : 'Xem bản dịch bài đọc (Tiếng Việt)'}
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-serif text-slate-800 leading-relaxed max-h-56 overflow-y-auto">
-                            <div
-                              dangerouslySetInnerHTML={{
-                                __html: renderPassageWithHighlight(
-                                  q.passage,
-                                  q.section === 'grammar' ? q.orderNumber : undefined
-                                )
-                              }}
-                            />
-                          </div>
-                          {reviewExpandedReadingViId === q.questionId && q.passageVi && (
-                            <div className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-200 text-xs text-slate-800 italic leading-relaxed whitespace-pre-line">
-                              <div className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider not-italic mb-1">
-                                🇻🇳 Bản dịch tiếng Việt bài đọc:
-                              </div>
-                              {q.passageVi}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* TỜ ĐỀ THI GIẤY TRẮNG ĐEN (問題用紙) TÁCH BIỆT CHUẨN IN JEES */}
-                      {q.imageUrl && (
-                        <div className="bg-white rounded-2xl border-2 border-slate-800 p-4 md:p-5 shadow-sm space-y-3">
-                          <div className="flex items-center justify-between border-b-2 border-slate-800 pb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="bg-slate-900 text-white text-[10px] font-black px-2 py-0.5 rounded tracking-wider uppercase">
-                                問題用紙
-                              </span>
-                              <span className="text-xs font-bold text-slate-900 font-serif">
-                                【{q.subTypeLabel}】 イラスト・図表 (Bản vẽ đen trắng B&W)
-                              </span>
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
-                              JEES Standard
-                            </span>
-                          </div>
-
-                          <div className="p-2 md:p-3 bg-white border border-slate-300 rounded-xl flex items-center justify-center">
-                            <img
-                              src={q.imageUrl}
-                              alt="Tranh minh họa đề thi Choukai"
-                              className="w-full max-h-72 object-contain rounded-lg"
-                            />
-                          </div>
-
-                          <div className="text-right text-[10px] text-slate-500 font-serif italic">
-                            ※ Nhìn hình ảnh minh họa trên tờ đề thi để đối chiếu phương án trả lời.
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Câu hỏi tiếng Nhật & dịch tiếng Việt */}
-                      <div className="space-y-1">
-                        <h4 
-                          className="text-sm md:text-base font-bold text-slate-900 font-serif leading-relaxed"
+                    {/* Tiêu đề câu hỏi & Số thứ tự (Image 2, 3, 4) */}
+                    <div className="flex items-start gap-3 pr-14">
+                      <span className={`w-7 h-7 rounded-full text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5 ${
+                        q.isCorrect ? 'bg-emerald-500' : 'bg-red-500'
+                      }`}>
+                        {q.orderNumber}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div
+                          className="text-base font-bold text-slate-900 leading-relaxed font-japanese"
                           dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(q.question, q.orderNumber)) }}
                         />
-                        {q.questionVi && (
-                          <p className="text-xs text-slate-500 italic">{cleanQuestionVi(q.questionVi, q.orderNumber)}</p>
+                        {showTranslations && q.questionVi && (
+                          <p className="text-xs text-slate-500 italic mt-1 font-sans">
+                            {cleanQuestionVi(q.questionVi, q.orderNumber)}
+                          </p>
                         )}
                       </div>
+                    </div>
 
-                      {/* BẢNG ĐỐI CHIẾU ĐÁP ÁN RÕ RÀNG, TÁCH BIỆT */}
-                      <div className="pt-1">
-                        {q.isCorrect ? (
-                          <div className="p-3 rounded-2xl border border-emerald-300 bg-emerald-50/70 flex items-center justify-between text-xs font-medium text-emerald-900 shadow-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">✓</span>
-                              <span>Bạn đã chọn chính xác: <strong>Phương án [{formatOptLabel(q.correctAnswer)}]</strong></span>
-                            </div>
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full uppercase">Chính xác</span>
-                          </div>
-                        ) : q.userAnswer === null || q.userAnswer === undefined ? (
-                          <div className="p-3 rounded-2xl border border-amber-300 bg-amber-50/70 flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-amber-900 shadow-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0">!</span>
-                              <span>Bạn đã bỏ trống câu hỏi này</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
-                              <span>🎯 Đáp án đúng: <strong>Phương án [{formatOptLabel(q.correctAnswer)}]</strong></span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            {/* Cột đáp án học viên chọn sai */}
-                            <div className="p-3 rounded-2xl border-2 border-rose-300 bg-rose-50/80 text-rose-950 text-xs flex items-center justify-between gap-2 shadow-xs">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs font-bold shrink-0">✕</span>
-                                <div className="min-w-0">
-                                  <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Lựa chọn của bạn:</span>
-                                  <span className="font-bold text-rose-900 truncate block">Phương án [{formatOptLabel(q.userAnswer)}]</span>
-                                </div>
-                              </div>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-200 text-rose-800 shrink-0">Làm sai</span>
-                            </div>
+                    {/* BĂNG NGHE NẾU CÓ (Audio Player - Image 9) */}
+                    {(q.section === 'listening' || q.audioUrl) && (
+                      <div className="p-3 bg-slate-900 text-white rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs font-sans">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleToggleReviewAudio(q)}
+                            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition-all cursor-pointer"
+                          >
+                            {reviewAudioPlayingId === q.questionId ? (
+                              <>
+                                <Pause className="w-3.5 h-3.5 fill-white" />
+                                <span>Tạm dừng</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5 fill-white" />
+                                <span>Phát băng nghe</span>
+                              </>
+                            )}
+                          </button>
+                          <span className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                            <Headphones className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>{reviewAudioPlayingId === q.questionId ? 'Đang phát...' : 'Băng nghe gốc'}</span>
+                          </span>
 
-                            {/* Cột đáp án đúng chuẩn */}
-                            <div className="p-3 rounded-2xl border-2 border-emerald-400 bg-emerald-50/80 text-emerald-950 text-xs flex items-center justify-between gap-2 shadow-xs">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">🎯</span>
-                                <div className="min-w-0">
-                                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Đáp án chuẩn JLPT:</span>
-                                  <span className="font-bold text-emerald-900 truncate block">Phương án [{formatOptLabel(q.correctAnswer)}]</span>
-                                </div>
-                              </div>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200 text-emerald-900 shrink-0">Đáp án đúng</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* KHU VỰC 4 PHƯƠNG ÁN LỰA CHỌN TÁCH BIỆT */}
-                      <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                          <span>Chi tiết 4 phương án đề bài:</span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          {q.options.map((opt, optIdx) => {
-                            const isUserPick = q.userAnswer === optIdx;
-                            const isRightAnswer = q.correctAnswer === optIdx;
-
-                            let cardClass = 'bg-slate-50/50 border-slate-200 text-slate-700';
-                            let badge: React.ReactNode = null;
-
-                            if (isRightAnswer) {
-                              cardClass = 'bg-emerald-50/80 border-2 border-emerald-500 text-emerald-950 font-semibold shadow-xs';
-                              badge = (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shrink-0">
-                                  <span>🎯 Đáp án đúng</span>
-                                </span>
-                              );
-                            } else if (isUserPick) {
-                              cardClass = 'bg-rose-50/80 border-2 border-rose-400 text-rose-950 shadow-xs';
-                              badge = (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shrink-0">
-                                  <span>✕ Bạn đã chọn</span>
-                                </span>
-                              );
-                            }
-
-                            return (
-                              <div
-                                key={optIdx}
-                                className={`p-3 rounded-2xl border text-xs flex items-start justify-between gap-2.5 transition-all ${cardClass}`}
+                          {/* Bộ chỉnh tốc độ 0.8x, 1.0x, 1.2x */}
+                          <div className="flex items-center gap-1 bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">
+                            {[0.8, 1.0, 1.2].map((rate) => (
+                              <button
+                                key={rate}
+                                onClick={() => handleChangePlaybackRate(rate)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                  audioPlaybackRate === rate ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                                }`}
                               >
-                                <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                  <span
-                                    className={`w-6 h-6 rounded-xl flex items-center justify-center font-bold shrink-0 text-xs shadow-xs ${
-                                      isRightAnswer
-                                        ? 'bg-emerald-600 text-white'
-                                        : isUserPick
-                                        ? 'bg-rose-600 text-white'
-                                        : 'bg-white border border-slate-200 text-slate-700'
-                                    }`}
-                                  >
-                                    {formatOptLabel(optIdx)}
-                                  </span>
-                                  <div className="flex-1 min-w-0">
-                                    <div
-                                      className="pt-0.5 leading-relaxed font-serif break-words"
-                                      dangerouslySetInnerHTML={{ __html: opt }}
-                                    />
-                                    {q.optionsVi && q.optionsVi[optIdx] && (
-                                      <p className="text-[11px] text-slate-500 italic mt-0.5 font-sans leading-relaxed">
-                                        {q.optionsVi[optIdx]}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                {badge}
+                                {rate}x
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TỜ ĐỀ THI MINH HỌA HÌNH ẢNH NẾU CÓ */}
+                    {q.imageUrl && (
+                      <div className="p-3 bg-white border border-slate-200 rounded-2xl flex justify-center">
+                        <img src={q.imageUrl} alt="Hình minh họa" className="max-h-64 object-contain rounded-lg" />
+                      </div>
+                    )}
+
+                    {/* ĐOẠN VĂN ĐỌC HIỂU (Image 5, 7) */}
+                    {q.section !== 'listening' && !q.audioUrl && q.passage && (
+                      <div className="space-y-2">
+                        {/* Hộp dịch nếu bật toggle DỊCH */}
+                        {showTranslations && q.passageVi && (
+                          <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 text-xs text-slate-700 leading-relaxed space-y-1 font-sans">
+                            <span className="font-bold text-blue-700 block">Dịch:</span>
+                            <p className="whitespace-pre-line">{q.passageVi}</p>
+                          </div>
+                        )}
+                        {/* Nội dung bài đọc Nhật */}
+                        <div className="p-4 rounded-2xl bg-amber-50/40 border border-amber-100/90 text-sm font-japanese text-slate-900 leading-relaxed whitespace-pre-line">
+                          <div
+                            dangerouslySetInnerHTML={{
+                              __html: renderPassageWithHighlight(
+                                q.passage,
+                                q.section === 'grammar' ? q.orderNumber : undefined
+                              )
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SCRIPT ĐOẠN THOẠI CHO CÂU HỎI NGHE HIỂU (Image 9) */}
+                    {(q.section === 'listening' || q.audioUrl) && q.passage && (
+                      <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-100/80 text-xs space-y-2 font-japanese">
+                        <div className="font-black text-blue-700 tracking-wider text-[11px] uppercase">
+                          SCRIPT:
+                        </div>
+                        {renderListeningScriptWithVi(q.passage, q.passageVi)}
+                      </div>
+                    )}
+
+                    {/* 4 PHƯƠNG ÁN LỰA CHỌN (Image 2, 3, 4) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      {q.options.map((opt, optIdx) => {
+                        const isUserPick = q.userAnswer === optIdx;
+                        const isRightAnswer = q.correctAnswer === optIdx;
+
+                        let optClass = 'border-slate-100 bg-slate-50/40 text-slate-400';
+                        let icon: React.ReactNode = null;
+
+                        if (isRightAnswer) {
+                          optClass = 'border-2 border-emerald-500 bg-white text-emerald-950 font-bold';
+                          icon = (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                          );
+                        } else if (isUserPick) {
+                          optClass = 'border-2 border-rose-400 bg-white text-rose-950 font-bold';
+                          icon = (
+                            <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={optIdx}
+                            className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${optClass}`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span className={`text-xs font-bold shrink-0 ${
+                                isRightAnswer ? 'text-emerald-600' : isUserPick ? 'text-rose-600' : 'text-slate-300'
+                              }`}>
+                                {optIdx + 1}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <span
+                                  className="font-japanese text-sm leading-relaxed"
+                                  dangerouslySetInnerHTML={{ __html: opt }}
+                                />
+                                {((q.section === 'listening' || showTranslations) && q.optionsVi?.[optIdx]) && (
+                                  <p className="text-xs text-blue-600 font-medium mt-0.5 font-sans">
+                                    {q.optionsVi[optIdx]}
+                                  </p>
+                                )}
                               </div>
+                            </div>
+                            {icon}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* HỘP "GIẢI THÍCH:" ĐƠN GIẢN, THÂN THIỆN (Image 2, 3, 4, 6, 8) */}
+                    {renderCleanFriendlyExplanation(q)}
+
+                    {/* Nút lưu vào Sổ tay SRS câu này */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 font-sans">
+                      <button
+                        onClick={() => handleSaveSingleToNotebook(q)}
+                        disabled={isSavedToNotebook}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isSavedToNotebook
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {isSavedToNotebook ? (
+                          <>
+                            <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Đã lưu vào Sổ tay</span>
+                          </>
+                        ) : (
+                          <>
+                            <BookmarkPlus className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Lưu vào Sổ tay SRS</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Right Column: Sticky Sidebar "Tiến độ" (Image 2, 3) */}
+            {showResultSidebar && (
+              <div className="w-full lg:w-72 shrink-0 lg:sticky lg:top-20 space-y-4">
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-md p-4 space-y-4 font-sans">
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <span className="text-sm font-bold text-slate-900">Tiến độ</span>
+                    <button
+                      onClick={() => setShowResultSidebar(false)}
+                      className="text-xs font-bold text-red-500 hover:text-red-600 cursor-pointer uppercase tracking-wider"
+                    >
+                      ĐÓNG
+                    </button>
+                  </div>
+
+                  {/* Section groupings */}
+                  <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                    {sidebarSections.map((sec, sIdx) => (
+                      <div key={sIdx} className="space-y-2">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                          {sec.title}
+                        </span>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {sec.questions.map((sq) => {
+                            const isCorrect = sq.isCorrect;
+                            return (
+                              <button
+                                key={sq.questionId}
+                                onClick={() => {
+                                  const el = document.getElementById(`question-result-${sq.questionId}`);
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  }
+                                }}
+                                className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs text-white cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-2xs ${
+                                  isCorrect ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'
+                                }`}
+                                title={`Câu ${sq.orderNumber}: ${isCorrect ? 'Đúng' : 'Sai'}`}
+                              >
+                                {sq.orderNumber}
+                              </button>
                             );
                           })}
                         </div>
                       </div>
+                    ))}
+                  </div>
 
-                      {/* KHUNG HƯỚNG DẪN CHẤM CHỮA CHI TIẾT & BÀI HỌC RÚT KINH NGHIỆM */}
-                      {(() => {
-                        const insight = getQuestionDiagnosticInsight(q, lesson);
-                        return (
-                          <div className="p-4 md:p-5 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-50/90 rounded-2xl border border-amber-200/90 text-xs space-y-3.5 shadow-xs">
-                            {/* 1. BANNER ĐÁP ÁN ĐÚNG CHUẨN XÁC */}
-                            <div className="p-3 bg-white/95 rounded-xl border border-emerald-300 shadow-xs flex flex-wrap items-start justify-between gap-2.5">
-                              <div className="space-y-1 flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  <span className="text-xs uppercase tracking-wide">
-                                    Đáp án chuẩn JLPT: Phương án [{formatOptLabel(q.correctAnswer)}]
-                                  </span>
-                                </div>
-                                <div
-                                  className="text-sm font-bold text-slate-900 font-serif leading-relaxed"
-                                  dangerouslySetInnerHTML={{ __html: insight.rightOptionJp }}
-                                />
-                                {insight.rightOptionVi && (
-                                  <p className="text-xs text-slate-600 italic">
-                                    🇻🇳 {insight.rightOptionVi}
-                                  </p>
-                                )}
-                              </div>
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
-                                Chuẩn {q.subTypeLabel || 'JLPT'}
-                              </span>
-                            </div>
-
-                            {/* 2. DẪN CHỨNG MẪU CHỐT (ĐỌC HIỂU HOẶC NGHE HIỂU) */}
-                            {insight.evidenceSection && (
-                              <div className="p-3.5 bg-blue-50/90 rounded-xl border border-blue-200 space-y-1.5">
-                                <div className="font-bold text-blue-950 flex items-center gap-1.5">
-                                  {q.section === 'listening' ? (
-                                    <Headphones className="w-4 h-4 text-blue-600 shrink-0" />
-                                  ) : (
-                                    <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
-                                  )}
-                                  <span>{insight.evidenceSection.label}</span>
-                                </div>
-                                <div className="p-2.5 bg-white/95 rounded-lg border border-blue-100">
-                                  <p className="text-slate-900 font-serif text-xs md:text-sm leading-relaxed font-medium">
-                                    「{insight.evidenceSection.quoteJp}」
-                                  </p>
-                                  {insight.evidenceSection.quoteVi && (
-                                    <p className="text-slate-600 italic text-xs mt-1 pt-1 border-t border-blue-50">
-                                      🇻🇳 Dịch nghĩa dẫn chứng: {insight.evidenceSection.quoteVi}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* 3. DẤU HIỆU NHẬN BIẾT & PHƯƠNG PHÁP SUY LUẬN */}
-                            <div className="space-y-2">
-                              <strong className="text-amber-950 flex items-center gap-1.5 font-bold">
-                                <Lightbulb className="w-4 h-4 text-amber-600 shrink-0" />
-                                <span>Dấu hiệu nhận biết đáp án đúng & Kỹ thuật suy luận:</span>
-                              </strong>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {insight.recognitionGuides.map((guide, gIdx) => (
-                                  <div key={gIdx} className="p-2.5 bg-white/90 rounded-xl border border-amber-200/70 space-y-0.5">
-                                    <span className="font-bold text-amber-900 block text-[11px]">{guide.title}</span>
-                                    <p className="text-slate-700 leading-relaxed">{guide.content}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* 4. PHÂN TÍCH BẪY ĐỀ THI & LOẠI TRỪ 3 PHƯƠNG ÁN SAI */}
-                            <div className="space-y-1.5">
-                              <strong className="text-amber-950 flex items-center gap-1.5 font-bold">
-                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                <span>Phân tích bẫy đề thi & Lý do loại trừ các phương án:</span>
-                              </strong>
-                              <div className="space-y-1.5">
-                                {insight.trapBreakdown.map((item) => (
-                                  <div
-                                    key={item.optIdx}
-                                    className={`p-2.5 rounded-xl border text-xs leading-relaxed ${
-                                      item.isCorrect
-                                        ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950 font-medium'
-                                        : 'bg-white/85 border-slate-200 text-slate-700'
-                                    }`}
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <span
-                                        className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[11px] shrink-0 ${
-                                          item.isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
-                                        }`}
-                                      >
-                                        {formatOptLabel(item.optIdx)}
-                                      </span>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-1.5">
-                                          <span
-                                            className="font-serif font-semibold"
-                                            dangerouslySetInnerHTML={{ __html: item.textJp }}
-                                          />
-                                          {item.textVi && (
-                                            <span className="text-slate-500 italic text-[11px]">({item.textVi})</span>
-                                          )}
-                                        </div>
-                                        <p className="mt-0.5 text-[11px] text-slate-600">{item.analysis}</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* 5. BÀI HỌC CỐT LÕI ĐỂ KHÔNG SAI LẠI */}
-                            <div className="p-3 bg-white/90 rounded-xl border border-amber-200 space-y-1">
-                              <strong className="text-amber-950 block font-bold">💡 Bài học cốt lõi để không sai lại:</strong>
-                              <p className="text-slate-800 leading-relaxed font-medium">
-                                {insight.coreStudyTakeaway}
-                              </p>
-                            </div>
-
-                            {/* 6. TRỌNG TÂM KIẾN THỨC VỚI FURIGANA CHUẨN */}
-                            {insight.keyKnowledgeHtml && (
-                              <div className="p-3 bg-white/90 rounded-xl border border-amber-200 space-y-1">
-                                <strong className="text-amber-950 block font-bold">📘 Trọng tâm kiến thức:</strong>
-                                <div
-                                  className="text-slate-800 leading-relaxed font-serif [&_ruby]:inline-flex [&_ruby]:flex-col-reverse [&_ruby]:items-center [&_rt]:text-[10px] [&_rt]:text-indigo-600 [&_rt]:font-normal [&_rt]:leading-none"
-                                  dangerouslySetInnerHTML={{ __html: insight.keyKnowledgeHtml }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* AI Explain sâu hơn nếu học viên yêu cầu */}
-                      {aiRes && (
-                        <div className="p-4 bg-purple-50 rounded-2xl border border-purple-200 text-xs space-y-2">
-                          <strong className="text-purple-900 font-bold flex items-center gap-1">
-                            <Sparkles className="w-4 h-4 text-purple-600" />
-                            <span>Giải Thích Chuyên Sâu Từ Gemini 3.5 Flash:</span>
-                          </strong>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-                            <div className="p-2.5 bg-white rounded-xl border border-purple-100">
-                              <span className="font-bold text-rose-700 block">🎯 Bẫy Đề Thi:</span>
-                              <p className="text-slate-700 mt-0.5">{aiRes.explanation}</p>
-                            </div>
-                            <div className="p-2.5 bg-white rounded-xl border border-purple-100">
-                              <span className="font-bold text-indigo-700 block">📘 Trọng Tâm Cần Nhớ:</span>
-                              <div
-                                className="text-slate-700 mt-0.5 [&_ruby]:inline-flex [&_ruby]:flex-col-reverse [&_ruby]:items-center [&_rt]:text-[10px] [&_rt]:text-indigo-600 [&_rt]:font-normal [&_rt]:leading-none"
-                                dangerouslySetInnerHTML={{ __html: aiRes.keyKnowledge || aiRes.keyGrammarOrVocab || '' }}
-                              />
-                            </div>
-                            <div className="p-2.5 bg-white rounded-xl border border-purple-100">
-                              <span className="font-bold text-emerald-700 block">💡 Mẹo Làm Bài:</span>
-                              <p className="text-slate-700 mt-0.5">{aiRes.studyTips}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Các nút hành động trên từng câu */}
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {!q.isCorrect && (
-                          <button
-                            onClick={() => handleSaveSingleToNotebook(q)}
-                            disabled={isSavedToNotebook}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              isSavedToNotebook
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200'
-                            }`}
-                          >
-                            {isSavedToNotebook ? (
-                              <>
-                                <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Đã lưu vào Sổ tay Flashcard SRS</span>
-                              </>
-                            ) : (
-                              <>
-                                <BookmarkPlus className="w-3.5 h-3.5 text-amber-700" />
-                                <span>Lưu câu này vào Sổ tay để học SRS</span>
-                              </>
-                            )}
-                          </button>
-                        )}
-
-                        {!aiRes && (
-                          <button
-                            onClick={() => handleRequestAiExplain(q.questionId, q.userAnswer)}
-                            disabled={isLoadingAi}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all cursor-pointer"
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>{isLoadingAi ? 'Gemini 3.5 Flash đang phân tích...' : 'Hỏi AI giải thích sâu hơn'}</span>
-                          </button>
-                        )}
-                      </div>
+                  {/* Footer summary */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded bg-emerald-500 inline-block" />
+                      <span className="text-slate-700">Đúng</span>
+                      <span className="text-slate-900 font-black">{correctCount}</span>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded bg-red-500 inline-block" />
+                      <span className="text-slate-700">Sai</span>
+                      <span className="text-slate-900 font-black">{wrongCount}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Nút Điều Hướng Cuối Trang */}
-        <div className="flex items-center justify-between pt-4">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between pt-8 font-sans">
           <button
             onClick={() => setCurrentScreen('catalog')}
-            className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
+            className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer shadow-xs"
           >
             ⬅️ Về danh sách đề thi
           </button>

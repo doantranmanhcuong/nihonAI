@@ -64,7 +64,8 @@ rt {
   opacity: 1 !important;
 }
 
-[data-furigana="hidden"] rt {
+[data-furigana="hidden"] rt,
+.hide-furigana rt {
   display: none !important;
 }
 
