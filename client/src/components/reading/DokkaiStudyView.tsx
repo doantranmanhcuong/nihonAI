@@ -30,6 +30,15 @@ interface DokkaiStudyViewProps {
   onSelectArticle?: (articleId: string) => void;
 }
 
+const DEFAULT_SOURCE_FALLBACKS: Record<string, string> = {
+  NHK_NEWS: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80',
+  EXTERNAL_NEWS: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=80',
+  LIVEDOOR: 'https://images.unsplash.com/photo-1542051841857-5f90071e7989?auto=format&fit=crop&w=600&q=80',
+  GIGAZINE: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+  AI_GENERATED: 'https://images.unsplash.com/photo-1528164344705-475426879c0d?auto=format&fit=crop&w=600&q=80',
+  USER_TEXT: 'https://images.unsplash.com/photo-1509356843151-3e7d96241e11?auto=format&fit=crop&w=600&q=80'
+};
+
 export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
   articleId,
   onBack,
@@ -281,6 +290,10 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
   };
   
   const cancelAudio = () => {
+    if (progressTickerRef.current) {
+      clearInterval(progressTickerRef.current);
+      progressTickerRef.current = null;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
     }
@@ -316,16 +329,43 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
       utterance.lang = 'ja-JP';
       utterance.rate = playbackSpeedRef.current || 1.0;
       setIsPlaying(true);
-      setSentenceProgress(0.35);
+      setSentenceProgress(0.05);
+
+      const sentenceStartSec = sentenceTimeline[index]?.start || 0;
+      const sentenceDurSec = sentenceTimeline[index]?.dur || Math.max(2, text.length * 0.22);
+      const speechStart = Date.now();
+
+      setPlaybackProgressSec(sentenceStartSec);
+
+      if (progressTickerRef.current) clearInterval(progressTickerRef.current);
+      progressTickerRef.current = setInterval(() => {
+        const elapsedSec = ((Date.now() - speechStart) / 1000) * (playbackSpeedRef.current || 1.0);
+        const ratio = Math.min(0.98, Math.max(0, elapsedSec / Math.max(0.5, sentenceDurSec)));
+        setSentenceProgress(ratio);
+        setPlaybackProgressSec(sentenceStartSec + ratio * sentenceDurSec);
+
+        const approxChar = Math.floor(ratio * text.length);
+        setActiveCharIndex(approxChar);
+      }, 50);
 
       utterance.onboundary = (ev) => {
         if (typeof ev.charIndex === 'number' && text.length > 0) {
-          setSentenceProgress(Math.min(1, (ev.charIndex + 1) / text.length));
+          setActiveCharIndex(ev.charIndex);
+          const ratio = Math.min(1, (ev.charIndex + 1) / text.length);
+          setSentenceProgress(ratio);
+          setPlaybackProgressSec(sentenceStartSec + ratio * sentenceDurSec);
         }
       };
 
       utterance.onend = () => {
+        if (progressTickerRef.current) {
+          clearInterval(progressTickerRef.current);
+          progressTickerRef.current = null;
+        }
         setSentenceProgress(1);
+        setPlaybackProgressSec(sentenceStartSec + sentenceDurSec);
+        setActiveCharIndex(-1);
+
         if (autoPauseRef.current) {
           setIsPlaying(false);
           return;
@@ -341,6 +381,10 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
       };
 
       utterance.onerror = () => {
+        if (progressTickerRef.current) {
+          clearInterval(progressTickerRef.current);
+          progressTickerRef.current = null;
+        }
         setIsPlaying(false);
       };
 
@@ -638,78 +682,70 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
   const cleanTitle = article.title.split('(')[0]?.trim() || article.title;
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full pb-20">
-      {/* 1. HEADER: TIÊU ĐỀ & CHỌN BÀI ĐỌC MẪU */}
-      <div className="flex flex-col items-center text-center gap-2 pt-2 select-none">
-        <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-2xs">
-          <BookOpen className="w-5 h-5" />
-        </div>
-
-        <h1 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
-          Đọc hiểu
-        </h1>
-
-        <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-          Bài đọc tiếng Nhật chuẩn JLPT — giọng đọc bản xứ theo nhịp câu, chữ sáng lên thời gian thực
-          theo từng phách âm giúp bạn luyện đọc và nắm bắt vị trí dễ dàng.
-        </p>
-
-        <div className="flex items-center gap-3 mt-1 relative">
+    <div className="flex flex-col gap-4 max-w-7xl mx-auto w-full pb-20">
+      {/* 1. THANH ĐIỀU HƯỚNG TINH GỌN (LOẠI BỎ KHOẢNG TRỐNG THỪA) */}
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-1 pt-1 select-none">
+        <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại</span>
+            <span>Quay lại Thư viện</span>
           </button>
 
-          {/* Menu chọn bài đọc demo */}
-          <div className="relative">
-            <button
-              onClick={() => setIsDemoMenuOpen(!isDemoMenuOpen)}
-              className="px-4 py-2 rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-50/60 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Bài đọc mẫu (demo) • miễn phí</span>
-              <ChevronDown className="w-3 h-3 ml-0.5 opacity-60" />
-            </button>
+          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-            {isDemoMenuOpen && (
-              <div className="absolute left-0 mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-50 flex flex-col gap-1 text-left">
-                <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-100">
-                  Chọn bài đọc mẫu theo cấp độ JLPT:
-                </div>
-                {demoArticlesList.map((demoArt) => (
-                  <button
-                    key={demoArt.id}
-                    onClick={() => {
-                      setIsDemoMenuOpen(false);
-                      if (onSelectArticle) {
-                        onSelectArticle(demoArt.id);
-                      }
-                    }}
-                    className={`p-2.5 rounded-xl text-left transition cursor-pointer flex items-center justify-between ${
-                      demoArt.id === articleId
-                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200'
-                        : 'hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-xs font-japanese font-bold">
-                        {demoArt.title.split('(')[0]?.trim()}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        {demoArt.topic} • {demoArt.totalWords} chữ
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                      {demoArt.level}
-                    </span>
-                  </button>
-                ))}
+          <span className="text-xs font-bold text-slate-600 truncate max-w-xs sm:max-w-md hidden sm:inline">
+            {cleanTitle}
+          </span>
+        </div>
+
+        {/* Menu chọn bài đọc demo */}
+        <div className="relative">
+          <button
+            onClick={() => setIsDemoMenuOpen(!isDemoMenuOpen)}
+            className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+          >
+            <span>Bài đọc mẫu (demo)</span>
+            <ChevronDown className="w-3 h-3 opacity-60" />
+          </button>
+
+          {isDemoMenuOpen && (
+            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-50 flex flex-col gap-1 text-left">
+              <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-100">
+                Chọn bài đọc mẫu theo cấp độ JLPT:
               </div>
-            )}
-          </div>
+              {demoArticlesList.map((demoArt) => (
+                <button
+                  key={demoArt.id}
+                  onClick={() => {
+                    setIsDemoMenuOpen(false);
+                    if (onSelectArticle) {
+                      onSelectArticle(demoArt.id);
+                    }
+                  }}
+                  className={`p-2.5 rounded-xl text-left transition cursor-pointer flex items-center justify-between ${
+                    demoArt.id === articleId
+                      ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200'
+                      : 'hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <div className="flex flex-col">
+                    <span className="text-xs font-japanese font-bold">
+                      {demoArt.title.split('(')[0]?.trim()}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {demoArt.topic} • {demoArt.totalWords} chữ
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                    {demoArt.level}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -740,6 +776,8 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
           );
           if (targetIdx !== -1) {
             playSentenceByIndex(targetIdx);
+          } else if (sentenceTimeline.length > 0) {
+            playSentenceByIndex(targetSec >= totalDurationSec ? sentenceTimeline.length - 1 : 0);
           }
         }}
         isPlaying={isPlaying}
@@ -803,9 +841,15 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
                 <img
                   src={article.imageUrl}
                   alt={cleanTitle}
+                  referrerPolicy="no-referrer"
                   className="w-full h-full max-h-80 object-cover"
                   onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
+                    const fallback = DEFAULT_SOURCE_FALLBACKS[article.sourceType] || DEFAULT_SOURCE_FALLBACKS.NHK_NEWS;
+                    if (e.currentTarget.src !== fallback) {
+                      e.currentTarget.src = fallback;
+                    } else {
+                      (e.currentTarget.parentElement as HTMLElement).style.display = 'none';
+                    }
                   }}
                 />
               </div>

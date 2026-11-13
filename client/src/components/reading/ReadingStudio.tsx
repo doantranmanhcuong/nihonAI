@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SharedLibraryView } from './SharedLibraryView';
 import { DokkaiStudyView } from './DokkaiStudyView';
 import { AiGeneratorModal } from './AiGeneratorModal';
@@ -15,6 +15,11 @@ export const ReadingStudio: React.FC = () => {
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const { user } = useAuth();
+  const selectedArticleIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedArticleIdRef.current = selectedArticleId;
+  }, [selectedArticleId]);
 
   const fetchQuota = useCallback(async () => {
     try {
@@ -29,22 +34,81 @@ export const ReadingStudio: React.FC = () => {
     fetchQuota();
   }, [fetchQuota]);
 
-  const handleSelectArticle = async (articleId: string) => {
+  const parseArticleIdFromUrl = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    if (hash.includes('id=')) {
+      const match = hash.match(/[?&]id=([^&]+)/);
+      if (match && match[1]) return decodeURIComponent(match[1]);
+    }
+    if (search.includes('id=')) {
+      const match = search.match(/[?&]id=([^&]+)/);
+      if (match && match[1]) return decodeURIComponent(match[1]);
+    }
+    return null;
+  }, []);
+
+  const handleSelectArticle = useCallback(async (articleId: string, updateUrl: boolean = true) => {
     setSelectedArticleId(articleId);
+    setCurrentView('DOKKAI');
+
+    if (updateUrl && typeof window !== 'undefined') {
+      window.history.pushState(null, '', `#reading?id=${encodeURIComponent(articleId)}`);
+    }
+
     try {
       const art = await ReadingApi.getArticleDetail(articleId);
       setSelectedArticle(art);
-      setCurrentView('DOKKAI');
     } catch (err) {
       console.error('Failed to load article detail:', err);
     }
-  };
+  }, []);
+
+  // Sync URL hash on initial load
+  useEffect(() => {
+    const initialId = parseArticleIdFromUrl();
+    if (initialId) {
+      handleSelectArticle(initialId, false);
+    }
+  }, [parseArticleIdFromUrl, handleSelectArticle]);
+
+  // Sync on browser back/forward buttons
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const id = parseArticleIdFromUrl();
+      if (id) {
+        if (id !== selectedArticleIdRef.current) {
+          handleSelectArticle(id, false);
+        }
+      } else {
+        setSelectedArticleId(null);
+        setSelectedArticle(null);
+        setCurrentView('LIBRARY');
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, [parseArticleIdFromUrl, handleSelectArticle]);
+
+  const handleBackToLibrary = useCallback(() => {
+    setSelectedArticleId(null);
+    setSelectedArticle(null);
+    setCurrentView('LIBRARY');
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', '#reading');
+    }
+    fetchQuota();
+  }, [fetchQuota]);
 
   const handleArticleGenerated = (newArticle: ReadingArticle) => {
     fetchQuota();
-    setSelectedArticleId(newArticle.id);
-    setSelectedArticle(newArticle);
-    setCurrentView('DOKKAI');
+    handleSelectArticle(newArticle.id, true);
   };
 
   return (
@@ -52,7 +116,7 @@ export const ReadingStudio: React.FC = () => {
       {/* 1. Màn hình Thư viện & Nhập bài đọc Dokkai */}
       {currentView === 'LIBRARY' && (
         <SharedLibraryView
-          onSelectArticle={handleSelectArticle}
+          onSelectArticle={(id) => handleSelectArticle(id, true)}
           onArticleGenerated={handleArticleGenerated}
           quota={quota}
         />
@@ -62,11 +126,8 @@ export const ReadingStudio: React.FC = () => {
       {currentView === 'DOKKAI' && selectedArticleId && (
         <DokkaiStudyView
           articleId={selectedArticleId}
-          onSelectArticle={handleSelectArticle}
-          onBack={() => {
-            setCurrentView('LIBRARY');
-            fetchQuota();
-          }}
+          onSelectArticle={(id) => handleSelectArticle(id, true)}
+          onBack={handleBackToLibrary}
         />
       )}
 

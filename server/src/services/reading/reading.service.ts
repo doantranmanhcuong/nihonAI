@@ -293,6 +293,29 @@ export class ReadingService {
       return null;
     }
 
+    // Tự động làm sạch các câu bị nhiễm tiêu đề sidebar rác đã lưu từ trước
+    const contaminatedPatterns = [
+      '米・ロ・ウクライナ',
+      'G7 外相会合',
+      'COP31 首脳級会合',
+      'COP31首脳級会合',
+      'フィリピン外相',
+      '円相場1ドル=',
+      '円相場 一時1ドル＝',
+      'あわせて読みたい',
+      '深掘りコンテンツ',
+      '新着ニュース一覧'
+    ];
+    if (article.sentences && article.sentences.some(s => contaminatedPatterns.some(p => s.sentenceJp.includes(p)))) {
+      article.sentences = article.sentences.filter(s => !contaminatedPatterns.some(p => s.sentenceJp.includes(p)));
+      prisma.readingSentence.deleteMany({
+        where: {
+          articleId,
+          OR: contaminatedPatterns.map(p => ({ sentenceJp: { contains: p } }))
+        }
+      }).catch(() => {});
+    }
+
     // Format quiz options from JSON
     const formattedArticle = {
       ...article,
@@ -807,42 +830,83 @@ export class ReadingService {
         extractedTitle = pageTitle.replace(/\s*[\-|｜|]\s*(NHK|Yahoo|GIGAZINE|東洋経済|ライブドア|nippon).*$/i, '').trim();
       }
 
-      // Loại bỏ rác DOM trước khi lấy đoạn văn
-      $('script, style, noscript, nav, header, footer, iframe, aside, .advertisement, .ad, .sns-share, .social, button, .footer, .header, .menu, .related, .paywall').remove();
+      // Loại bỏ triệt để rác DOM, sidebar, các danh sách tin liên quan, tin hot, khuyến nghị trước khi lấy đoạn văn
+      $('script, style, noscript, nav, header, footer, iframe, aside, .advertisement, .ad, .sns-share, .social, button, .footer, .header, .menu, .related, .paywall, dialog').remove();
+      $('[class*="ranking"], [class*="recommend"], [class*="related"], [class*="news-list"], [class*="module--list"], [class*="vmdvll"], [class*="_20zele"], [class*="_1pe8r"], [class*="sidebar"], [class*="ranking-list"], [class*="pickup"], [class*="series"]').remove();
 
-      const candidateSelectors = [
-        'article p',
-        '.article-body p',
-        '.article_body p',
-        '.main-text p',
-        '.content--detail-body p',
-        '#article-body p',
+      // Loại bỏ các khối có tiêu đề danh sách tin bài khác
+      $('h2, h3, h4, div, section').each((_, el) => {
+        const t = $(el).text().trim();
+        if (
+          ['あわせて読みたい', '深掘りコンテンツ', 'アクセスランキング', '新着ニュース', '注目ワード', '各地のニュース', 'NHKからのお知らせ', 'おすすめ記事', '関連記事', 'ランキング', '最新ニュース'].includes(t)
+        ) {
+          $(el).closest('div, section, ul, ol').remove();
+        }
+      });
+
+      // Trích xuất ảnh tốt nhất: ưu tiên ảnh trong nội dung bài viết, sau đó og:image
+      const inArticleImg = $('article img, .main-text img, .article-body img, #main-content img, [class*="article"] img, [class*="content"] img')
+        .filter((_: number, el: any) => {
+          const s = $(el).attr('src') || $(el).attr('data-src') || '';
+          return Boolean(s && !s.includes('icon') && !s.includes('logo') && !s.includes('avatar') && !s.includes('badge'));
+        })
+        .first()
+        .attr('src');
+
+      if (inArticleImg) {
+        extractedImageUrl = inArticleImg;
+      }
+
+      // Nhận diện vùng nội dung chính của bài báo
+      const bodyContainers = [
+        'article',
+        '.article-body',
+        '.article_body',
+        '.main-text',
+        '.content--detail-body',
+        '#article-body',
         'div.NewsBody',
-        'section p',
-        'p'
+        '[class*="content--detail"]',
+        '[class*="article-content"]',
+        '[class*="kiji-body"]',
+        'main'
       ];
+
+      let $container: any = null;
+      for (const sel of bodyContainers) {
+        const found = $(sel);
+        if (found.length > 0 && found.text().trim().length >= 80) {
+          $container = found.first();
+          break;
+        }
+      }
 
       const collectedParagraphs: string[] = [];
       const seenPara = new Set<string>();
+      const targetRoot = $container || $('body');
 
-      for (const sel of candidateSelectors) {
-        $(sel).each((_, el) => {
-          const txt = $(el).text().replace(/\s+/g, ' ').trim();
-          if (
-            txt.length >= 18 &&
-            /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(txt) &&
-            !txt.includes('放送法に基づき契約が必要です') &&
-            !txt.includes('受信契約について詳しく確認する') &&
-            !txt.includes('All Rights Reserved') &&
-            !txt.includes('無断転載を禁じます') &&
-            !seenPara.has(txt)
-          ) {
-            seenPara.add(txt);
-            collectedParagraphs.push(txt);
-          }
-        });
-        if (collectedParagraphs.join('').length >= 350) break;
-      }
+      targetRoot.find('p, h2, h3').each((_: number, el: any) => {
+        const $el = $(el);
+        if ($el.closest('ul, ol, nav, aside, [class*="news-list"], [class*="module--list"]').length > 0) return;
+
+        const txt = $el.text().replace(/\s+/g, ' ').trim();
+        if (
+          txt.length >= 18 &&
+          /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(txt) &&
+          !txt.includes('放送法に基づき契約が必要です') &&
+          !txt.includes('受信契約について詳しく確認する') &&
+          !txt.includes('All Rights Reserved') &&
+          !txt.includes('無断転載を禁じます') &&
+          !txt.includes('シェアする') &&
+          !txt.includes('地図から選ぶ') &&
+          !txt.includes('深掘りコンテンツ') &&
+          !txt.includes('あわせて読みたい') &&
+          !seenPara.has(txt)
+        ) {
+          seenPara.add(txt);
+          collectedParagraphs.push(txt);
+        }
+      });
 
       extractedBody = collectedParagraphs.join('\n\n');
     } catch (crawlErr: any) {
@@ -855,9 +919,9 @@ export class ReadingService {
       .filter((s) => s.length >= 25 && !s.includes('放送法に基づき契約が必要です'))
       .sort((a, b) => b.length - a.length)[0] || '';
 
-    if (!extractedBody || extractedBody.length < 80) {
+    if (!extractedBody || extractedBody.length < 150) {
       if (fallbackText && fallbackText.length >= 40) {
-        extractedBody = extractedBody ? `${fallbackText}\n\n${extractedBody}` : fallbackText;
+        extractedBody = extractedBody ? `${extractedBody}\n\n${fallbackText}` : fallbackText;
       }
     } else if (fallbackText && !extractedBody.includes(fallbackText.slice(0, 20)) && extractedBody.length < 250) {
       extractedBody = `${fallbackText}\n\n${extractedBody}`;

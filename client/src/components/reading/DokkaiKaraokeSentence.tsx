@@ -108,7 +108,7 @@ const DokkaiKaraokeSentenceBase: React.FC<DokkaiKaraokeSentenceProps> = ({
         title="Nhấp đúp (Double-click) để nghe phát âm câu này"
       >
         {tokens.map((token, tIdx) => {
-          const isCurrentToken = false; // Disabled token-level highlight
+          const isCurrentToken = isActive && isPlaying && tIdx === activeTokenIndex;
 
           // ZERO-LAYOUT-SHIFT STYLING:
           // Tuyệt đối KHÔNG thay đổi padding ngang (px) và KHÔNG thay đổi font-weight giữa 2 trạng thái
@@ -117,10 +117,10 @@ const DokkaiKaraokeSentenceBase: React.FC<DokkaiKaraokeSentenceProps> = ({
           let rtColor = 'text-slate-500 font-normal';
 
           if (isCurrentToken) {
-            // Chữ đang đọc: nền xanh, chữ trắng, ZERO horizontal padding, font-weight giữ nguyên
-            tokenStyle = 'bg-blue-600 text-white rounded-xs [box-decoration-break:clone] [-webkit-box-decoration-break:clone]';
+            // Chữ đang đọc: nền xanh, chữ trắng, ZERO layout shift, phách âm sáng rõ
+            tokenStyle = 'bg-blue-600 text-white rounded-md px-0.5 transition-colors [box-decoration-break:clone] [-webkit-box-decoration-break:clone]';
             // Furigana: giữ font-normal để không làm phình to thẻ ruby
-            rtColor = 'text-blue-900 font-normal';
+            rtColor = 'text-blue-100 font-normal';
           } else if (isActive && isPlaying) {
             tokenStyle = 'text-slate-900';
             rtColor = 'text-slate-500 font-normal';

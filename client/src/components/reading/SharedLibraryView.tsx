@@ -35,6 +35,15 @@ interface SharedLibraryViewProps {
 
 let globalLibraryCache: ReadingArticle[] | null = null;
 
+const DEFAULT_SOURCE_FALLBACKS: Record<string, string> = {
+  NHK_NEWS: 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80',
+  EXTERNAL_NEWS: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=80',
+  LIVEDOOR: 'https://images.unsplash.com/photo-1542051841857-5f90071e7989?auto=format&fit=crop&w=600&q=80',
+  GIGAZINE: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+  AI_GENERATED: 'https://images.unsplash.com/photo-1528164344705-475426879c0d?auto=format&fit=crop&w=600&q=80',
+  USER_TEXT: 'https://images.unsplash.com/photo-1509356843151-3e7d96241e11?auto=format&fit=crop&w=600&q=80'
+};
+
 export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestAiGenerate, onSelectArticle, onArticleGenerated, quota }) => {
   // Tabs & Filters
   const [activeTab, setActiveTab] = useState<ReadingTab>('NEWS');
@@ -420,18 +429,17 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
                     <div className="flex flex-col gap-3">
                       {/* Thumbnail */}
                       <div className="relative w-full h-44 rounded-xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-100 shrink-0">
-                        {news.imageUrl ? (
-                          <img
-                            src={news.imageUrl}
-                            alt={news.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-slate-100">
-                            <Newspaper className="w-12 h-12 text-slate-300" />
-                          </div>
-                        )}
+                        <img
+                          src={news.imageUrl || DEFAULT_SOURCE_FALLBACKS[news.sourceType] || DEFAULT_SOURCE_FALLBACKS.NHK_NEWS}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = DEFAULT_SOURCE_FALLBACKS[news.sourceType] || DEFAULT_SOURCE_FALLBACKS.NHK_NEWS;
+                          }}
+                        />
                         <div className="absolute top-2 left-2 flex flex-col gap-1.5">
                           <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm ${
                             news.sourceType === 'NHK_NEWS' ? 'bg-rose-600 text-white' : 

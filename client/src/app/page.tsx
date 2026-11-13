@@ -67,17 +67,24 @@ export default function Home() {
 
   // Sync activeTab with URL Hash for Browser Back Button support
   useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash) {
-      setActiveTabState(hash);
-    }
+    const parseTabFromHash = () => {
+      if (typeof window === 'undefined') return 'home';
+      const hash = window.location.hash.replace('#', '');
+      if (!hash) return 'home';
+      return hash.split('?')[0].split('/')[0] || 'home';
+    };
+
+    setActiveTabState(parseTabFromHash());
 
     const handlePopState = () => {
-      const currentHash = window.location.hash.replace('#', '');
-      setActiveTabState(currentHash || 'home');
+      setActiveTabState(parseTabFromHash());
     };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
   }, []);
 
   const setActiveTab = useCallback((tab: string) => {
