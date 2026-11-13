@@ -51,16 +51,17 @@ export function parseSentenceTokens(
   keywords: Array<{ word: string; reading?: string; meaning?: string; meaningVi?: string; pos?: string; level?: string }> = []
 ): TokenChunk[] {
   const cleanJapanese = (japaneseText || '').replace(/【\/?下線】/g, '');
+  const cleanFuriHtml = (furiganaHtml || '').replace(/<!--[\s\S]*?-->/g, '').trim();
 
   // Kiểm tra an toàn: Nếu câu gốc có chữ Hán mà furigana lại không có chữ Hán và không có cú pháp [..] hay <ruby>
   // (AI trả về thuần Hiragana) thì BẮT BUỘC giữ nguyên câu tiếng Nhật gốc để không làm mất chữ Hán của bài báo
   const hasKanjiInJp = new RegExp(KANJI_CHAR).test(cleanJapanese);
-  const hasKanjiInFuri = new RegExp(KANJI_CHAR).test(furiganaHtml || '');
-  const hasRubyMarkup = (furiganaHtml || '').includes('[') || (furiganaHtml || '').includes('<ruby>');
+  const hasKanjiInFuri = new RegExp(KANJI_CHAR).test(cleanFuriHtml);
+  const hasRubyMarkup = cleanFuriHtml.includes('[') || cleanFuriHtml.includes('<ruby>');
 
   let rawFuri = cleanJapanese;
-  if (furiganaHtml && (hasRubyMarkup || !hasKanjiInJp || hasKanjiInFuri)) {
-    rawFuri = furiganaHtml;
+  if (cleanFuriHtml && (hasRubyMarkup || !hasKanjiInJp || hasKanjiInFuri)) {
+    rawFuri = cleanFuriHtml;
   }
 
   // 1. Chuẩn hóa định dạng 漢字[かんじ] sang <ruby>漢字<rt>かんじ</rt></ruby>

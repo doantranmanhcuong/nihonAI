@@ -878,24 +878,44 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
                       const isActive = activeSentenceIndex === sIdx;
                       const isGrammarTarget = activeGrammarSentenceIdx === sIdx;
 
+                      const inlineImgMatch = sent.furigana?.match(/<!--IMG:(https?:\/\/[^>]+)-->/);
+                      const inlineImgUrl = (sent as any).imageUrl || (inlineImgMatch ? inlineImgMatch[1] : null);
+
                       return (
-                        <DokkaiKaraokeSentence
-                          key={sent.id || sIdx}
-                          sentence={sent}
-                          sentenceIndex={sIdx}
-                          isActive={isActive}
-                          isPlaying={isPlaying}
-                          activeCharIndex={isActive ? activeCharIndex : -1}
-                          sentenceProgress={isActive ? sentenceProgress : 0}
-                          furiganaMode={furiganaMode}
+                        <React.Fragment key={sent.id || sIdx}>
+                          <DokkaiKaraokeSentence
+                            sentence={sent}
+                            sentenceIndex={sIdx}
+                            isActive={isActive}
+                            isPlaying={isPlaying}
+                            activeCharIndex={isActive ? activeCharIndex : -1}
+                            sentenceProgress={isActive ? sentenceProgress : 0}
+                            furiganaMode={furiganaMode}
                             jlptHeatmap={jlptHeatmap}
-                          showTranslation={showTranslation}
-                          highlightedKeyword={highlightedKeyword}
-                          isGrammarTarget={isGrammarTarget}
-                          vocabularies={article.vocabularies}
-                          onSentenceDoubleClick={playSentenceByIndex}
-                          onWordClick={handleWordClick}
-                        />
+                            showTranslation={showTranslation}
+                            highlightedKeyword={highlightedKeyword}
+                            isGrammarTarget={isGrammarTarget}
+                            vocabularies={article.vocabularies}
+                            onSentenceDoubleClick={playSentenceByIndex}
+                            onWordClick={handleWordClick}
+                          />
+                          {inlineImgUrl && (
+                            <span className="block my-5 clear-both select-none">
+                              <span className="block rounded-2xl overflow-hidden border border-slate-200 shadow-2xs bg-slate-50">
+                                <img
+                                  src={inlineImgUrl}
+                                  alt="Minh họa bài viết"
+                                  referrerPolicy="no-referrer"
+                                  className="w-full max-h-96 object-contain mx-auto block"
+                                  onError={(e) => {
+                                    const container = e.currentTarget.parentElement?.parentElement;
+                                    if (container) container.style.display = 'none';
+                                  }}
+                                />
+                              </span>
+                            </span>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </p>

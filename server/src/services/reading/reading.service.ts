@@ -260,7 +260,7 @@ export class ReadingService {
    * Lấy chi tiết bài đọc (Bao gồm câu karaoke, từ vựng, ngữ pháp, trắc nghiệm)
    * Có bộ đệm Redis hot cache (< 5ms)
    */
-  static async getArticleDetail(articleId: string) {
+  static async getArticleDetail(articleId: string): Promise<any> {
     const cacheKey = `reading:article:${articleId}`;
 
     // 1. Đọc từ Redis Cache trước
@@ -293,8 +293,17 @@ export class ReadingService {
       return null;
     }
 
-    // Tự động làm sạch các câu bị nhiễm tiêu đề sidebar rác đã lưu từ trước
+    // Tự động làm sạch các câu bị nhiễm tiêu đề sidebar rác hoặc nhà tài trợ GIGAZINE đã lưu từ trước
     const contaminatedPatterns = [
+      'これまでGIGAZINEを支援してくれた',
+      'メンバーのリスト',
+      'ご存じの通り価格高騰',
+      'サーバー運営がとても苦しい',
+      '回線や台数を整理し見直せる部分',
+      'やはりまだ危険水域です',
+      'Live: Microsoft outage',
+      'downdetector.com',
+      'abc.net.au',
       '米・ロ・ウクライナ',
       'G7 外相会合',
       'COP31 首脳級会合',
@@ -314,6 +323,27 @@ export class ReadingService {
           OR: contaminatedPatterns.map(p => ({ sentenceJp: { contains: p } }))
         }
       }).catch(() => {});
+    }
+
+    // Nếu bài báo nguồn tin tức (GIGAZINE / NHK) bị thiếu nội dung (ít hơn 7 câu) hoặc dính rác, tự động tái bóc tách mới hoàn toàn
+    if (
+      article.sourceUrl &&
+      article.sourceUrl.startsWith('http') &&
+      (article.sentences.length < 7 || (article.grammars && article.grammars.length <= 1))
+    ) {
+      try {
+        const fresh: any = await this.executeCrawlAndProcess(article.sourceUrl, article.level, article.createdBy || undefined, {
+          fallbackTitle: article.title,
+          sourceName: article.sourceType
+        });
+        if (fresh && fresh.sentences && fresh.sentences.length > article.sentences.length) {
+          // Xóa bản cũ bị lỗi cắt xén và cập nhật bản mới
+          await prisma.readingArticle.delete({ where: { id: articleId } }).catch(() => {});
+          return fresh;
+        }
+      } catch (recrawlErr) {
+        console.warn('[ReadingService] Auto re-crawl fallback:', recrawlErr);
+      }
     }
 
     // Format quiz options from JSON
@@ -784,11 +814,12 @@ export class ReadingService {
       fallbackImage?: string;
       sourceName?: string;
     }
-  ) {
+  ): Promise<any> {
     let extractedTitle = fallbackMeta?.fallbackTitle || '';
     let extractedBody = '';
     let extractedImageUrl = fallbackMeta?.fallbackImage || '';
     let metaDescription = '';
+    const collectedParagraphs: Array<{ text: string; imageUrl?: string }> = [];
 
     try {
       const res = await axios.get(cleanUrl, {
@@ -859,13 +890,16 @@ export class ReadingService {
 
       // Nhận diện vùng nội dung chính của bài báo
       const bodyContainers = [
-        'article',
+        'div.cntbox',        // GIGAZINE main article content
+        '.cntbox',           // GIGAZINE
+        '#article',
+        '#article-body',
         '.article-body',
         '.article_body',
-        '.main-text',
+        'div.NewsBody',      // NHK News
         '.content--detail-body',
-        '#article-body',
-        'div.NewsBody',
+        '.main-text',
+        'article',
         '[class*="content--detail"]',
         '[class*="article-content"]',
         '[class*="kiji-body"]',
@@ -881,18 +915,79 @@ export class ReadingService {
         }
       }
 
-      const collectedParagraphs: string[] = [];
+      // Xóa triệt để các khối rác GIGAZINE, nhà tài trợ, quảng cáo, hỗ trợ server
+      $('.preface, .sponsor, .supporter, [class*="preface"], [class*="sponsor"], [class*="donation"], [class*="membership"], [class*="support_btn"]').remove();
+      $container?.find('.preface, .sponsor, .supporter, [class*="preface"], [class*="sponsor"]').remove();
+
+      $('p, div, a, span').each((_, el) => {
+        const t = $(el).text().trim();
+        if (
+          t.includes('これまでGIGAZINEを支援してくれた') ||
+          t.includes('メンバーのリスト') ||
+          t.includes('ご存じの通り価格高騰') ||
+          t.includes('サーバー運営がとても苦しい') ||
+          t.includes('危険水域です') ||
+          t.includes('GIGAZINE・Club') ||
+          t.includes('寄付') ||
+          t.includes('支援してくださる') ||
+          t.includes('放送法に基づき契約が必要です') ||
+          t.includes('受信契約について詳しく確認する')
+        ) {
+          $(el).remove();
+        }
+      });
+
       const seenPara = new Set<string>();
       const targetRoot = $container || $('body');
+
+      // Thu thập các ảnh minh họa hợp lệ trong bài viết
+      const inArticleImages: string[] = [];
+      targetRoot.find('img').each((_: number, el: any) => {
+        let s = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-original') || '';
+        if (!s) return;
+        if (s.startsWith('//')) s = 'https:' + s;
+        else if (!s.startsWith('http')) {
+          try { s = new URL(s, cleanUrl).href; } catch { return; }
+        }
+        const isJunk = s.includes('icon') || s.includes('logo') || s.includes('avatar') || s.includes('badge') || s.includes('ad') || s.includes('btn') || s.includes('button') || s.includes('banner') || s.includes('emoji') || s.includes('count') || s.includes('spacer') || s.includes('ranking');
+        if (!isJunk && !inArticleImages.includes(s)) {
+          inArticleImages.push(s);
+        }
+      });
+
+      if (!extractedImageUrl && inArticleImages.length > 0) {
+        extractedImageUrl = inArticleImages[0];
+      }
 
       targetRoot.find('p, h2, h3').each((_: number, el: any) => {
         const $el = $(el);
         if ($el.closest('ul, ol, nav, aside, [class*="news-list"], [class*="module--list"]').length > 0) return;
 
-        const txt = $el.text().replace(/\s+/g, ' ').trim();
+        let rawTxt = $el.text().replace(/\s+/g, ' ').trim();
+        if (!rawTxt) return;
+
+        // Loại bỏ URL thô (http:// hoặc https://)
+        let txt = rawTxt.replace(/https?:\/\/[^\s]+/g, '').trim();
+
+        // Kiểm tra xem đoạn văn có ảnh minh họa ngay bên trong hoặc ngay cạnh không
+        let inlineImg = $el.find('img').attr('src') || $el.next('div, figure, p').find('img').attr('src') || '';
+        if (inlineImg && inlineImg.startsWith('//')) inlineImg = 'https:' + inlineImg;
+        else if (inlineImg && !inlineImg.startsWith('http')) {
+          try { inlineImg = new URL(inlineImg, cleanUrl).href; } catch { inlineImg = ''; }
+        }
+        if (inlineImg && (inlineImg.includes('icon') || inlineImg.includes('logo') || inlineImg.includes('avatar') || inlineImg.includes('badge') || inlineImg.includes('ad'))) {
+          inlineImg = '';
+        }
+
+        // Lọc bỏ các trích dẫn link nguồn tiếng Anh / Latin
+        const latinCount = (txt.match(/[a-zA-Z]/g) || []).length;
+        const jpCount = (txt.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/g) || []).length;
+        if (jpCount < 6 || (latinCount > 15 && latinCount > jpCount)) {
+          return;
+        }
+
         if (
-          txt.length >= 18 &&
-          /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(txt) &&
+          txt.length >= 12 &&
           !txt.includes('放送法に基づき契約が必要です') &&
           !txt.includes('受信契約について詳しく確認する') &&
           !txt.includes('All Rights Reserved') &&
@@ -904,11 +999,20 @@ export class ReadingService {
           !seenPara.has(txt)
         ) {
           seenPara.add(txt);
-          collectedParagraphs.push(txt);
+          collectedParagraphs.push({ text: txt, imageUrl: inlineImg || undefined });
         }
       });
 
-      extractedBody = collectedParagraphs.join('\n\n');
+      // Nếu trong bài có ảnh nhưng chưa gán được cho đoạn nào, gán ảnh vào giữa bài viết (khoảng đoạn thứ 2 hoặc 3)
+      if (inArticleImages.length > 0 && collectedParagraphs.length >= 3) {
+        const hasAssignedImg = collectedParagraphs.some((p) => p.imageUrl);
+        if (!hasAssignedImg) {
+          const midIdx = Math.min(2, Math.floor(collectedParagraphs.length / 2));
+          collectedParagraphs[midIdx].imageUrl = inArticleImages[0];
+        }
+      }
+
+      extractedBody = collectedParagraphs.map((p) => p.text).join('\n\n');
     } catch (crawlErr: any) {
       console.warn(`[ReadingService] HTTP scrape fallback for ${cleanUrl}:`, crawlErr?.message || crawlErr);
     }
@@ -931,8 +1035,8 @@ export class ReadingService {
       throw new Error('Không thể trích xuất nội dung bài viết từ liên kết này.');
     }
 
-    if (extractedBody.length > 1800) {
-      extractedBody = extractedBody.slice(0, 1800);
+    if (extractedBody.length > 4500) {
+      extractedBody = extractedBody.slice(0, 4500);
     }
 
     const effectiveUserId = userId || 'guest_user';
@@ -941,11 +1045,31 @@ export class ReadingService {
     const { KuromojiService } = await import('./kuromoji.service');
     const { TranscriptParserService } = await import('../shadowing/transcript-parser.service');
 
-    const rawSentences = extractedBody
-      .split(/(?<=[。！？\n])/)
-      .map((s: string) => s.replace(/\s+/g, ' ').trim())
-      .filter((s: string) => s.length >= 8 && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(s))
-      .slice(0, 16);
+    const rawSentencesWithImg: Array<{ jp: string; imageUrl?: string }> = [];
+    if (collectedParagraphs.length > 0) {
+      for (const p of collectedParagraphs) {
+        const sents = p.text
+          .split(/(?<=[。！？\n])/)
+          .map((s: string) => s.replace(/\s+/g, ' ').trim())
+          .filter((s: string) => s.length >= 8 && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(s));
+
+        sents.forEach((sent: string, sIdx: number) => {
+          const img = sIdx === sents.length - 1 && p.imageUrl ? p.imageUrl : undefined;
+          rawSentencesWithImg.push({ jp: sent, imageUrl: img });
+        });
+      }
+    } else {
+      const sents = extractedBody
+        .split(/(?<=[。！？\n])/)
+        .map((s: string) => s.replace(/\s+/g, ' ').trim())
+        .filter((s: string) => s.length >= 8 && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(s));
+      for (const s of sents) {
+        rawSentencesWithImg.push({ jp: s });
+      }
+    }
+
+    const targetSentences = rawSentencesWithImg.slice(0, 40);
+    const rawSentences = targetSentences.map((it) => it.jp);
 
     if (rawSentences.length === 0) {
       throw new Error('Không tìm thấy câu tiếng Nhật hợp lệ trong bài viết.');
@@ -996,7 +1120,7 @@ export class ReadingService {
       if (missingTranslations[idx]) missingMap.set(w, missingTranslations[idx]);
     });
 
-    const finalVocabs = candidateVocabs.slice(0, 14).map((v: any) => {
+    const finalVocabs = candidateVocabs.slice(0, 18).map((v: any) => {
       const dbHit = dbVocabMap.get(v.word);
       if (dbHit) {
         return {
@@ -1017,22 +1141,25 @@ export class ReadingService {
       };
     });
 
-    const finalGrammars = (globalAnalysis.grammars || []).slice(0, 6);
+    const finalGrammars = (globalAnalysis.grammars || []).slice(0, 10);
 
-    // 3. Tạo Furigana và tính mốc thời gian Mora cho từng câu (Không chờ tải 16 file MP3 gây timeout)
+    // 3. Tạo Furigana và tính mốc thời gian Mora cho từng câu (kèm gắn ảnh minh họa inline)
     const sentences: any[] = [];
     let accumulatedMs = 0;
-    for (let i = 0; i < rawSentences.length; i++) {
-      const raw = rawSentences[i];
-      const furiText = await KuromojiService.addFurigana(raw);
-      const estDurationMs = Math.max(2500, Math.round(raw.length * 210));
+    for (let i = 0; i < targetSentences.length; i++) {
+      const item = targetSentences[i];
+      let furiText = await KuromojiService.addFurigana(item.jp);
+      if (item.imageUrl) {
+        furiText += `<!--IMG:${item.imageUrl}-->`;
+      }
+      const estDurationMs = Math.max(2500, Math.round(item.jp.length * 210));
       const startTimeMs = accumulatedMs;
       const endTimeMs = accumulatedMs + estDurationMs;
       accumulatedMs = endTimeMs;
 
       sentences.push({
         orderIndex: i + 1,
-        sentenceJp: raw,
+        sentenceJp: item.jp,
         sentenceVi: sentenceTranslations[i] || '',
         furigana: furiText,
         startTimeMs,

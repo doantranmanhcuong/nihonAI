@@ -11,6 +11,23 @@ export interface CuratedGrammarPattern {
 }
 
 export const CURATED_JLPT_GRAMMAR_PATTERNS: CuratedGrammarPattern[] = [
+  // --- N3 / N2: Dẫn chứng, trích dẫn, nguyên nhân trong tin tức & báo chí ---
+  {
+    pattern: '〜によると・〜によれば',
+    regex: /(によると|によれば|の調査によると|の発表によると|の試算によると)/,
+    level: 'N3',
+    meaningVi: 'Theo như... / Dựa theo nguồn tin...',
+    structure: 'Danh từ + によると / によれば',
+    explanation: 'Cấu trúc thông dụng trong báo chí để trích dẫn nguồn thông tin, kết quả điều tra hoặc thông cáo chính thức.'
+  },
+  {
+    pattern: '〜とのこと（だ）',
+    regex: /(とのことだ|とのことです|とのこと、|とのこと。)/,
+    level: 'N3',
+    meaningVi: 'Nghe nói là... / Theo thông tin được biết là...',
+    structure: 'Mệnh đề thông thường + とのこと(だ)',
+    explanation: 'Dùng để truyền đạt lại thông tin nhận được từ người khác hoặc thông cáo báo chí một cách khách quan, lịch sự.'
+  },
   {
     pattern: '〜によって・〜による',
     regex: /(によって|により|による|によれば)/,
@@ -50,6 +67,310 @@ export const CURATED_JLPT_GRAMMAR_PATTERNS: CuratedGrammarPattern[] = [
     meaningVi: 'Vì / Do (nguyên nhân) hoặc Để (mục đích)',
     structure: 'Động từ / Tính từ / Danh từ + の + ため(に)',
     explanation: 'Trong văn viết và báo chí, cấu trúc này thường dùng để giải thích nguyên nhân dẫn đến kết quả hoặc mục đích của hành động.'
+  },
+  {
+    pattern: '〜にわたって・〜にわたる',
+    regex: /(にわたって|にわたり|にわたる|に渡って|に渡り)/,
+    level: 'N2',
+    meaningVi: 'Suốt / Kéo dài trong khoảng (thời gian, phạm vi)...',
+    structure: 'Danh từ (thời gian / không gian) + にわたって',
+    explanation: 'Diễn tả một hành động, sự việc hoặc trạng thái kéo dài liên tục suốt một khoảng thời gian dài hoặc trên quy mô rộng lớn.'
+  },
+  {
+    pattern: '〜をきっかけに・〜を契機に',
+    regex: /(をきっかけに|をきっかけとして|を契機に)/,
+    level: 'N2',
+    meaningVi: 'Nhân dịp... / Bắt nguồn từ... / Khởi điểm từ...',
+    structure: 'Danh từ + をきっかけに',
+    explanation: 'Chỉ sự kiện, cơ hội hoặc nguyên cớ dẫn tới việc bắt đầu hoặc thay đổi một tình huống mới.'
+  },
+  {
+    pattern: '〜に加え(て)・〜に加えて',
+    regex: /(に加え、|に加えて|に加え)/,
+    level: 'N2',
+    meaningVi: 'Thêm vào đó... / Ngoài ra còn...',
+    structure: 'Danh từ + に加え(て)',
+    explanation: 'Biểu thị sự bổ sung: không những có A mà còn cộng thêm B nữa.'
+  },
+  {
+    pattern: '〜を中心に・〜を中心として',
+    regex: /(を中心に|を中心として|を中心とする)/,
+    level: 'N3',
+    meaningVi: 'Lấy... làm trọng tâm / Tập trung chủ yếu vào...',
+    structure: 'Danh từ + を中心に',
+    explanation: 'Chỉ đối tượng, khu vực hoặc phạm vi cốt lõi mà hành động hoặc sự việc tập trung vào.'
+  },
+  {
+    pattern: '〜可能性がある・〜恐れがある',
+    regex: /(可能性がある|可能性が高い|おそれがある|恐れがある|影響のおそれ|影響の恐れ|のおそれ|の恐れ)/,
+    level: 'N3',
+    meaningVi: 'Có khả năng... / Có nguy cơ xảy ra hậu quả xấu',
+    structure: 'Thể thông thường / Danh từ + の + 可能性がある / おそれがある',
+    explanation: 'Dùng trong dự báo, tin tức để cảnh báo về khả năng diễn biến hoặc rủi ro tiêu cực trong tương lai.'
+  },
+  {
+    pattern: '〜とされる・〜とされている',
+    regex: /(とされる|とされている|とされます|とされています)/,
+    level: 'N3',
+    meaningVi: 'Được cho là... / Được quy định là...',
+    structure: 'Thể thông thường + とされる',
+    explanation: 'Dùng trong văn phong báo chí để diễn đạt sự nhìn nhận chung, sự thật hiển nhiên hoặc quy định đã được công nhận.'
+  },
+  {
+    pattern: '〜に基づいて・〜に基づく',
+    regex: /(に基づいて|に基づき|に基づく|にもとづいて)/,
+    level: 'N2',
+    meaningVi: 'Dựa trên... / Căn cứ vào...',
+    structure: 'Danh từ + に基づいて',
+    explanation: 'Lấy sự thật, dữ liệu, luật pháp hoặc nguyên tắc nào đó làm căn cứ nền tảng để hành động hoặc suy xét.'
+  },
+  {
+    pattern: '〜て以来・〜以来',
+    regex: /(て以来|ていらい|以来、)/,
+    level: 'N2',
+    meaningVi: 'Kể từ sau khi... (suốt từ đó đến nay)',
+    structure: 'Động từ thể て + 以来',
+    explanation: 'Diễn tả một trạng thái tiếp diễn liên tục kể từ một mốc thời gian trong quá khứ cho tới hiện tại.'
+  },
+  {
+    pattern: '〜一方（で）・〜反面',
+    regex: /(一方で|一方、|反面、|反面)/,
+    level: 'N2',
+    meaningVi: 'Mặt khác... / Trái lại / Đồng thời...',
+    structure: 'Thể thông thường + 一方(で)',
+    explanation: 'So sánh hai mặt đối lập hoặc hai sự việc diễn ra song song của cùng một vấn đề.'
+  },
+  {
+    pattern: '〜わけではない・〜わけだ',
+    regex: /(わけではない|わけじゃない|わけだ|わけです)/,
+    level: 'N3',
+    meaningVi: 'Không hẳn là... / Thảo nào... / Thành ra là...',
+    structure: 'Thể thông thường + わけではない',
+    explanation: 'Phủ định một phần: không phải hoàn toàn như vậy, hoặc giải thích lý do logic tự nhiên.'
+  },
+  {
+    pattern: '〜に比べて・〜に比べ',
+    regex: /(に比べて|に比べ|と比べて)/,
+    level: 'N3',
+    meaningVi: 'So với...',
+    structure: 'Danh từ + に比べて',
+    explanation: 'Đem hai đối tượng ra so sánh về mức độ, số lượng hoặc đặc tính.'
+  },
+  {
+    pattern: '〜をはじめ・〜をはじめとする',
+    regex: /(をはじめ|をはじめとする|をはじめとして)/,
+    level: 'N2',
+    meaningVi: 'Trước hết phải kể đến... / Tiêu biểu là...',
+    structure: 'Danh từ + をはじめ',
+    explanation: 'Nêu ra đại diện tiêu biểu nhất trong một nhóm đối tượng nhiều thành phần.'
+  },
+  {
+    pattern: '〜に沿って・〜に沿い',
+    regex: /(に沿って|に沿い|に沿う|にそって)/,
+    level: 'N2',
+    meaningVi: 'Theo sát... / Dọc theo... / Phù hợp với...',
+    structure: 'Danh từ + に沿って',
+    explanation: 'Hành động tuân theo đúng đường lối, kế hoạch, quy định hoặc dòng chảy tự nhiên.'
+  },
+  {
+    pattern: '〜に応じて・〜に応じた',
+    regex: /(に応じて|に応じ|に応じた)/,
+    level: 'N2',
+    meaningVi: 'Ứng với... / Tùy theo nhu cầu / Phù hợp với...',
+    structure: 'Danh từ + に応じて',
+    explanation: 'Sự thay đổi để thích ứng tương xứng với sự biến động của hoàn cảnh, lứa tuổi hoặc yêu cầu.'
+  },
+  {
+    pattern: '〜に違いない',
+    regex: /(に違いない|に相違ない)/,
+    level: 'N3',
+    meaningVi: 'Chắc chắn là... / Không thể sai được',
+    structure: 'Thể thông thường + に違いない',
+    explanation: 'Khẳng định phán đoán có độ tin cậy rất cao dựa trên chứng cứ hoặc cảm nhận chắc chắn.'
+  },
+  {
+    pattern: '〜はずだ・〜はずがない',
+    regex: /(はずだ|はずです|はずがない|はずはありません)/,
+    level: 'N3',
+    meaningVi: 'Chắc chắn là... / Không có lý nào lại...',
+    structure: 'Thể thông thường + はずだ / はずがない',
+    explanation: 'Phán đoán dựa trên lý lẽ, quy luật tự nhiên hoặc lịch trình đã biết trước.'
+  },
+  {
+    pattern: '〜最中に・〜最中だ',
+    regex: /(最中に|最中だ|最中、)/,
+    level: 'N3',
+    meaningVi: 'Đúng lúc đang... thì sự việc bất ngờ xảy ra',
+    structure: 'V-ている / Danh từ + の + 最中に',
+    explanation: 'Nhấn mạnh thời điểm hành động đang diễn ra cao độ thì có một sự cố hoặc việc khác xen vào.'
+  },
+  {
+    pattern: '〜ことになっている・〜ことになった',
+    regex: /(ことになっている|ことになります|ことになった|ことになりました)/,
+    level: 'N3',
+    meaningVi: 'Quy định là... / Đã được quyết định là...',
+    structure: 'V-る / V-ない + ことになっている',
+    explanation: 'Nói về quy định, tập quán hoặc kế hoạch chung đã được tổ chức/tập thể quyết định.'
+  },
+  {
+    pattern: '〜べきだ・〜べきではない',
+    regex: /(べきだ|べきです|べきではない|べきではありません)/,
+    level: 'N3',
+    meaningVi: 'Nên... / Phải... / Không nên...',
+    structure: 'Động từ V-る + べきだ',
+    explanation: 'Nêu quan điểm về nghĩa vụ đạo đức, trách nhiệm xã hội hoặc điều hiển nhiên nên làm.'
+  },
+  {
+    pattern: '〜つつある・〜つつ',
+    regex: /(つつある|つつあります|つつ、)/,
+    level: 'N2',
+    meaningVi: 'Đang dần dần... / Vừa... vừa...',
+    structure: 'V-ます (bỏ ます) + つつある',
+    explanation: 'Miêu tả một tiến trình biến đổi đang tiếp diễn theo chiều hướng tăng dần hoặc giảm dần.'
+  },
+  {
+    pattern: '〜たとたん(に)',
+    regex: /(たとたんに|たとたん、|たとたん)/,
+    level: 'N3',
+    meaningVi: 'Ngay vừa mới... thì xảy ra sự việc bất ngờ',
+    structure: 'Động từ V-た + とたんに',
+    explanation: 'Hành động phía sau xảy ra gần như tức thì và ngoài dự liệu ngay sau khi hành động trước kết thúc.'
+  },
+  {
+    pattern: '〜たびに',
+    regex: /(たびに|たび、)/,
+    level: 'N3',
+    meaningVi: 'Mỗi lần... lại diễn ra cùng một cảm xúc hoặc hành động',
+    structure: 'V-る / Danh từ + の + たびに',
+    explanation: 'Nhấn mạnh tính lặp lại quy luật: cứ hễ xảy ra A là chắc chắn sẽ kéo theo B.'
+  },
+  {
+    pattern: '〜わけにはいかない',
+    regex: /(わけにはいかない|わけにもいかない)/,
+    level: 'N3',
+    meaningVi: 'Không thể làm... (do rào cản đạo đức, quy tắc xã hội)',
+    structure: 'V-る + わけにはいかない',
+    explanation: 'Dù muốn cũng không thể làm vì trách nhiệm, dư luận hoặc lương tâm không cho phép.'
+  },
+  {
+    pattern: '〜上(に)',
+    regex: /(上に、|上、|上も|上では)/,
+    level: 'N2',
+    meaningVi: 'Không những... mà còn... / Xét về phương diện...',
+    structure: 'Thể thông thường + 上(に)',
+    explanation: 'Cộng thêm tính chất cùng chiều: tốt cộng thêm tốt, hoặc xấu cộng thêm xấu.'
+  },
+  {
+    pattern: '〜次第',
+    regex: /(次第だ|次第です|次第で|次第、)/,
+    level: 'N2',
+    meaningVi: 'Ngay sau khi... / Tùy thuộc vào...',
+    structure: 'V-ます (bỏ ます) + 次第 / Danh từ + 次第',
+    explanation: 'Chỉ hành động sẽ làm ngay khi điều kiện hoàn thành, hoặc kết quả phụ thuộc vào yếu tố đó.'
+  },
+  {
+    pattern: '〜おかげで・〜せいで',
+    regex: /(おかげで|おかげです|せいで|せいです)/,
+    level: 'N4',
+    meaningVi: 'Nhờ có... (tích cực) / Chỉ tại vì... (tiêu cực)',
+    structure: 'Thể thông thường / Danh từ + の + おかげで / せいで',
+    explanation: 'Quy kết nguyên nhân dẫn đến kết quả tốt đẹp hoặc hậu quả tồi tệ.'
+  },
+  {
+    pattern: '〜としても・〜としたって',
+    regex: /(としても|としたって)/,
+    level: 'N3',
+    meaningVi: 'Cho dù là... / Dẫu có coi như là...',
+    structure: 'Thể thông thường + としても',
+    explanation: 'Giả định nhượng bộ: ngay cả khi sự việc đó xảy ra thì kết quả vẫn không thay đổi.'
+  },
+  {
+    pattern: '〜に際して・〜にあたって',
+    regex: /(に際して|に際し|にあたって|にあたり)/,
+    level: 'N2',
+    meaningVi: 'Khi bắt đầu... / Nhân dịp trọng đại...',
+    structure: 'Danh từ / V-る + に際して',
+    explanation: 'Dùng trong các sự kiện quan trọng, lễ khởi công, ký kết hợp đồng hoặc xuất bản.'
+  },
+  {
+    pattern: '〜から〜にかけて',
+    regex: /(から.*にかけて)/,
+    level: 'N3',
+    meaningVi: 'Từ... trải dài đến...',
+    structure: 'Danh từ 1 + から + Danh từ 2 + にかけて',
+    explanation: 'Chỉ khoảng thời gian hoặc không gian diễn ra đại khái, ranh giới không phân định quá rạch ròi.'
+  },
+  {
+    pattern: '〜うちに・〜ないうちに',
+    regex: /(うちに|うちが|ないうちに)/,
+    level: 'N3',
+    meaningVi: 'Trong lúc còn... / Tranh thủ trước khi...',
+    structure: 'V-る / V-ている / V-ない / Danh từ + の + うちに',
+    explanation: 'Tranh thủ làm việc gì đó khi trạng thái thuận lợi vẫn còn duy trì.'
+  },
+  {
+    pattern: '〜末に',
+    regex: /(末に|すえに|末、)/,
+    level: 'N2',
+    meaningVi: 'Sau một hồi lâu... (cuối cùng đạt được kết quả)',
+    structure: 'Danh từ + の / V-た + 末に',
+    explanation: 'Trải qua quá trình suy nghĩ, đàm phán hoặc cố gắng gian khổ thì đi đến kết luận sau cùng.'
+  },
+  {
+    pattern: '〜ものだ・〜ものではない',
+    regex: /(ものだ|ものです|ものではない)/,
+    level: 'N3',
+    meaningVi: 'Bản chất hiển nhiên là... / Nhớ lại thói quen cũ',
+    structure: 'V-る / V-た + ものだ',
+    explanation: 'Diễn tả chân lý thông thường, lời khuyên luân lý hoặc hồi tưởng kỷ niệm trong quá khứ.'
+  },
+  {
+    pattern: '〜にすぎない',
+    regex: /(にすぎない|にすぎません)/,
+    level: 'N2',
+    meaningVi: 'Chẳng qua chỉ là... / Không hơn không kém',
+    structure: 'Thể thông thường / Danh từ + にすぎない',
+    explanation: 'Hạ thấp mức độ đánh giá: chỉ dừng lại ở mức đó chứ không có gì to tát.'
+  },
+  {
+    pattern: '〜にほかならない',
+    regex: /(にほかならない)/,
+    level: 'N2',
+    meaningVi: 'Chính là... / Không gì khác ngoài...',
+    structure: 'Danh từ + にほかならない',
+    explanation: 'Khẳng định mạnh mẽ lý do hoặc nguyên nhân cốt lõi duy nhất của vấn đề.'
+  },
+  {
+    pattern: '〜に決まっている',
+    regex: /(に決まっている|にきまっている)/,
+    level: 'N3',
+    meaningVi: 'Nhất định là... / Chắc chắn sẽ...',
+    structure: 'Thể thông thường + に決まっている',
+    explanation: 'Khẳng định phán đoán chủ quan mang tính quả quyết tuyệt đối.'
+  },
+  {
+    pattern: '〜かのようだ',
+    regex: /(かのようだ|かのように)/,
+    level: 'N3',
+    meaningVi: 'Cứ như thể là... (thực tế không phải vậy)',
+    structure: 'Thể thông thường + かのようだ',
+    explanation: 'So sánh ví von một sự việc trông giống hệt như một hiện tượng khác.'
+  },
+  {
+    pattern: '〜にかかわらず・〜を問わず',
+    regex: /(にかかわらず|に関わらず|を問わず)/,
+    level: 'N2',
+    meaningVi: 'Bất kể là... / Không phân biệt...',
+    structure: 'Danh từ + を問わず / にかかわらず',
+    explanation: 'Hành động hoặc trạng thái không bị ảnh hưởng bởi tuổi tác, giới tính, thời tiết hay quốc tịch.'
+  },
+  {
+    pattern: '〜にもかかわらず',
+    regex: /(にもかかわらず|にも拘らず)/,
+    level: 'N2',
+    meaningVi: 'Mặc dù vậy... / Dù sự việc diễn ra như thế nhưng...',
+    structure: 'Thể thông thường / Danh từ + にもかかわらず',
+    explanation: 'Biểu thị sự ngạc nhiên khi kết quả xảy ra trái ngược hoàn toàn với dự đoán thông thường.'
   },
   {
     pattern: '〜ようになる・〜ようになる',
@@ -217,10 +538,18 @@ export class KuromojiService {
           furiganaText += token.surface_form;
         }
 
-        // --- 2. Trích xuất Vocabulary ứng viên (Ưu tiên từ có chữ Hán >= 2 ký tự) ---
+        // --- 2. Trích xuất Vocabulary ứng viên (Ưu tiên từ Kanji >= 2 ký tự hoặc Katakana công nghệ/thời sự) ---
         const pos = token.pos;
         const base = token.basic_form && token.basic_form !== '*' ? token.basic_form : token.surface_form;
-        if (!base || base.length < 2 || !this.hasKanji(base)) continue;
+        if (!base || base.length < 2) continue;
+
+        const isKanjiWord = this.hasKanji(base);
+        const isKatakanaWord = /^[\u30A0-\u30FF\u30FC]{2,12}$/.test(base);
+        if (!isKanjiWord && !isKatakanaWord) continue;
+
+        // Bỏ qua các từ thuộc nội dung tài trợ / xin tiền / quảng cáo
+        const isJunkWord = ['支援', 'メンバー', 'リスト', '寄付', '価格高騰', '危険水域', '運営', 'ご存じ'].some(j => base.includes(j));
+        if (isJunkWord) continue;
 
         if (pos === '名詞' || pos === '動詞' || pos === '形容詞') {
           if (
@@ -230,7 +559,7 @@ export class KuromojiService {
             token.pos_detail_1 !== '代名詞'
           ) {
             if (!vocabMap.has(base)) {
-              const readingHira = token.reading ? this.katakanaToHiragana(token.reading) : '';
+              const readingHira = token.reading ? this.katakanaToHiragana(token.reading) : (isKatakanaWord ? this.katakanaToHiragana(base) : '');
               vocabMap.set(base, {
                 word: base,
                 reading: readingHira,
@@ -252,7 +581,7 @@ export class KuromojiService {
         .filter(Boolean);
 
       for (const pat of CURATED_JLPT_GRAMMAR_PATTERNS) {
-        if (grammarMap.size >= 6) break;
+        if (grammarMap.size >= 12) break;
         const matchedSentence = rawSentences.find((s) => pat.regex.test(s));
         if (matchedSentence || pat.regex.test(text)) {
           grammarMap.set(pat.pattern, {
@@ -271,8 +600,8 @@ export class KuromojiService {
 
       return {
         furiganaText,
-        vocabularies: Array.from(vocabMap.values()).slice(0, 15),
-        grammars: Array.from(grammarMap.values()).slice(0, 6)
+        vocabularies: Array.from(vocabMap.values()).slice(0, 20),
+        grammars: Array.from(grammarMap.values()).slice(0, 12)
       };
     } catch (e) {
       console.error('Error in KuromojiService.analyzeText:', e);
