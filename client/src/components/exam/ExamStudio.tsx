@@ -68,6 +68,9 @@ import { NotebookApi } from '../personal/notebook.api';
 import { BookmarkPlus, BookmarkCheck, CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { cleanJapaneseTextForSpeech } from '@/utils/studyPreferences';
 
+import { ChoukaiAudioPlayer } from './ChoukaiAudioPlayer';
+import { ExamPracticePortal, PortalView } from './ExamPracticePortal';
+
 type ExamMode = 'exam' | 'practice';
 type ViewScreen = 'catalog' | 'intro' | 'taking' | 'break' | 'result';
 type StudioTab = 'full_exam' | 'skill_practice' | 'mistake_bank';
@@ -76,6 +79,7 @@ export interface ExamStudioProps {
   onNavigateToReading?: () => void;
   onNavigateToGrammar?: () => void;
   onNavigateToVocab?: () => void;
+  onTakingStateChange?: (isTaking: boolean) => void;
 }
 
 const resolveAudioUrl = (url?: string) => {
@@ -86,6 +90,28 @@ const resolveAudioUrl = (url?: string) => {
     : 'http://localhost:5000';
   return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
 };
+
+export function deduplicateRuntimeOptions(opts?: string[], correctIdx?: number): string[] {
+  if (!Array.isArray(opts) || opts.length === 0) return [];
+  const seen = new Set<string>();
+  const res: string[] = [...opts];
+  for (let i = 0; i < res.length; i++) {
+    const val = res[i];
+    if (seen.has(val)) {
+      const clean = (val || '').replace(/<rt>[\s\S]*?<\/rt>/gi, '').replace(/<\/?ruby>/gi, '').trim();
+      let replacement = clean;
+      if (clean.endsWith('ます')) replacement = clean.slice(0, -2) + 'ました';
+      else if (clean.endsWith('だ')) replacement = clean.slice(0, -1) + 'た';
+      else if (clean.endsWith('い')) replacement = clean.slice(0, -1) + 'く';
+      else if (clean.length >= 3) replacement = clean.slice(0, -2) + clean[clean.length - 1] + clean[clean.length - 2];
+      else replacement = clean + 'い';
+      if (seen.has(replacement)) replacement = clean + '・';
+      res[i] = replacement;
+    }
+    seen.add(res[i]);
+  }
+  return res;
+}
 
 export interface ExamTakingSession {
   id: string;
@@ -916,10 +942,17 @@ const getQuestionDiagnosticInsight = (
   };
 };
 
-export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigateToVocab }: ExamStudioProps) {
+export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigateToVocab, onTakingStateChange }: ExamStudioProps) {
   const router = useRouter();
   const [examMode, setExamMode] = useState<'practice' | 'exam'>('exam');
   const [currentScreen, setCurrentScreen] = useState<'intro' | 'catalog' | 'taking' | 'result'>('catalog');
+
+  // Thông báo trạng thái phòng thi cho component cha (để ẩn header chính, ngăn chặn chuyển trang gây mất tiến trình)
+  useEffect(() => {
+    if (onTakingStateChange) {
+      onTakingStateChange(currentScreen === 'taking');
+    }
+  }, [currentScreen, onTakingStateChange]);
   const [examData, setExamData] = useState<ExamBank | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -952,6 +985,24 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [selectionPopup]);
   
+  // Điều hướng Portal Luyện Đề chuẩn JLPT (Images 4 - 11)
+  const [portalView, setPortalView] = useState<PortalView>('hub');
+  const [portalLevel, setPortalLevel] = useState<string>('N3');
+  const [portalFilter, setPortalFilter] = useState<'all' | 'uncompleted' | 'completed'>('all');
+  const [selectedExamForModal, setSelectedExamForModal] = useState<any>(null);
+  const [randomConfigModalLevel, setRandomConfigModalLevel] = useState<string | null>(null);
+  const [randomSkill, setRandomSkill] = useState<string>('kanji');
+  const [randomMondai, setRandomMondai] = useState<string>('all');
+  const [completedExamKeys, setCompletedExamKeys] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('nihonai_completed_exams');
+        if (stored) return new Set(JSON.parse(stored));
+      } catch (e) {}
+    }
+    return new Set(['N3-de-1']);
+  });
+
   const [selectedSkillSection, setSelectedSkillSection] = useState<string>('ALL');
   const [selectedLevel, setSelectedLevel] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -1942,12 +1993,19 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     }
   };
 
-  // Helper hiển thị câu hỏi: làm nổi bật dấu sao ★, ô trống và gạch chân Hán tự chuẩn 問題冊子 JEES
+  // Helper hiển thị câu hỏi: làm nổi bật dấu sao ★, ô trống và gạch chân Hán tự chuẩn (Không hiển thị furigana ở từ được gạch chân kiểm tra)
   const renderQuestionText = (txt: string) => {
     if (!txt) return '';
     let cleaned = txt;
-    // Replace markdown bold WITHOUT padding so furigana aligns, with clean underline for target word
-    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-950 font-bold underline decoration-indigo-600 decoration-2 underline-offset-4">$1</strong>');
+    // Strip all <rt>...</rt>, <rp>...</rp>, and ruby tags inside **...** so tested word NEVER leaks furigana
+    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, (_, target) => {
+      const cleanWord = target
+        .replace(/<rt>[\s\S]*?<\/rt>/gi, '')
+        .replace(/<rp>[\s\S]*?<\/rp>/gi, '')
+        .replace(/<\/?(?:ruby|rp)>/gi, '')
+        .trim();
+      return `<strong class="text-indigo-950 font-bold underline decoration-indigo-600 decoration-2 underline-offset-4">${cleanWord}</strong>`;
+    });
     
     // Replace stars
     cleaned = cleaned.replace(/【?★】?/g, '<span class="inline-flex items-center justify-center w-5 h-5 bg-amber-100 text-amber-600 rounded-full mx-1 text-xs font-black border border-amber-300">★</span>');
@@ -2064,6 +2122,18 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
     if (result) {
       setExamResult(result);
+      if (activeExam?.id) {
+        setCompletedExamKeys((prev) => {
+          const next = new Set(prev);
+          next.add(`${activeExam.level || 'N3'}-${activeExam.id}`);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('nihonai_completed_exams', JSON.stringify(Array.from(next)));
+            } catch (e) {}
+          }
+          return next;
+        });
+      }
       setCurrentScreen('result');
       fetchAiDiagnostic(result);
     } else {
@@ -2513,828 +2583,29 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
   // ========================================================
   if (currentScreen === 'catalog') {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-        {/* Banner chính */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-indigo-400/30">
-          <div className="relative z-10 max-w-3xl space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-semibold border border-white/30">
-              <Award className="w-3.5 h-3.5" />
-              <span>Kho Đề Thi Mẫu Chính Thức JLPT (N5 - N1) • JEES & The Japan Foundation</span>
-            </div>
-            <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-white drop-shadow-xs">
-              Phòng Luyện Thi & Thi Thử Chuẩn JLPT (N5 - N1)
-            </h1>
-            <p className="text-sm md:text-base text-indigo-100/90 leading-relaxed">
-              Trọn bộ 10 đề thi mẫu chính thức (Official Practice Workbooks Vol. 1 & Vol. 2) từ Ban tổ chức JLPT Nhật Bản (The Japan Foundation & JEES) với đầy đủ 16 Mondai qua 4 phân môn: Từ vựng, Ngữ pháp, Đọc hiểu Dokkai và Nghe hiểu Choukai đối thoại thực tế.
-            </p>
-
-            {/* TAB CHUYỂN ĐỔI CHẾ ĐỘ THI */}
-            <div className="pt-2 flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => setActiveStudioTab('full_exam')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeStudioTab === 'full_exam'
-                    ? 'bg-white text-indigo-900 shadow-md font-black'
-                    : 'bg-white/15 text-white hover:bg-white/25 border border-white/25 backdrop-blur-xs'
-                }`}
-              >
-                <span>Thi Thử Trọn Bộ (Full Exam - 180đ)</span>
-              </button>
-
-              <button
-                onClick={() => setActiveStudioTab('skill_practice')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeStudioTab === 'skill_practice'
-                    ? 'bg-white text-indigo-900 shadow-md font-black'
-                    : 'bg-white/15 text-white hover:bg-white/25 border border-white/25 backdrop-blur-xs'
-                }`}
-              >
-                <span>Luyện Đề Theo Chuyên Đề</span>
-              </button>
-
-              <button
-                onClick={() => setActiveStudioTab('mistake_bank')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeStudioTab === 'mistake_bank'
-                    ? 'bg-white text-indigo-900 shadow-md font-black'
-                    : 'bg-white/15 text-white hover:bg-white/25 border border-white/25 backdrop-blur-xs'
-                }`}
-              >
-                <span>Ngân Hàng Câu Sai & SRS</span>
-                {mistakeItems.length > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-bold">
-                    {mistakeItems.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* BỘ LỌC CHUYÊN ĐỀ & MONDAI DRILLS (Tiện ích 1: Mondai Drills Mode) */}
-        {activeStudioTab === 'skill_practice' && (
-          <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 animate-fadeIn space-y-3">
-            <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
-              <SlidersHorizontal className="w-4 h-4 text-amber-600" />
-              <span>1. Chọn kỹ năng bạn muốn tập trung ôn luyện:</span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              {[
-                { id: 'ALL', label: 'Tất cả chuyên đề', icon: Layers },
-                { id: 'vocab', label: '🔤 Từ vựng & Hán tự', icon: BookOpen },
-                { id: 'grammar', label: '📑 Ngữ pháp & Dấu sao ★', icon: FileText },
-                { id: 'reading', label: '📖 Đọc hiểu (Dokkai)', icon: BookOpenCheck },
-                { id: 'listening', label: '🎧 Nghe hiểu (Choukai)', icon: Headphones }
-              ].map((skill) => {
-                const isSel = selectedSkillSection === skill.id;
-                return (
-                  <button
-                    key={skill.id}
-                    onClick={() => {
-                      setSelectedSkillSection(skill.id as any);
-                      setSelectedMondaiFilter('ALL');
-                    }}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      isSel
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'bg-white text-slate-700 hover:bg-amber-100/60 border border-amber-200/60'
-                    }`}
-                  >
-                    <span>{skill.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Tiện ích 1: Lựa chọn dạng bài (Mondai Drills) */}
-            <div className="pt-2.5 border-t border-amber-200/60 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Target className="w-3.5 h-3.5 text-amber-600" />
-                  <span>2. Chọn dạng bài (Mondai) để luyện sâu:</span>
-                </span>
-                {selectedMondaiFilter !== 'ALL' && (
-                  <button
-                    onClick={() => setSelectedMondaiFilter('ALL')}
-                    className="text-[11px] font-bold text-amber-700 hover:underline cursor-pointer"
-                  >
-                    ↺ Đặt lại tất cả Mondai
-                  </button>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setSelectedMondaiFilter('ALL')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    selectedMondaiFilter === 'ALL'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-amber-100/80 border border-amber-200'
-                  }`}
-                >
-                  Tất cả dạng bài Mondai
-                </button>
-
-                {(selectedSkillSection === 'ALL'
-                  ? Object.values(MONDAI_OPTIONS).flat()
-                  : MONDAI_OPTIONS[selectedSkillSection] || []
-                ).map((m) => {
-                  const isMondaiActive = selectedMondaiFilter === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setSelectedMondaiFilter(m.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        isMondaiActive
-                          ? 'bg-amber-600 text-white shadow-xs'
-                          : 'bg-white text-slate-700 hover:bg-amber-100/80 border border-amber-200'
-                      }`}
-                      title={m.desc}
-                    >
-                      <span>{m.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Thanh tìm kiếm & Bộ lọc Level, Năm, Kỳ thi */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Cấp độ JLPT */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-              <span className="text-xs font-semibold text-slate-400 mr-1 shrink-0">Level:</span>
-              {['ALL', 'N1', 'N2', 'N3', 'N4', 'N5'].map((lvl) => (
-                <button
-                  key={lvl}
-                  onClick={() => setSelectedLevel(lvl)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                    selectedLevel === lvl
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {lvl === 'ALL' ? 'Tất cả' : lvl}
-                </button>
-              ))}
-            </div>
-
-            {/* Tìm kiếm */}
-            <div className="relative w-full md:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Tìm năm thi, kỳ thi..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Lọc Năm và Kỳ thi (Chỉ hiển thị khi duyệt bộ đề thi) */}
-          {activeStudioTab !== 'mistake_bank' && (
-            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-100 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-500">Năm:</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 font-medium focus:outline-none cursor-pointer"
-                >
-                  <option value="ALL">Tất cả năm / Tuyển tập</option>
-                  <option value="2025">Tập 2 (Vol. 2 - 2025)</option>
-                  <option value="2024">Tập 1 (Vol. 1 - 2024)</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-500">Đợt thi:</span>
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 font-medium focus:outline-none cursor-pointer"
-                >
-                  <option value="ALL">Cả 2 tập (Vol. 1 & Vol. 2)</option>
-                  <option value="JULY">Tập 1: Official Practice Vol. 1</option>
-                  <option value="DECEMBER">Tập 2: Official Practice Vol. 2</option>
-                </select>
-              </div>
-
-              <span className="ml-auto text-slate-400 font-medium text-[11px]">
-                Hiển thị {filteredExams.length} bộ đề
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* ========================================================= */}
-        {/* TIỆN ÍCH 3: NGÂN HÀNG CÂU HỎI LÀM SAI & ÔN TẬP SRS */}
-        {/* ========================================================= */}
-        {activeStudioTab === 'mistake_bank' ? (
-          !isAuthenticated ? (
-            <div className="bg-white rounded-3xl p-8 md:p-12 border border-slate-200/90 shadow-sm text-center max-w-xl mx-auto space-y-6 my-6 animate-fadeIn">
-              <div className="w-16 h-16 bg-gradient-to-tr from-rose-500 to-indigo-600 text-white rounded-3xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-100">
-                <Lock className="w-8 h-8" />
-              </div>
-              <div className="space-y-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-100">
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Khu Vực Cá Nhân Hóa & Luyện Tập SRS</span>
-                </span>
-                <h3 className="text-xl md:text-2xl font-black text-slate-900">
-                  Vui lòng đăng nhập để sử dụng Ngân Hàng Câu Sai
-                </h3>
-                <p className="text-xs md:text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
-                  Ngân hàng câu hỏi làm sai tự động lưu trữ toàn bộ các câu bạn đã làm sai kèm bẫy đề thi theo tài khoản cá nhân, giúp bạn ôn tập lặp lại ngắt quãng SRS (1 - 3 - 7 - 14 ngày) để không bao giờ tái phạm lỗi cũ.
-                </p>
-              </div>
-
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-                <button
-                  onClick={() => openAuthModal('login')}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-indigo-200 transition-all cursor-pointer"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Đăng nhập hoặc Đăng ký</span>
-                </button>
-
-                <button
-                  onClick={async () => {
-                    await loginDemo();
-                  }}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200"
-                >
-                  <Play className="w-4 h-4 text-indigo-600" />
-                  <span>Trải nghiệm nhanh (Demo)</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-          <div className="space-y-6">
-            {/* Header thống kê & Hành động ôn tập */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-5">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900">
-                    Ngân Hàng Câu Hỏi Làm Sai & Ôn Tập Ngắt Quãng SRS
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Hệ thống tự động đồng bộ tất cả câu hỏi bạn làm sai và cấu trúc ngữ pháp bạn đã lưu từ các kỳ thi thử để ôn tập lặp lại ngắt quãng (1 - 3 - 7 - 14 ngày).
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  <button
-                    onClick={() => {
-                      setIsLoadingMistakes(true);
-                      NotebookApi.getItems({ tags: 'Câu_sai' })
-                        .then((items) => setMistakeItems(items || []))
-                        .catch((err) => console.warn(err))
-                        .finally(() => setIsLoadingMistakes(false));
-                    }}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
-                    title="Làm mới danh sách câu sai"
-                  >
-                    <span>Làm mới</span>
-                  </button>
-
-                  <button
-                    onClick={handleStartMistakePractice}
-                    disabled={filteredMistakes.length === 0}
-                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-200 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span>Luyện Lại Các Câu Sai ({filteredMistakes.length})</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 3 Thẻ chỉ số SRS */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/80">
-                  <span className="text-xs font-bold text-rose-900 block">Tổng số câu sai lưu trữ</span>
-                  <span className="text-2xl font-black text-rose-700">{mistakeItems.length}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80">
-                  <span className="text-xs font-bold text-amber-900 block">Đang ôn tập ngắt quãng (SRS)</span>
-                  <span className="text-2xl font-black text-amber-700">
-                    {mistakeItems.filter((i) => i.masteryStatus !== 'MASTERED').length}
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80">
-                  <span className="text-xs font-bold text-emerald-900 block">Đã thành thạo (Mastered)</span>
-                  <span className="text-2xl font-black text-emerald-700">
-                    {mistakeItems.filter((i) => i.masteryStatus === 'MASTERED').length}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Thanh công cụ danh sách câu sai & Nút xem chi tiết / thu gọn tất cả */}
-            {filteredMistakes.length > 0 && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200/90 shadow-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-slate-800">
-                    Ngân hàng câu hỏi ({filteredMistakes.length} câu)
-                  </span>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    • Mặc định thu gọn để lướt nhanh
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={toggleExpandAllMistakes}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
-                  >
-                    {expandAllMistakes ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    <span>{expandAllMistakes ? 'Thu gọn toàn bộ câu' : 'Mở rộng xem chi tiết tất cả'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Danh sách thẻ câu sai */}
-            {isLoadingMistakes ? (
-              <div className="py-16 text-center space-y-3">
-                <div className="w-8 h-8 border-3 border-rose-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-xs text-slate-500">Đang tải Ngân hàng câu sai & dữ liệu SRS...</p>
-              </div>
-            ) : filteredMistakes.length === 0 ? (
-              <div className="bg-white rounded-3xl p-10 border border-slate-200/80 text-center space-y-3">
-                <h3 className="font-black text-slate-800 text-base">Chưa có câu làm sai nào trong Ngân hàng</h3>
-                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                  Khi bạn tham gia thi thử hoặc luyện đề, các câu bạn làm sai sẽ tự động được lưu trữ vào lộ trình ôn ngắt quãng SRS!
-                </p>
-                <button
-                  onClick={() => setActiveStudioTab('full_exam')}
-                  className="mt-2 inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200 cursor-pointer"
-                >
-                  <span>Vào thi thử ngay</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredMistakes.map((item) => {
-                  const isMastered = item.masteryStatus === 'MASTERED';
-                  const isExpanded = expandedMistakes[item.id] ?? false;
-
-                  let meta: any = null;
-                  if (item.note && item.note.includes('<!-- META:')) {
-                    try {
-                      const match = item.note.match(/<!-- META:\s*(\{[\s\S]*?\})\s*-->/);
-                      if (match && match[1]) meta = JSON.parse(match[1]);
-                    } catch {}
-                  }
-
-                  const formatOpt = (idx: number) => {
-                    const labels = ['①', '②', '③', '④'];
-                    return labels[idx] || `(${idx + 1})`;
-                  };
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={`bg-white rounded-3xl p-5 border shadow-xs transition-all space-y-3 flex flex-col justify-between ${
-                        isMastered ? 'border-emerald-200 bg-emerald-50/15' : 'border-slate-200/90 hover:border-indigo-200'
-                      }`}
-                    >
-                      <div className="space-y-2.5">
-                        {/* Header của thẻ */}
-                        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-xl text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-100">
-                              {item.level || 'JLPT'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700">
-                              {item.itemType === 'GRAMMAR' ? '📑 Ngữ pháp' : (item.itemType === 'VOCAB' ? '🔤 Từ vựng' : '📝 Bài thi')}
-                            </span>
-                          </div>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              isMastered
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {isMastered ? 'Đã thành thạo ✅' : 'Đang ôn tập SRS ⏳'}
-                          </span>
-                        </div>
-
-                        {/* Tiêu đề & Nội dung câu hỏi (Hiển thị Furigana chuẩn) */}
-                        <div>
-                          <style>{`
-                            .ruby-text ruby { ruby-align: center; }
-                            .ruby-text rt { font-size: 0.5em; color: #64748b; font-weight: 600; transform: translateY(0.15em); letter-spacing: 0; }
-                          `}</style>
-                          <h4 className="font-bold text-slate-900 text-[15px] leading-relaxed whitespace-pre-wrap ruby-text">
-                            <span dangerouslySetInnerHTML={{ __html: renderQuestionText(item.exampleJp || item.title) }} />
-                          </h4>
-                          {(item.exampleVi || item.meaningVi) && (
-                            <p className="text-xs text-slate-500 italic mt-1 leading-relaxed line-clamp-2">
-                              {item.exampleVi || item.meaningVi}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Trạng thái thu gọn: Hiển thị tóm tắt đáp án nhanh */}
-                        {!isExpanded && meta && (
-                          <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
-                            {meta.userAnswer !== undefined && meta.options && meta.options[meta.userAnswer] && (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-xl bg-rose-50 text-rose-700 border border-rose-200">
-                                <span>✕ Bạn chọn:</span>
-                                <span className="font-medium ruby-text" dangerouslySetInnerHTML={{ __html: renderQuestionText(meta.options[meta.userAnswer]) }} />
-                              </span>
-                            )}
-                            {meta.correctIndex !== undefined && meta.options && meta.options[meta.correctIndex] && (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                <span>🎯 Đáp án đúng:</span>
-                                <span className="font-medium ruby-text" dangerouslySetInnerHTML={{ __html: renderQuestionText(meta.options[meta.correctIndex]) }} />
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Nút Xem chi tiết / Thu gọn để không phải cuộn trang dài */}
-                        <button
-                          onClick={() => toggleMistakeExpand(item.id)}
-                          className={`w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                            isExpanded
-                              ? 'bg-indigo-100/70 text-indigo-800 border-indigo-200'
-                              : 'bg-indigo-50/70 text-indigo-700 border-indigo-100 hover:bg-indigo-100'
-                          }`}
-                        >
-                          <span>{isExpanded ? 'Thu gọn phân tích' : 'Xem chi tiết (4 đáp án & bẫy thi)'}</span>
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-
-                        {/* PHẦN MỞ RỘNG CHI TIẾT */}
-                        {isExpanded && (
-                          <div className="space-y-3 pt-1 border-t border-slate-100 animate-fadeIn">
-                            {/* Hiển thị 4 lựa chọn với Furigana chuẩn (Fix lỗi font thẻ ruby) */}
-                            {meta && Array.isArray(meta.options) && meta.options.length > 0 && (
-                              <div className="space-y-1.5">
-                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                                  Các phương án lựa chọn:
-                                </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {meta.options.map((opt: string, optIdx: number) => {
-                                    const isCorrect = meta.correctIndex === optIdx;
-                                    const isUserPick = meta.userAnswer === optIdx;
-
-                                    let badgeClass = 'bg-slate-50/90 border-slate-200/90 text-slate-700';
-                                    if (isCorrect) {
-                                      badgeClass = 'bg-emerald-50/90 border-emerald-400 text-emerald-950 font-bold ring-1 ring-emerald-200';
-                                    } else if (isUserPick) {
-                                      badgeClass = 'bg-rose-50/90 border-rose-300 text-rose-800 font-medium';
-                                    }
-
-                                    return (
-                                      <div
-                                        key={optIdx}
-                                        className={`px-3 py-2 rounded-xl border text-xs flex items-center justify-between gap-2 ruby-text ${badgeClass}`}
-                                      >
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <span className="font-bold shrink-0">{formatOpt(optIdx)}</span>
-                                          <span
-                                            className="truncate leading-relaxed"
-                                            dangerouslySetInnerHTML={{ __html: renderQuestionText(opt) }}
-                                          />
-                                        </div>
-                                        {isCorrect && (
-                                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold shrink-0">
-                                            Đáp án đúng
-                                          </span>
-                                        )}
-                                        {!isCorrect && isUserPick && (
-                                          <span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold shrink-0">
-                                            Bạn chọn
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Ghi chú giải thích & Bẫy thi */}
-                            {item.note && (
-                              <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/70 shadow-xs">
-                                <div
-                                  className="text-slate-800 text-[13px] leading-relaxed whitespace-pre-wrap font-medium"
-                                  dangerouslySetInnerHTML={{
-                                    __html: item.note
-                                      .replace(/<!-- META:[\s\S]*?-->/g, '')
-                                      .trim()
-                                      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 font-bold">$1</strong>')
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Nút hành động trên từng thẻ câu sai */}
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                        <button
-                          onClick={() => handleToggleMistakeMastery(item)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            isMastered
-                              ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                          }`}
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{isMastered ? 'Chuyển về cần ôn' : 'Đã hiểu & Thành thạo'}</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteMistakeItem(item.id)}
-                          className="text-[11px] text-slate-400 hover:text-rose-600 font-medium px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        >
-                          Xóa khỏi ngân hàng
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )
-      ) : (
-          /* Lưới danh sách đề thi (khi ở tab Thi thử trọn bộ hoặc Luyện chuyên đề) */
-          isLoadingList ? (
-            <div className="py-16 text-center space-y-3">
-              <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs text-slate-500">Đang đồng bộ đề thi chuẩn từ CSDL...</p>
-            </div>
-          ) : filteredExams.length === 0 ? (
-            <div className="py-16 bg-white rounded-3xl border border-slate-200/80 text-center space-y-3">
-              <FileText className="w-10 h-10 text-slate-300 mx-auto" />
-              <h3 className="font-bold text-slate-700 text-sm">Không tìm thấy bộ đề phù hợp</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Hãy thử chọn lại cấp độ hoặc tìm kiếm từ khóa khác.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredExams.map((exam) => (
-                <div
-                  key={exam.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200/80 hover:border-indigo-200 hover:shadow-md transition-all flex flex-col justify-between group"
-                >
-                  <div className="space-y-3">
-                    {/* Badge & Tiêu đề */}
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="px-2.5 py-1 rounded-xl text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-100">
-                        {exam.level}
-                      </span>
-                      <span
-                        className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[220px]"
-                        title={exam.edition || exam.title}
-                      >
-                        {exam.edition ? exam.edition.split('(')[0].trim() : (exam.session === 'JULY' ? 'Kỳ thi Tháng 7' : 'Kỳ thi Tháng 12')}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors leading-snug">
-                        {exam.title}
-                      </h3>
-                      <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                        {exam.description}
-                      </p>
-                    </div>
-
-                    {/* 4 Phân môn chính thức */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] font-bold text-slate-600">
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md">🔤 Từ vựng</span>
-                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md">📑 Ngữ pháp</span>
-                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md">📖 Đọc hiểu</span>
-                      <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md">🎧 Nghe hiểu</span>
-                    </div>
-
-                    {/* Thông số nhanh */}
-                    <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-100 text-center">
-                      <div className="p-1.5 bg-slate-50 rounded-lg">
-                        <span className="text-[10px] text-slate-500 block">Số câu</span>
-                        <strong className="text-xs font-bold text-slate-700">34 / {exam.fullTotalQuestions || exam.totalQuestions} câu</strong>
-                      </div>
-                      <div className="p-1.5 bg-slate-50 rounded-lg">
-                        <span className="text-[10px] text-slate-500 block">Điểm đỗ</span>
-                        <strong className="text-xs font-bold text-emerald-600">{exam.passingScore}/180</strong>
-                      </div>
-                      <div className="p-1.5 bg-slate-50 rounded-lg">
-                        <span className="text-[10px] text-slate-500 block">Điểm liệt</span>
-                        <strong className="text-xs font-bold text-rose-600">&lt; {exam.sectionalMinScore}/60</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Các nút hành động */}
-                  <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
-                    {activeStudioTab === 'full_exam' ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => handleStartExam(exam, 'practice')}
-                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
-                        >
-                          <BookOpen className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Ôn tự do</span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenCoverModal(exam)}
-                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-200 transition-all cursor-pointer"
-                        >
-                          <Play className="w-3.5 h-3.5" />
-                          <span>Vào Thi (180đ)</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div>
-                        <button
-                          onClick={() => handleStartExam(exam, 'practice', selectedSkillSection)}
-                          className="w-full flex items-center justify-center py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-100 transition-all cursor-pointer"
-                        >
-                          <span>
-                            {selectedSkillSection === 'vocab' && 'Luyện Chuyên Đề: Từ vựng & Hán tự'}
-                            {selectedSkillSection === 'grammar' && 'Luyện Chuyên Đề: Ngữ pháp & Dấu sao'}
-                            {selectedSkillSection === 'reading' && 'Luyện Chuyên Đề: Đọc hiểu (Dokkai)'}
-                            {selectedSkillSection === 'listening' && 'Luyện Chuyên Đề: Nghe hiểu Audio (Choukai)'}
-                            {selectedSkillSection === 'ALL' && 'Luyện Tất Cả Chuyên Đề'}
-                          </span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        )}
-
-        {/* MODAL BÌA ĐỀ THI & 2 PHƯƠNG ÁN THI CHÍNH THỨC */}
-        {showCoverModal && pendingCoverExam && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn">
-            <div className="bg-white rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 animate-scaleUp overflow-hidden">
-              {/* Header cố định */}
-              <div className="text-center space-y-1.5 p-5 border-b border-slate-100 shrink-0 bg-white">
-                <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-600 text-white uppercase tracking-wider shadow-sm">
-                  日本語能力試験 (JLPT) • CẤP ĐỘ {pendingCoverExam.level}
-                </span>
-                <h3 className="text-lg md:text-xl font-black text-slate-900 pt-1">
-                  {pendingCoverExam.title}
-                </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Bộ đề thi chuẩn hóa quốc tế • JEES & The Japan Foundation
-                </p>
-              </div>
-
-              {/* Thân modal cuộn mượt mà theo kích thước màn hình */}
-              <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
-                {/* LỰA CHỌN 2 PHƯƠNG ÁN THI (YÊU CẦU TRỌNG TÂM CỦA HỌC VIÊN) */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                      Chọn 1 Trong 2 Phương Án Thi:
-                    </span>
-                    <span className="text-[11px] font-bold text-indigo-600">
-                      {selectedFormat === 'express' ? 'Đang chọn: Phương án 1' : 'Đang chọn: Phương án 2'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* Phương Án 1: Thi Tinh Gọn 34 câu */}
-                    <div
-                      onClick={() => setSelectedFormat('express')}
-                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
-                        selectedFormat === 'express'
-                          ? 'border-indigo-600 bg-indigo-50/70 shadow-md ring-2 ring-indigo-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between pb-1.5">
-                        <span className="text-xs font-black text-indigo-800">
-                          Phương Án 1: Tinh Gọn
-                        </span>
-                        {selectedFormat === 'express' && (
-                          <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                        )}
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-baseline gap-2">
-                          <strong className="text-xl font-black text-slate-900">34 Câu Hỏi</strong>
-                          <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-lg">
-                            {pendingCoverExam.expressDurationMinutes || 50} Phút
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-600 leading-snug">
-                          Bao quát đầy đủ <strong>16 Mondai</strong> (Từ vựng, Ngữ pháp, Đọc hiểu, Nghe hiểu Choukai). Thời gian giảm tương ứng giúp làm nhanh, không tốn nhiều giờ.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Phương Án 2: Thi Thật Toàn Bộ */}
-                    <div
-                      onClick={() => setSelectedFormat('full')}
-                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative ${
-                        selectedFormat === 'full'
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-md ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between pb-1.5">
-                        <span className="text-xs font-black text-emerald-800">
-                          Phương Án 2: Thi Thật
-                        </span>
-                        {selectedFormat === 'full' && (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        )}
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-baseline gap-2">
-                          <strong className="text-xl font-black text-slate-900">
-                            {pendingCoverExam.fullTotalQuestions || pendingCoverExam.totalQuestions} Câu Hỏi
-                          </strong>
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg">
-                            {pendingCoverExam.fullDurationMinutes || pendingCoverExam.durationMinutes} Phút
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-600 leading-snug">
-                          Đầy đủ tất cả {pendingCoverExam.fullTotalQuestions || pendingCoverExam.totalQuestions} câu hỏi theo chuẩn kỳ thi thật JEES. Thời gian chuẩn phòng thi để rèn luyện sức bền và áp lực thi thực tế.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Thông số phòng thi theo phương án chọn */}
-                <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3.5 rounded-2xl text-center border border-slate-200/80">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">THỜI GIAN LÀM BÀI</span>
-                    <strong className="text-sm font-black text-slate-800">
-                      {selectedFormat === 'express'
-                        ? (pendingCoverExam.expressDurationMinutes || 50)
-                        : (pendingCoverExam.fullDurationMinutes || pendingCoverExam.durationMinutes)} Phút
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">SỐ CÂU THI</span>
-                    <strong className="text-sm font-black text-indigo-600">
-                      {selectedFormat === 'express'
-                        ? '34 Câu (16 Mondai)'
-                        : `${pendingCoverExam.fullTotalQuestions || pendingCoverExam.totalQuestions} Câu (Đầy Đủ 100%)`}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase">THANG ĐIỂM</span>
-                    <strong className="text-sm font-black text-emerald-600">
-                      180 Điểm (Liệt: &lt;19)
-                    </strong>
-                  </div>
-                </div>
-
-                {/* Quy chế phòng thi (受験上の注意) */}
-                <div className="space-y-2 text-xs text-slate-600 leading-relaxed bg-amber-50/70 p-4 rounded-2xl border border-amber-200">
-                  <strong className="font-bold text-amber-900 block flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-amber-600" />
-                    <span>Quy Chế Phòng Thi Chính Thức (受験上の注意):</span>
-                  </strong>
-                  <ul className="list-disc pl-4 space-y-1 text-slate-700">
-                    <li>Bài thi đếm ngược thời gian chuẩn. Hết giờ hệ thống sẽ <strong>tự động thu bài và chấm điểm</strong>.</li>
-                    <li>Phần Nghe Choukai tích hợp <strong>audio đối thoại thực tế chuẩn giọng Tokyo</strong> phát âm bản xứ.</li>
-                    <li><strong>Quy định điểm liệt:</strong> Mỗi phân môn phải đạt từ <strong>19/60 điểm</strong> trở lên. Dù tổng điểm cao nhưng có môn dưới 19 điểm vẫn bị tính là <strong>TRƯỢT</strong>.</li>
-                    <li>Sau khi nộp bài: Đánh giá tổng quát chỉ ra lỗi sai, ngữ pháp có giải thích dễ hiểu và hỗ trợ <strong>1-Click lưu câu sai vào Sổ tay</strong>.</li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Nút hành động cố định ở đáy modal */}
-              <div className="grid grid-cols-2 gap-3 p-4 sm:p-5 border-t border-slate-100 shrink-0 bg-slate-50/70 rounded-b-3xl">
-                <button
-                  onClick={() => setShowCoverModal(false)}
-                  className="py-3.5 rounded-2xl text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer shadow-xs"
-                >
-                  Để sau
-                </button>
-                <button
-                  onClick={() => handleStartExam(pendingCoverExam, 'exam', undefined, selectedFormat)}
-                  className="py-3.5 rounded-2xl text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                >
-                  <span>Bắt đầu: {selectedFormat === 'express' ? 'Thi Tinh Gọn (34 câu)' : 'Thi Thật Toàn Bộ'}</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <ExamPracticePortal
+        portalView={portalView}
+        setPortalView={setPortalView}
+        portalLevel={portalLevel}
+        setPortalLevel={setPortalLevel}
+        portalFilter={portalFilter}
+        setPortalFilter={setPortalFilter}
+        selectedExamForModal={selectedExamForModal}
+        setSelectedExamForModal={setSelectedExamForModal}
+        randomConfigModalLevel={randomConfigModalLevel}
+        setRandomConfigModalLevel={setRandomConfigModalLevel}
+        randomSkill={randomSkill}
+        setRandomSkill={setRandomSkill}
+        randomMondai={randomMondai}
+        setRandomMondai={setRandomMondai}
+        completedExamKeys={completedExamKeys}
+        mistakeItems={mistakeItems}
+        examList={examList}
+        onStartExam={(exam, mode, section, format) => {
+          handleStartExam(exam, mode, section, format || 'full');
+        }}
+        onStartMistakePractice={handleStartMistakePractice}
+      />
     );
   }
 
@@ -3466,7 +2737,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       >
         <CanvasOverlay enabled={isDrawingMode} onClose={() => setIsDrawingMode(false)} />
         <style>{`
-          ${examMode === 'exam' ? '#global-top-header { display: none !important; }' : ''}
+          #global-top-header { display: none !important; }
           .hide-furigana rt {
             display: none !important;
             opacity: 0 !important;
@@ -3622,8 +2893,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                             isAnswered ? 'border-slate-300' : 'border-slate-200/80'
                           }`}
                         >
-                          {/* ĐOẠN VĂN ĐỌC HIỂU NẾU CÓ */}
-                          {q.passage && (
+                          {/* ĐOẠN VĂN ĐỌC HIỂU NẾU CÓ (Chỉ hiển thị cho bài Đọc hiểu, tuyệt đối KHÔNG hiển thị kịch bản nghe khi đang làm bài) */}
+                          {q.passage && q.section !== 'listening' && !q.audioUrl && (
                             <div className="p-4 md:p-5 rounded-2xl bg-amber-50/40 border border-amber-200/80 mb-5 font-japanese text-sm md:text-base leading-relaxed text-slate-900 whitespace-pre-line">
                               {q.imageUrl && (
                                 <img
@@ -3636,24 +2907,20 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                             </div>
                           )}
 
-                          {/* TRÌNH PHÁT AUDIO CHO CHOUKAI NẾU CÓ */}
-                          {q.section === 'listening' && q.audioUrl && (
-                            <div className="p-4 rounded-xl bg-slate-900 text-white mb-4 flex items-center justify-between gap-4 font-sans">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-600/40 flex items-center justify-center text-indigo-300">
-                                  <Headphones className="w-5 h-5" />
-                                </div>
-                                <div>
-                                  <div className="text-xs font-bold text-slate-200">Âm thanh nghe hiểu Choukai</div>
-                                  <div className="text-[11px] text-slate-400">Câu hỏi số {globalOrSessionNum}</div>
-                                </div>
-                              </div>
-                              <audio
-                                controls
-                                src={resolveAudioUrl(q.audioUrl)}
-                                className="h-9 w-64 max-w-full"
-                              />
+                          {/* HÌNH ẢNH MINH HỌA CHO BÀI NGHE HOẶC BÀI ĐỌC NẾU CÓ */}
+                          {q.imageUrl && (q.section === 'listening' || !q.passage) && (
+                            <div className="p-3 bg-white border border-slate-200 rounded-2xl flex justify-center mb-4">
+                              <img src={q.imageUrl} alt="Hình minh họa đề thi" className="max-h-64 object-contain rounded-lg" />
                             </div>
+                          )}
+
+                          {/* TRÌNH PHÁT AUDIO CHO CHOUKAI NẾU CÓ (Giao diện tinh gọn, không chồng chéo số) */}
+                          {q.section === 'listening' && q.audioUrl && (
+                            <ChoukaiAudioPlayer
+                              src={resolveAudioUrl(q.audioUrl)}
+                              orderNumber={globalOrSessionNum}
+                              className="mb-4"
+                            />
                           )}
 
                           {/* DÒNG CÂU HỎI (IMAGE 9) */}
@@ -3669,7 +2936,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
                           {/* 4 ĐÁP ÁN XẾP LƯỚI 2x2 (IMAGE 9) */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 ml-0 sm:ml-10">
-                            {q.options.map((option, optIdx) => {
+                            {deduplicateRuntimeOptions(q.options, q.correctIndex).map((option, optIdx) => {
                               const isSelected = userAnswers[q.id] === optIdx;
                               return (
                                 <button

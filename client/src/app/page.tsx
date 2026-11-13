@@ -87,10 +87,31 @@ export default function Home() {
     };
   }, []);
 
+  const [isExamActive, setIsExamActive] = useState(false);
+
   const setActiveTab = useCallback((tab: string) => {
+    if (isExamActive && tab !== 'exam') {
+      const confirmLeave = window.confirm(
+        'Bạn đang trong phòng thi. Nếu rời khỏi đây, bài làm sẽ bị hủy. Bạn có chắc chắn muốn thoát?'
+      );
+      if (!confirmLeave) return;
+      setIsExamActive(false);
+    }
     setActiveTabState(tab);
     window.history.pushState(null, '', `#${tab}`);
-  }, []);
+  }, [isExamActive]);
+
+  // Cảnh báo người dùng khi cố đóng tab / reload trình duyệt trong lúc đang làm bài thi
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isExamActive) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isExamActive]);
 
   // Bảo vệ điều hướng: Nếu chưa đăng nhập mà đang ở profile hoặc admin thì tự động quay về trang chủ
   useEffect(() => {
@@ -104,12 +125,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans antialiased">
-      {/* 1. Header tinh tế kèm thanh điều hướng trung tâm */}
-      <TopHeader activeTab={activeTab} onSelectTab={setActiveTab} />
+      {/* 1. Header tinh tế kèm thanh điều hướng trung tâm (Tự động ẩn khi vào phòng thi) */}
+      {!isExamActive && (
+        <TopHeader activeTab={activeTab} onSelectTab={setActiveTab} />
+      )}
 
       {/* 2. Workspace Học Tập Rộng Rãi, Thoáng Đãng */}
-      <main className="flex-1 w-full px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10">
-        <div className="max-w-7xl mx-auto flex flex-col gap-6">
+      <main className={`flex-1 w-full ${isExamActive ? 'p-0 pb-0' : 'px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10'}`}>
+        <div className={isExamActive ? 'w-full' : 'max-w-7xl mx-auto flex flex-col gap-6'}>
           <StudioErrorBoundary>
             {/* Phân hệ 0: Trang chủ / Landing Page */}
             {activeTab === 'home' && (
@@ -153,6 +176,7 @@ export default function Home() {
                 onNavigateToReading={() => setActiveTab('reading')}
                 onNavigateToGrammar={() => setActiveTab('grammar')}
                 onNavigateToVocab={() => setActiveTab('vocab')}
+                onTakingStateChange={setIsExamActive}
               />
             )}
 
@@ -170,8 +194,10 @@ export default function Home() {
         </div>
       </main>
 
-      {/* 3. Thanh Điều Hướng Đáy Màn Hình Cho Điện Thoại (Mobile Bottom Nav) */}
-      <MobileBottomNav activeTab={activeTab} onSelectTab={setActiveTab} />
+      {/* 3. Thanh Điều Hướng Đáy Màn Hình Cho Điện Thoại (Tự động ẩn khi làm bài thi) */}
+      {!isExamActive && (
+        <MobileBottomNav activeTab={activeTab} onSelectTab={setActiveTab} />
+      )}
     </div>
   );
 }

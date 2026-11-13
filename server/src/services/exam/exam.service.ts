@@ -77,6 +77,40 @@ function stripRubyHtml(str: string): string {
     .trim();
 }
 
+export function cleanBoldQuestionText(qText: string): string {
+  if (!qText) return '';
+  return qText.replace(/\*\*(.*?)\*\*/g, (_, p1) => {
+    const pure = p1
+      .replace(/<rt>[\s\S]*?<\/rt>/gi, '')
+      .replace(/<rp>[\s\S]*?<\/rp>/gi, '')
+      .replace(/<\/?(?:ruby|rp)>/gi, '')
+      .trim();
+    return `**${pure}**`;
+  });
+}
+
+export function deduplicateRuntimeOptions(opts: string[], correctIdx: number): string[] {
+  if (!Array.isArray(opts) || opts.length === 0) return opts;
+  const seen = new Set<string>();
+  const res: string[] = [...opts];
+  for (let i = 0; i < res.length; i++) {
+    const val = res[i];
+    if (seen.has(val)) {
+      const clean = val.replace(/<rt>[\s\S]*?<\/rt>/gi, '').replace(/<\/?ruby>/gi, '').trim();
+      let replacement = clean;
+      if (clean.endsWith('ます')) replacement = clean.slice(0, -2) + 'ました';
+      else if (clean.endsWith('だ')) replacement = clean.slice(0, -1) + 'た';
+      else if (clean.endsWith('い')) replacement = clean.slice(0, -1) + 'く';
+      else if (clean.length >= 3) replacement = clean.slice(0, -2) + clean[clean.length - 1] + clean[clean.length - 2];
+      else replacement = clean + 'い';
+      if (seen.has(replacement)) replacement = clean + '・';
+      res[i] = replacement;
+    }
+    seen.add(res[i]);
+  }
+  return res;
+}
+
 function extractKeyGrammar(q: any): string {
   const opts: string[] = Array.isArray(q.options) ? q.options : [];
   const optsVi: string[] = Array.isArray(q.optionsVi) ? q.optionsVi : [];
@@ -328,6 +362,9 @@ export class ExamService {
       else if (q.section === 'reading') readingCount++;
       else if (q.section === 'listening') listeningCount++;
 
+      const cleanQ = cleanBoldQuestionText(q.question);
+      const safeOpts = deduplicateRuntimeOptions(optionsList, q.correctIndex);
+
       return {
         id: q.id,
         orderNumber: q.orderNumber,
@@ -335,13 +372,13 @@ export class ExamService {
         section: q.section as ExamSectionType,
         subType: q.subType,
         subTypeLabel: q.subTypeLabel,
-        question: q.question,
+        question: cleanQ,
         questionVi: q.questionVi,
         passage: q.passage || undefined,
         passageVi: q.passageVi || undefined,
         audioUrl: q.audioUrl || (q.section === 'listening' ? `/api/exam/audio/${q.id}` : undefined),
         imageUrl: q.imageUrl || undefined,
-        options: optionsList,
+        options: safeOpts,
         optionsVi: optionsViList,
         correctIndex: hideAnswers ? -1 : q.correctIndex,
         explanation: hideAnswers ? '' : q.explanation,
