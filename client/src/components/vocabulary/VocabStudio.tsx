@@ -175,6 +175,37 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ onNavigateToKanji }) =
     }
   }, [selectedCurriculum, selectedLevel]);
 
+  // Đồng bộ hóa URL trên thanh địa chỉ trình duyệt khi học từ vựng (#vocab?book=minna&level=N5&lesson=1)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash || '';
+    if (hash.includes('lesson=')) {
+      const matchLesson = hash.match(/[?&]lesson=([^&]+)/);
+      const matchLvl = hash.match(/[?&]level=([^&]+)/);
+      const matchBook = hash.match(/[?&]book=([^&]+)/);
+
+      const lvl = matchLvl && matchLvl[1] ? matchLvl[1].toUpperCase() : 'N5';
+      const curr = matchBook && matchBook[1] ? (matchBook[1].toUpperCase() as CurriculumType) : 'MINNA';
+      const lessonNum = matchLesson && matchLesson[1] ? parseInt(matchLesson[1], 10) : null;
+
+      if (['N5', 'N4', 'N3', 'N2', 'N1'].includes(lvl)) setSelectedLevel(lvl);
+      if (['MINNA', 'TANGO', 'MIMIKARA'].includes(curr)) setSelectedCurriculum(curr);
+      if (lessonNum && !isNaN(lessonNum)) {
+        handleSelectLesson(lessonNum, curr, lvl);
+      }
+    }
+  }, [handleSelectLesson]);
+
+  useEffect(() => {
+    if (selectedLesson && typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      const targetHash = `#vocab?book=${selectedCurriculum.toLowerCase()}&level=${selectedLevel}&lesson=${selectedLesson}`;
+      if (!hash.includes('lesson=' + selectedLesson)) {
+        window.history.replaceState(null, '', targetHash);
+      }
+    }
+  }, [selectedLesson, selectedLevel, selectedCurriculum]);
+
   const fetchCurriculumLessons = useCallback(async (curr: CurriculumType, lvl: string) => {
     // 1. Optimistic UI 0ms: Hiển thị ngay cấu trúc bài học tích hợp sẵn
     const instantLessons = getFallbackVocabCurriculumLessons(curr, lvl);

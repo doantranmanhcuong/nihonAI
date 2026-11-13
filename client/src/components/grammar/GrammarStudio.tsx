@@ -130,6 +130,40 @@ export const GrammarStudio: React.FC<GrammarStudioProps> = ({ onNavigateToReadin
 
   const [selectedItemId, setSelectedItemId] = useState<string>(FULL_GRAMMAR_DATABASE[0]?.id || '');
 
+  // Đồng bộ hóa URL trên thanh địa chỉ trình duyệt khi học ngữ pháp (#grammar?level=N3&id=n3-01)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash || '';
+    if (hash.includes('level=')) {
+      const matchLvl = hash.match(/[?&]level=([^&]+)/);
+      if (matchLvl && matchLvl[1]) {
+        const lvl = matchLvl[1].toUpperCase() as JLPTLevel;
+        if (['N5', 'N4', 'N3', 'N2', 'N1'].includes(lvl)) {
+          setSelectedLevel(lvl);
+        }
+      }
+    }
+    if (hash.includes('id=')) {
+      const matchId = hash.match(/[?&]id=([^&]+)/);
+      if (matchId && matchId[1]) {
+        const id = decodeURIComponent(matchId[1]);
+        if (id) {
+          setSelectedItemId(id);
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedItemId && typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      const targetHash = `#grammar?level=${selectedLevel}&id=${encodeURIComponent(selectedItemId)}`;
+      if (!hash.includes('id=' + encodeURIComponent(selectedItemId))) {
+        window.history.replaceState(null, '', targetHash);
+      }
+    }
+  }, [selectedItemId, selectedLevel]);
+
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   const [studyMode, setStudyMode] = useState<GrammarStudyMode>('dictionary');

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { VideoShadowingView } from '@/components/reading/VideoShadowingView';
 import { VideoShadowingLesson } from '@/components/reading/reading.types';
 import { ShadowingApi, INITIAL_FALLBACK_VIDEO_LESSONS } from './shadowing.api';
@@ -116,9 +116,33 @@ export const ShadowingStudio: React.FC = () => {
     }, 400);
   };
 
+  // ─── URL Hash Synchronization & Deep Linking ──────────────────
+  const parseLessonIdFromUrl = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    if (hash.includes('id=')) {
+      const match = hash.match(/[?&]id=([^&]+)/);
+      if (match && match[1]) return decodeURIComponent(match[1]);
+    }
+    if (search.includes('id=')) {
+      const match = search.match(/[?&]id=([^&]+)/);
+      if (match && match[1]) return decodeURIComponent(match[1]);
+    }
+    return null;
+  }, []);
+
+  const selectedLessonIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedLessonIdRef.current = selectedLesson?.id || null;
+  }, [selectedLesson?.id]);
+
   // ─── Select Lesson (load full detail with subtitles) ─────────
-  const handleSelectLesson = async (lesson: VideoShadowingLesson) => {
+  const handleSelectLesson = useCallback(async (lesson: VideoShadowingLesson, updateUrl: boolean = true) => {
     setIsLoadingLesson(true);
+    if (updateUrl && typeof window !== 'undefined') {
+      window.history.pushState(null, '', `#shadowing?id=${encodeURIComponent(lesson.id)}`);
+    }
     try {
       const detail = await ShadowingApi.getVideoLessonDetail(lesson.id);
       setSelectedLesson(detail);
@@ -129,14 +153,65 @@ export const ShadowingStudio: React.FC = () => {
     } finally {
       setIsLoadingLesson(false);
     }
-  };
+  }, []);
 
   // ─── Back to Library ──────────────────────────────────────────
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     setViewMode('LIBRARY');
     setSelectedLesson(null);
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', '#shadowing');
+    }
     loadLessons(); // refresh để cập nhật viewCount
-  };
+  }, []);
+
+  // Restore lesson from URL on initial load
+  useEffect(() => {
+    const initialId = parseLessonIdFromUrl();
+    if (initialId) {
+      setIsLoadingLesson(true);
+      ShadowingApi.getVideoLessonDetail(initialId)
+        .then((detail) => {
+          if (detail) {
+            setSelectedLesson(detail);
+            setViewMode('STUDYING');
+          }
+        })
+        .catch(console.error)
+        .finally(() => setIsLoadingLesson(false));
+    }
+  }, [parseLessonIdFromUrl]);
+
+  // Handle browser Back / Forward buttons
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const id = parseLessonIdFromUrl();
+      if (id) {
+        if (id !== selectedLessonIdRef.current) {
+          setIsLoadingLesson(true);
+          ShadowingApi.getVideoLessonDetail(id)
+            .then((detail) => {
+              if (detail) {
+                setSelectedLesson(detail);
+                setViewMode('STUDYING');
+              }
+            })
+            .catch(console.error)
+            .finally(() => setIsLoadingLesson(false));
+        }
+      } else {
+        setViewMode('LIBRARY');
+        setSelectedLesson(null);
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, [parseLessonIdFromUrl]);
 
   // ─── Process YouTube URL ──────────────────────────────────────
   const handleProcessYouTube = async () => {
@@ -209,16 +284,13 @@ export const ShadowingStudio: React.FC = () => {
             </div>
           </div>
             <button
-              onClick={() => {
-                setViewMode("LIBRARY");
-                setSelectedLesson(null);
-              }}
+              onClick={handleBack}
               className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
-          <VideoShadowingView lesson={selectedLesson} onBack={() => { setViewMode('LIBRARY'); setSelectedLesson(null); }} />
+          <VideoShadowingView lesson={selectedLesson} onBack={handleBack} />
         </div>
     );
   }

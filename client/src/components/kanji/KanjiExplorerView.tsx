@@ -428,6 +428,30 @@ export function KanjiExplorerView({ initialKanji, onNavigateToVocab }: KanjiExpl
 
   const [searchInput, setSearchInput] = useState<string>('');
 
+  // Đồng bộ hóa URL trên thanh địa chỉ trình duyệt khi học chữ Hán (#kanji?char=語)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash || '';
+    if (hash.includes('char=')) {
+      const match = hash.match(/[?&]char=([^&]+)/);
+      if (match && match[1]) {
+        const decoded = decodeURIComponent(match[1]);
+        if (decoded) {
+          setSelectedKanjiChar(decoded);
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedKanjiChar && typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      if (!hash.includes('char=' + encodeURIComponent(selectedKanjiChar))) {
+        window.history.replaceState(null, '', `#kanji?char=${encodeURIComponent(selectedKanjiChar)}`);
+      }
+    }
+  }, [selectedKanjiChar]);
+
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
   const [isSearching, setIsSearching] = useState<boolean>(false);

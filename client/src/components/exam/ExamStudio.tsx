@@ -1100,6 +1100,14 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     return map;
   }, [diagnosticReport]);
 
+  const exitToCatalog = () => {
+    setCurrentScreen('catalog');
+    setActiveExam(null);
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', '#exam');
+    }
+  };
+
   // Tải danh sách đề thi từ API
 // Cảnh báo khi thoát trang trong quá trình thi
   useEffect(() => {
@@ -1349,6 +1357,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       totalQuestions: finalQuestions.length,
       format
     });
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', `#exam?id=${encodeURIComponent(fullExam.id)}`);
+    }
     setExamMode(mode);
     setCurrentQuestionIndex(0);
     setUserAnswers({});
@@ -3382,7 +3393,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
             <div className="flex gap-4 pt-4 border-t border-slate-100">
               <button
-                onClick={() => setCurrentScreen('catalog')}
+                onClick={exitToCatalog}
                 className="flex-1 py-3.5 rounded-2xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
               >
                 Hủy bỏ
@@ -3863,7 +3874,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
                       window.speechSynthesis.cancel();
                     }
-                    setCurrentScreen('catalog');
+                    exitToCatalog();
                   }}
                   className="py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
                 >
@@ -4157,7 +4168,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             {/* Left: Back button */}
             <button
-              onClick={() => setCurrentScreen('catalog')}
+              onClick={exitToCatalog}
               className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 cursor-pointer py-1.5 px-3 rounded-xl hover:bg-slate-100 transition-all font-sans"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -4663,10 +4674,10 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         {/* Nút Điều Hướng Cuối Trang */}
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between pt-8 font-sans">
           <button
-            onClick={() => setCurrentScreen('catalog')}
+            onClick={exitToCatalog}
             className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer shadow-xs"
           >
-            ⬅️ Về danh sách đề thi
+            Về danh sách đề thi
           </button>
           {activeExam && (
             <button
