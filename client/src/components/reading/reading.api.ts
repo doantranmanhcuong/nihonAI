@@ -7,8 +7,9 @@ export { ShadowingApi, INITIAL_FALLBACK_VIDEO_LESSONS };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api') + '/reading';
 
-const READING_STORAGE_PREFIX = 'nihonai_reading_v3:';
+const READING_STORAGE_PREFIX = 'nihonai_reading_v4:';
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
+const detailInFlight = new Map<string, Promise<ReadingArticle>>();
 
 function readCache<T>(key: string): { data: T; isFresh: boolean } | null {
   const now = Date.now();
@@ -164,25 +165,41 @@ export class ReadingApi {
       return cached.data;
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/articles/${id}`, {
-        headers: getAuthHeaders()
-      });
-      if (!res.ok) {
-        if (fallbackFound) return fallbackFound;
-        throw new Error(`Không tìm thấy bài đọc (${res.status})`);
-      }
-      const json = await res.json();
-      if (json?.data) {
-        writeCache(cacheKey, json.data);
-        return json.data;
-      }
-      if (fallbackFound) return fallbackFound;
-      throw new Error('Dữ liệu bài đọc trống');
-    } catch (err: any) {
-      if (fallbackFound) return fallbackFound;
-      throw err;
+    const existingFlight = detailInFlight.get(id);
+    if (existingFlight) {
+      return await existingFlight;
     }
+
+    const reqPromise = (async () => {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
+      try {
+        const res = await fetch(`${API_BASE}/articles/${id}`, {
+          headers: getAuthHeaders(),
+          ...(controller ? { signal: controller.signal } : {})
+        });
+        if (!res.ok) {
+          if (fallbackFound) return fallbackFound;
+          throw new Error(`Không tìm thấy bài đọc (${res.status})`);
+        }
+        const json = await res.json();
+        if (json?.data) {
+          writeCache(cacheKey, json.data);
+          return json.data;
+        }
+        if (fallbackFound) return fallbackFound;
+        throw new Error('Dữ liệu bài đọc trống');
+      } catch (err: any) {
+        if (fallbackFound) return fallbackFound;
+        throw err;
+      } finally {
+        if (timer) clearTimeout(timer);
+        detailInFlight.delete(id);
+      }
+    })();
+
+    detailInFlight.set(id, reqPromise);
+    return await reqPromise;
   }
 
   /**

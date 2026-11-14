@@ -264,6 +264,7 @@ export const DokkaiKaraokeSentence = React.memo(
     if (prev.isActive !== next.isActive) return false;
     if (prev.isPlaying !== next.isPlaying) return false;
     if (next.isActive && prev.activeCharIndex !== next.activeCharIndex) return false;
+    if (next.isActive && Math.abs(prev.sentenceProgress - next.sentenceProgress) > 0.002) return false;
     if (prev.furiganaMode !== next.furiganaMode || prev.jlptHeatmap !== next.jlptHeatmap) return false;
     if (prev.showTranslation !== next.showTranslation) return false;
     if (prev.highlightedKeyword !== next.highlightedKeyword) return false;

@@ -451,6 +451,279 @@ export const CURATED_JLPT_GRAMMAR_PATTERNS: CuratedGrammarPattern[] = [
     meaningVi: 'Dự kiến / Theo phương hướng / Triển vọng sẽ...',
     structure: 'Động từ V-る + 方針だ / 見通しだ / 見込みだ',
     explanation: 'Thuật ngữ báo chí chỉ kế hoạch, chủ trương sắp thực hiện của chính phủ/tổ chức hoặc dự báo diễn biến sắp tới.'
+  },
+  // --- Mở rộng ngữ pháp thiết yếu N5 - N1 xuất hiện thường xuyên trong báo chí & đời sống ---
+  {
+    pattern: '〜ている・〜ていた（〜ており）',
+    regex: /(ている|ていた|ています|ていました|ており、|ておりま|でいる|でいた)/,
+    level: 'N5',
+    meaningVi: 'Đang diễn ra / Trạng thái duy trì / Thói quen hoặc kết quả còn lưu lại',
+    structure: 'Động từ thể て + いる / いた / おり',
+    explanation: 'Diễn tả hành động đang xảy ra, trạng thái kéo dài, hoặc kết quả của hành động vẫn đang tồn tại ở thời điểm hiện tại.'
+  },
+  {
+    pattern: '〜てみる・〜てみませんか',
+    regex: /(てみる|てみた|てみます|てみました|てみませんか|てみても|てみよう)/,
+    level: 'N4',
+    meaningVi: 'Thử làm gì đó (xem sao)',
+    structure: 'Động từ thể て + みる',
+    explanation: 'Thể hiện sự thử nghiệm một hành động để trải nghiệm kết quả; dạng 〜てみませんか mang sắc thái mời mọc, gợi ý nhẹ nhàng.'
+  },
+  {
+    pattern: '〜てしまう・〜てしまった',
+    regex: /(てしまう|てしまった|てしまいます|てしまいました|でしまう|でしまった)/,
+    level: 'N4',
+    meaningVi: 'Lỡ làm mất rồi / Hoàn tất triệt để một việc gì đó',
+    structure: 'Động từ thể て + しまう',
+    explanation: 'Diễn tả hành động đã hoàn thành xong hoàn toàn, hoặc hàm ý tiếc nuối vì một kết quả xảy ra ngoài ý muốn.'
+  },
+  {
+    pattern: '〜ておく',
+    regex: /(ておく|ておいた|ておきます|ておくと|ておけば|でおく)/,
+    level: 'N4',
+    meaningVi: 'Làm sẵn trước để chuẩn bị / Giữ nguyên trạng thái',
+    structure: 'Động từ thể て + おく',
+    explanation: 'Chuẩn bị trước một việc gì đó để phục vụ cho bước tiếp theo hoặc duy trì nguyên trạng thái sẵn có.'
+  },
+  {
+    pattern: '〜ていく・〜てくる',
+    regex: /(ていく|ていった|ていきます|てくる|てきた|てきます|てきました)/,
+    level: 'N4',
+    meaningVi: 'Tiếp tục phát triển dần (tới tương lai) / Đã diễn biến đến hiện tại',
+    structure: 'Động từ thể て + いく / くる',
+    explanation: '〜ていく chỉ xu hướng biến đổi hướng về tương lai; 〜てくる chỉ quá trình thay đổi kéo dài từ quá khứ cho đến hiện tại.'
+  },
+  {
+    pattern: '〜ことになる・〜ことになっている',
+    regex: /(ことになる|ことになった|ことになります|ことになりました|ことになっている|ことにする|ことにした)/,
+    level: 'N4',
+    meaningVi: 'Được quyết định rằng / Có quy định là / Quyết định làm',
+    structure: 'V-る / V-ない + ことになる / ことにする',
+    explanation: '〜ことになる diễn tả kết quả hoặc quyết định khách quan từ tập thể/hoàn cảnh; 〜ことにする diễn tả quyết định chủ quan của bản thân.'
+  },
+  {
+    pattern: '〜ように・〜ような',
+    regex: /(ように、|ような|ようです|ようだ|ようにする|ようにして|ようになる)/,
+    level: 'N4',
+    meaningVi: 'Để mà... / Như là... / Giống như là...',
+    structure: 'V-る / N + の + ように / ような',
+    explanation: 'Dùng để nêu mục đích hướng tới (để cho), đưa ví dụ minh họa (như là), hoặc mô tả sự tương đồng về trạng thái.'
+  },
+  {
+    pattern: '〜やすい・〜にくい',
+    regex: /(やすい|やすく|やすさ|にくい|にくく|にくさ|づらい|づらく)/,
+    level: 'N4',
+    meaningVi: 'Dễ làm... / Khó làm... (tính chất thao tác, xu hướng)',
+    structure: 'Động từ thể ます (bỏ ます) + やすい / にくい / づらい',
+    explanation: 'Đánh giá mức độ thuận tiện hay trở ngại khi thực hiện một hành động, hoặc khuynh hướng dễ/khó xảy ra hiện tượng.'
+  },
+  {
+    pattern: '〜すぎる',
+    regex: /(すぎる|すぎた|すぎます|すぎて|すぎない)/,
+    level: 'N4',
+    meaningVi: 'Quá mức... (vượt quá giới hạn thông thường)',
+    structure: 'V-ます / A-い / Na + すぎる',
+    explanation: 'Diễn tả mức độ tính chất hoặc hành động vượt quá ngưỡng bình thường (quá nhiều, quá nóng, làm quá tay).'
+  },
+  {
+    pattern: '〜かもしれない',
+    regex: /(かもしれない|かもしれません|かもしれなかった)/,
+    level: 'N4',
+    meaningVi: 'Có lẽ / Có khả năng là... (không chắc chắn hoàn toàn)',
+    structure: 'Thể thông thường + かもしれない',
+    explanation: 'Đưa ra phán đoán phỏng đoán có xác suất xảy ra nhưng chưa khẳng định chắc chắn.'
+  },
+  {
+    pattern: '〜はずだ・〜はずがない',
+    regex: /(はずだ|はずです|はずがない|はずがありません|はずだった)/,
+    level: 'N4',
+    meaningVi: 'Chắc chắn phải là... (theo suy luận logic) / Không thể nào có chuyện...',
+    structure: 'Thể thông thường (Nの / Naな) + はずだ',
+    explanation: 'Suy đoán có căn cứ logic hoặc dựa trên quy luật khách quan rằng điều gì đó đáng lý phải xảy ra như vậy.'
+  },
+  {
+    pattern: '〜ながら',
+    regex: /(ながら、|ながらも|ながら)/,
+    level: 'N4',
+    meaningVi: 'Vừa làm việc này vừa làm việc kia / Tuy vậy nhưng...',
+    structure: 'V-ます (bỏ ます) + ながら',
+    explanation: 'Diễn tả hai hành động diễn ra song song đồng thời cùng một chủ thể; dạng ながらも mang nghĩa nhượng bộ "tuy... nhưng".'
+  },
+  {
+    pattern: '〜たり〜たりする',
+    regex: /(たり[^。]{1,28}たり)/,
+    level: 'N4',
+    meaningVi: 'Lúc thì làm A, lúc thì làm B (liệt kê hành động tiêu biểu)',
+    structure: 'V-た + り、V-た + りする',
+    explanation: 'Liệt kê một số hành động hoặc trạng thái tiêu biểu mang tính đại diện trong nhiều việc khác nhau.'
+  },
+  {
+    pattern: '〜なければならない・〜なくてはならない',
+    regex: /(なければならない|なければなりません|なくてはならない|ねばならない)/,
+    level: 'N4',
+    meaningVi: 'Phải / Bắt buộc phải làm...',
+    structure: 'V-ない (bỏ い) + ければならない',
+    explanation: 'Diễn tả nghĩa vụ, yêu cầu bắt buộc hoặc điều tất yếu phải thực hiện trong hoàn cảnh đó.'
+  },
+  {
+    pattern: '〜といわれている・〜とされている',
+    regex: /(といわれ|と言われ|とされて|とされている|とされています)/,
+    level: 'N3',
+    meaningVi: 'Người ta nói rằng... / Được xem là... / Được nhìn nhận là...',
+    structure: 'Mệnh đề + といわれている / とされている',
+    explanation: 'Thể bị động trích dẫn nhận định phổ biến trong xã hội, giới chuyên môn hoặc báo chí.'
+  },
+  {
+    pattern: '〜ということだ・〜ということになる',
+    regex: /(ということだ|ということです|ということになり|ということは)/,
+    level: 'N3',
+    meaningVi: 'Có nghĩa là... / Tức là chuyện...',
+    structure: 'Mệnh đề thông thường + ということだ',
+    explanation: 'Giải thích lại ý nghĩa cốt lõi, kết luận suy ra hoặc tường thuật gián tiếp nội dung vừa nêu.'
+  },
+  {
+    pattern: '〜にとって（は）',
+    regex: /(にとって|にとっては|にとっても|にとっての)/,
+    level: 'N3',
+    meaningVi: 'Đối với (lập trường, góc nhìn của ai/tổ chức nào)',
+    structure: 'Danh từ + にとって',
+    explanation: 'Đánh giá sự việc dưới góc độ hoặc vị trí của một chủ thể cụ thể (đối với người tiêu dùng, đối với doanh nghiệp...).'
+  },
+  {
+    pattern: '〜をもとに・〜に基づいて',
+    regex: /(をもとに|を基に|に基づいて|に基づき|に基づく)/,
+    level: 'N3',
+    meaningVi: 'Dựa trên cơ sở... / Căn cứ vào...',
+    structure: 'Danh từ + をもとに / に基づいて',
+    explanation: 'Chỉ nền tảng, số liệu, quy định hoặc ý tưởng gốc được dùng để phát triển hành động tiếp theo.'
+  },
+  {
+    pattern: '〜を中心に（して）',
+    regex: /(を中心に|を中心とした|を中心として)/,
+    level: 'N3',
+    meaningVi: 'Lấy ... làm trung tâm / Tập trung chủ yếu vào...',
+    structure: 'Danh từ + を中心に',
+    explanation: 'Xác định nhân vật, khu vực hoặc chủ đề đóng vai trò nòng cốt trong sự kiện.'
+  },
+  {
+    pattern: '〜をはじめ（として）',
+    regex: /(をはじめ|を初め|をはじめとする)/,
+    level: 'N2',
+    meaningVi: 'Trước hết phải kể đến... / Tiêu biểu là...',
+    structure: 'Danh từ + をはじめ（として）',
+    explanation: 'Nêu một ví dụ tiêu biểu, đại diện nhất trước khi mở rộng ra nhiều đối tượng tương tự khác.'
+  },
+  {
+    pattern: '〜にわたって・〜にわたり',
+    regex: /(にわたって|にわたり|にわたる|にわたった)/,
+    level: 'N2',
+    meaningVi: 'Trải dài suốt... / Trên phạm vi rộng...',
+    structure: 'Danh từ (thời gian / không gian / lĩnh vực) + にわたって',
+    explanation: 'Nhấn mạnh quy mô rộng lớn hoặc khoảng thời gian kéo dài liên tục của một sự kiện.'
+  },
+  {
+    pattern: '〜をきっかけに・〜を機に',
+    regex: /(をきっかけに|をきっかけとして|を機に)/,
+    level: 'N3',
+    meaningVi: 'Nhân cơ hội / Lấy đó làm bước ngoặt, nguyên nhân khởi đầu...',
+    structure: 'Danh từ + をきっかけに / を機に',
+    explanation: 'Diễn tả một sự kiện mở đường dẫn tới sự thay đổi hoặc hành động mới tiếp nối sau đó.'
+  },
+  {
+    pattern: '〜ことから',
+    regex: /(ことから、|ことから)/,
+    level: 'N3',
+    meaningVi: 'Từ việc... / Xuất phát từ lý do...',
+    structure: 'Thể thông thường + ことから',
+    explanation: 'Nêu nguyên nhân, căn cứ khách quan dẫn tới một tên gọi, hiện tượng hoặc kết luận.'
+  },
+  {
+    pattern: '〜一方で（は）',
+    regex: /(一方で|一方では|一方、)/,
+    level: 'N3',
+    meaningVi: 'Mặt khác / Trong khi đó thì...',
+    structure: 'Thể thông thường + 一方で',
+    explanation: 'Trình bày hai mặt song song hoặc đối lập nhau của cùng một vấn đề, xu hướng.'
+  },
+  {
+    pattern: '〜うえに・〜うえで',
+    regex: /(うえで|上で|うえに|上に|うえでは)/,
+    level: 'N3',
+    meaningVi: 'Không những... mà còn thêm... / Sau khi làm... thì...',
+    structure: 'Thể thông thường + うえに / V-た + うえで',
+    explanation: '〜うえに liệt kê thêm yếu tố cộng dồn cùng chiều; V-た + うえで chỉ bước tiền đề trước khi quyết định bước sau.'
+  },
+  {
+    pattern: '〜際に・〜にあたって',
+    regex: /(際に|に際して|にあたって|にあたり)/,
+    level: 'N3',
+    meaningVi: 'Khi / Nhân dịp / Trước thềm thực hiện...',
+    structure: 'V-る・V-た / Nの + 際に / にあたって',
+    explanation: 'Cách nói trang trọng chỉ thời điểm diễn ra sự kiện hoặc bước chuẩn bị khi bắt đầu công việc quan trọng.'
+  },
+  {
+    pattern: '〜たびに・〜うちに',
+    regex: /(たびに|度に|うちに|あいだに)/,
+    level: 'N3',
+    meaningVi: 'Mỗi lần... / Trong lúc đang... (thì xảy ra biến đổi)',
+    structure: 'V-る / Nの + たびに・うちに',
+    explanation: '〜たびに nhấn mạnh sự lặp lại hễ A thì B; 〜うちに chỉ sự việc diễn ra nhân lúc trạng thái A còn duy trì.'
+  },
+  {
+    pattern: '〜ものの・〜にもかかわらず',
+    regex: /(ものの、|とはいえ)/,
+    level: 'N2',
+    meaningVi: 'Tuy nói là... nhưng mà... / Mặc dù công nhận vế trước nhưng...',
+    structure: 'Thể thông thường + ものの / とはいえ',
+    explanation: 'Thừa nhận thực tế ở mệnh đề trước nhưng đưa ra thực trạng hoặc kết quả kém kỳ vọng ở mệnh đề sau.'
+  },
+  {
+    pattern: '〜わけではない・〜とは限らない',
+    regex: /(わけではない|わけではありません|というわけではない|とは限らない|とは限りません)/,
+    level: 'N3',
+    meaningVi: 'Không hẳn là... / Không phải lúc nào cũng...',
+    structure: 'Thể thông thường + わけではない / とは限らない',
+    explanation: 'Phủ nhận một phần nhận định hoặc tránh khái quát hóa tuyệt đối một vấn đề.'
+  },
+  {
+    pattern: '〜つつある',
+    regex: /(つつある|つつあります|つつあった)/,
+    level: 'N2',
+    meaningVi: 'Đang dần dần chuyển biến theo hướng...',
+    structure: 'Động từ V-ます (bỏ ます) + つつある',
+    explanation: 'Văn phong báo chí trang trọng mô tả một xu hướng đang diễn tiến từng bước theo thời gian.'
+  },
+  {
+    pattern: '〜ざるを得ない・〜ほかない',
+    regex: /(ざるを得ない|ざるをえない|ほかない|しかない)/,
+    level: 'N2',
+    meaningVi: 'Buộc lòng phải... / Không còn cách nào khác ngoài...',
+    structure: 'V-ない + ざるを得ない / V-る + しかない',
+    explanation: 'Diễn tả tình thế bắt buộc dù không muốn nhưng vẫn phải lựa chọn thực hiện.'
+  },
+  {
+    pattern: '〜とともに・〜に加えて',
+    regex: /(とともに|と共に|に加えて|に加え、|にくわえ)/,
+    level: 'N2',
+    meaningVi: 'Cùng với... / Thêm vào đó, cộng với...',
+    structure: 'Danh từ / V-る + とともに・に加えて',
+    explanation: 'Nối thêm yếu tố xảy ra song hành hoặc gia tăng tác động cùng lúc.'
+  },
+  {
+    pattern: '〜ため（に）・〜ので',
+    regex: /(ため、|ために|ためだ|ためです|ので、)/,
+    level: 'N4',
+    meaningVi: 'Vì / Do nguyên nhân... / Để phục vụ mục đích...',
+    structure: 'Thể thông thường (Nの) + ため（に）/ ので',
+    explanation: 'Nêu nguyên nhân khách quan dẫn đến kết quả hoặc mục đích của hành động.'
+  },
+  {
+    pattern: '〜背景には・〜傾向がある',
+    regex: /(背景には|を背景に|傾向がある|傾向にある|傾向が強)/,
+    level: 'N2',
+    meaningVi: 'Đằng sau bối cảnh đó có... / Có khuynh hướng...',
+    structure: 'Danh từ / Mệnh đề + を背景に・傾向がある',
+    explanation: 'Cách diễn đạt phân tích nguyên nhân sâu xa hoặc xu thế phổ biến trong xã hội và thị trường.'
   }
 ];
 
@@ -489,77 +762,102 @@ export class KuromojiService {
     return 'Từ vựng';
   }
 
+  private static renderFuriganaFromTokens(tokens: kuromoji.IpadicFeatures[]): string {
+    let furiganaText = '';
+    for (const token of tokens) {
+      if (this.hasKanji(token.surface_form) && token.reading) {
+        const readingHiragana = this.katakanaToHiragana(token.reading);
+        let surface = token.surface_form;
+        let reading = readingHiragana;
+
+        let tail = '';
+        while (
+          surface.length > 0 &&
+          reading.length > 0 &&
+          !this.isKanji(surface[surface.length - 1]) &&
+          surface[surface.length - 1] === reading[reading.length - 1]
+        ) {
+          tail = surface[surface.length - 1] + tail;
+          surface = surface.slice(0, -1);
+          reading = reading.slice(0, -1);
+        }
+
+        let head = '';
+        while (
+          surface.length > 0 &&
+          reading.length > 0 &&
+          !this.isKanji(surface[0]) &&
+          surface[0] === reading[0]
+        ) {
+          head += surface[0];
+          surface = surface.slice(1);
+          reading = reading.slice(1);
+        }
+
+        if (surface.length > 0 && reading.length > 0) {
+          furiganaText += `${head}<ruby>${surface}<rt>${reading}</rt></ruby>${tail}`;
+        } else {
+          furiganaText += token.surface_form;
+        }
+      } else {
+        furiganaText += token.surface_form;
+      }
+    }
+    return furiganaText;
+  }
+
   static async analyzeText(text: string): Promise<{ furiganaText: string; vocabularies: any[]; grammars: any[] }> {
     try {
       const tokenizer = await this.getTokenizer();
       const tokens = tokenizer.tokenize(text);
-      let furiganaText = '';
+      const furiganaText = this.renderFuriganaFromTokens(tokens);
 
       const vocabMap = new Map<string, any>();
       const grammarMap = new Map<string, any>();
 
-      for (const token of tokens) {
-        // --- 1. Tạo Furigana ---
-        if (this.hasKanji(token.surface_form) && token.reading) {
-          const readingHiragana = this.katakanaToHiragana(token.reading);
-          let surface = token.surface_form;
-          let reading = readingHiragana;
-
-          let tail = '';
-          while (
-            surface.length > 0 &&
-            reading.length > 0 &&
-            !this.isKanji(surface[surface.length - 1]) &&
-            surface[surface.length - 1] === reading[reading.length - 1]
-          ) {
-            tail = surface[surface.length - 1] + tail;
-            surface = surface.slice(0, -1);
-            reading = reading.slice(0, -1);
-          }
-
-          let head = '';
-          while (
-            surface.length > 0 &&
-            reading.length > 0 &&
-            !this.isKanji(surface[0]) &&
-            surface[0] === reading[0]
-          ) {
-            head += surface[0];
-            surface = surface.slice(1);
-            reading = reading.slice(1);
-          }
-
-          if (surface.length > 0 && reading.length > 0) {
-            furiganaText += `${head}<ruby>${surface}<rt>${reading}</rt></ruby>${tail}`;
-          } else {
-            furiganaText += token.surface_form;
-          }
-        } else {
-          furiganaText += token.surface_form;
-        }
-
-        // --- 2. Trích xuất Vocabulary ứng viên (Ưu tiên từ Kanji >= 2 ký tự hoặc Katakana công nghệ/thời sự) ---
+      for (let tIdx = 0; tIdx < tokens.length; tIdx++) {
+        const token = tokens[tIdx];
+        // --- Trích xuất Vocabulary ứng viên (Ưu tiên từ Kanji >= 2 ký tự hoặc từ Katakana nguyên vẹn >= 3 ký tự) ---
         const pos = token.pos;
-        const base = token.basic_form && token.basic_form !== '*' ? token.basic_form : token.surface_form;
+        let base = token.basic_form && token.basic_form !== '*' ? token.basic_form : token.surface_form;
         if (!base || base.length < 2) continue;
 
         const isKanjiWord = this.hasKanji(base);
-        const isKatakanaWord = /^[\u30A0-\u30FF\u30FC]{2,12}$/.test(base);
+        const isKanaPiece = /^[\u30A0-\u30FF\u30FC]+$/.test(token.surface_form);
+
+        // Nếu Kuromoji tách 1 từ Katakana dài thành nhiều mảnh (vd クラ + ウド), gộp nguyên chuỗi Katakana liên tiếp
+        let readingOverride = '';
+        if (isKanaPiece) {
+          const prevIsKata = tIdx > 0 && /^[\u30A0-\u30FF\u30FC]+$/.test(tokens[tIdx - 1].surface_form);
+          if (prevIsKata) continue; // Đã được gộp từ token đầu chuỗi Katakana
+          let mergedKata = token.surface_form;
+          let look = tIdx + 1;
+          while (look < tokens.length && /^[\u30A0-\u30FF\u30FC]+$/.test(tokens[look].surface_form)) {
+            mergedKata += tokens[look].surface_form;
+            look++;
+          }
+          if (mergedKata.length < 3 || mergedKata.length > 14) continue;
+          base = mergedKata;
+          readingOverride = mergedKata;
+        }
+
+        const isKatakanaWord = /^[\u30A0-\u30FF\u30FC]{3,14}$/.test(base);
         if (!isKanjiWord && !isKatakanaWord) continue;
 
         // Bỏ qua các từ thuộc nội dung tài trợ / xin tiền / quảng cáo
-        const isJunkWord = ['支援', 'メンバー', 'リスト', '寄付', '価格高騰', '危険水域', '運営', 'ご存じ'].some(j => base.includes(j));
+        const isJunkWord = ['支援', 'メンバー', 'リスト', '寄付', '価格高騰', '危険水域', 'ご存じ', '続きを読む'].some(j => base.includes(j));
         if (isJunkWord) continue;
 
-        if (pos === '名詞' || pos === '動詞' || pos === '形容詞') {
+        if (isKatakanaWord || pos === '名詞' || pos === '動詞' || pos === '形容詞') {
           if (
             token.pos_detail_1 !== '数' &&
             token.pos_detail_1 !== '非自立' &&
             token.pos_detail_1 !== '接尾' &&
-            token.pos_detail_1 !== '代名詞'
+            token.pos_detail_1 !== '代名詞' &&
+            token.pos_detail_1 !== '固有名詞'
           ) {
             if (!vocabMap.has(base)) {
-              const readingHira = token.reading ? this.katakanaToHiragana(token.reading) : (isKatakanaWord ? this.katakanaToHiragana(base) : '');
+              const readingHira = readingOverride || (token.reading ? this.katakanaToHiragana(token.reading) : base);
               vocabMap.set(base, {
                 word: base,
                 reading: readingHira,
@@ -574,7 +872,7 @@ export class KuromojiService {
         }
       }
 
-      // --- 3. Nhận diện Ngữ pháp JLPT thực tế có trong văn bản ---
+      // --- Nhận diện Ngữ pháp JLPT thực tế có trong văn bản ---
       const rawSentences = text
         .split(/(?<=[。！？\n])/)
         .map((s) => s.trim())
@@ -588,7 +886,7 @@ export class KuromojiService {
             grammar: pat.pattern,
             grammarPoint: pat.pattern,
             meaning: pat.meaningVi,
-            meaningVi: pat.meaningVi,
+            meaningVi: `${pat.meaningVi} (${pat.structure})`,
             structure: pat.structure,
             level: pat.level,
             explanation: pat.explanation,
@@ -610,7 +908,12 @@ export class KuromojiService {
   }
 
   static async addFurigana(text: string): Promise<string> {
-    const res = await this.analyzeText(text);
-    return res.furiganaText;
+    try {
+      const tokenizer = await this.getTokenizer();
+      const tokens = tokenizer.tokenize(text);
+      return this.renderFuriganaFromTokens(tokens);
+    } catch {
+      return text;
+    }
   }
 }

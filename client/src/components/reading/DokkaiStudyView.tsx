@@ -95,6 +95,31 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
   const sentenceStartTimeRef = useRef<number>(0);
   const lastActiveCharIndexRef = useRef<number>(-1);
   const lastTimelineUpdateRef = useRef<number>(0);
+  const isUsingSpeechRef = useRef<boolean>(false);
+  const speechHasBoundaryRef = useRef<boolean>(false);
+  const audioFailedRef = useRef<boolean>(false);
+
+  const getPreferredJapaneseVoice = (): SpeechSynthesisVoice | null => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    const jaVoices = voices.filter((v) => v.lang?.toLowerCase().startsWith('ja'));
+    if (jaVoices.length === 0) return null;
+    return (
+      jaVoices.find((v) => /nanami|haruka|ayumi|sayaka|kyoko|otoya/i.test(v.name)) ||
+      jaVoices.find((v) => v.localService) ||
+      jaVoices[0]
+    );
+  };
+
+  const resolvedAudioUrl = useMemo(() => {
+    if (!article?.audioUrl) return null;
+    if (article.audioUrl.startsWith('http')) return article.audioUrl;
+    if (article.audioUrl.startsWith('/api/')) {
+      const apiOrigin = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+      return `${apiOrigin}${article.audioUrl}`;
+    }
+    return article.audioUrl;
+  }, [article?.audioUrl]);
 
   useEffect(() => {
     isRepeatRef.current = isRepeat;
@@ -120,17 +145,31 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
   }, [playbackSpeed]);
 
   useEffect(() => {
+    audioFailedRef.current = false;
+  }, [articleId, resolvedAudioUrl]);
+
+  useEffect(() => {
     if (article?.sentences) {
       sentencesRef.current = article.sentences;
 
-      // Tính tổng thời lượng bài đọc thực tế từ số phách âm Mora chuẩn xác
+      // Ưu tiên tổng thời lượng từ file âm thanh / VTT thực tế nếu có, ngược lại tính theo Mora
+      const lastEndMs = article.sentences.reduce((mx, s) => Math.max(mx, s.endTimeMs || 0), 0);
+      if (article.audioUrl && lastEndMs > 0) {
+        setTotalDurationSec(Math.max(10, Math.ceil(lastEndMs / 1000)));
+        return;
+      }
+
       let totalEstSec = 0;
       for (const s of article.sentences) {
-        const clean = s.sentenceJp.replace(/【\/?下線】/g, '');
-        const moras = countMoras(clean);
-        const commas = (clean.match(/[、,]/g) || []).length;
-        const periods = (clean.match(/[。!?！？]/g) || []).length;
-        totalEstSec += moras / 7.2 + commas * 0.35 + periods * 0.5;
+        if (s.endTimeMs && s.endTimeMs > (s.startTimeMs || 0)) {
+          totalEstSec += (s.endTimeMs - (s.startTimeMs || 0)) / 1000;
+        } else {
+          const clean = s.sentenceJp.replace(/【\/?下線】/g, '');
+          const moras = countMoras(clean);
+          const commas = (clean.match(/[、,]/g) || []).length;
+          const periods = (clean.match(/[。!?！？]/g) || []).length;
+          totalEstSec += moras / 6.8 + commas * 0.3 + periods * 0.4;
+        }
       }
       setTotalDurationSec(Math.max(10, Math.round(totalEstSec)));
     }
@@ -222,18 +261,25 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
   // Hủy âm thanh và reset tiến trình
 
   useEffect(() => {
-    if (isPlaying) {
+    // Chỉ chạy polling HTMLAudioElement khi đang phát qua thẻ <audio> (không ghi đè interval của Web Speech)
+    if (isPlaying && !isUsingSpeechRef.current && resolvedAudioUrl && audioRef.current) {
       if (progressTickerRef.current) clearInterval(progressTickerRef.current);
       progressTickerRef.current = setInterval(() => {
         handleTimeUpdate();
-      }, 50);
-    } else {
-      if (progressTickerRef.current) clearInterval(progressTickerRef.current);
+      }, 45);
+    } else if (!isPlaying) {
+      if (progressTickerRef.current) {
+        clearInterval(progressTickerRef.current);
+        progressTickerRef.current = null;
+      }
     }
     return () => {
-      if (progressTickerRef.current) clearInterval(progressTickerRef.current);
+      if (!isUsingSpeechRef.current && progressTickerRef.current) {
+        clearInterval(progressTickerRef.current);
+        progressTickerRef.current = null;
+      }
     };
-  }, [isPlaying]);
+  }, [isPlaying, resolvedAudioUrl]);
 
   const handleTimeUpdate = () => {
 
@@ -323,33 +369,47 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
 
     const playWithWebSpeechFallback = () => {
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-      const text = sents[index]?.sentenceJp || (sents[index] as any)?.japanese || '';
+      const text = (sents[index]?.sentenceJp || (sents[index] as any)?.japanese || '').replace(/【\/?下線】/g, '');
       if (!text) return;
+
+      isUsingSpeechRef.current = true;
+      speechHasBoundaryRef.current = false;
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'ja-JP';
+      const jaVoice = getPreferredJapaneseVoice();
+      if (jaVoice) utterance.voice = jaVoice;
       utterance.rate = playbackSpeedRef.current || 1.0;
-      setIsPlaying(true);
-      setSentenceProgress(0.05);
 
       const sentenceStartSec = sentenceTimeline[index]?.start || 0;
-      const sentenceDurSec = sentenceTimeline[index]?.dur || Math.max(2, text.length * 0.22);
-      const speechStart = Date.now();
+      const sentenceDurSec = sentenceTimeline[index]?.dur || Math.max(2, countMoras(text) / 6.8);
 
+      setIsPlaying(true);
+      setSentenceProgress(0);
+      setActiveCharIndex(-1);
       setPlaybackProgressSec(sentenceStartSec);
 
-      if (progressTickerRef.current) clearInterval(progressTickerRef.current);
-      progressTickerRef.current = setInterval(() => {
-        const elapsedSec = ((Date.now() - speechStart) / 1000) * (playbackSpeedRef.current || 1.0);
-        const ratio = Math.min(0.98, Math.max(0, elapsedSec / Math.max(0.5, sentenceDurSec)));
-        setSentenceProgress(ratio);
-        setPlaybackProgressSec(sentenceStartSec + ratio * sentenceDurSec);
+      const startProgressTicker = () => {
+        if (progressTickerRef.current) clearInterval(progressTickerRef.current);
+        const speechStart = performance.now();
+        progressTickerRef.current = setInterval(() => {
+          // Khi giọng bản xứ không bắn sự kiện onboundary (vd Google TTS online), dùng tiến độ Mora (activeCharIndex = -1) để tô sáng đều theo phách âm
+          if (speechHasBoundaryRef.current) return;
+          const elapsedSec = ((performance.now() - speechStart) / 1000) * (playbackSpeedRef.current || 1.0);
+          const ratio = Math.min(0.98, Math.max(0, elapsedSec / Math.max(0.6, sentenceDurSec)));
+          setSentenceProgress(ratio);
+          setPlaybackProgressSec(sentenceStartSec + ratio * sentenceDurSec);
+        }, 45);
+      };
 
-        const approxChar = Math.floor(ratio * text.length);
-        setActiveCharIndex(approxChar);
-      }, 50);
+      // Chờ giọng bắt đầu phát âm thực sự mới chạy ticker để tránh lệch pha trễ khởi tạo TTS
+      utterance.onstart = () => {
+        startProgressTicker();
+      };
 
       utterance.onboundary = (ev) => {
-        if (typeof ev.charIndex === 'number' && text.length > 0) {
+        if (typeof ev.charIndex === 'number' && ev.charIndex >= 0 && text.length > 0) {
+          speechHasBoundaryRef.current = true;
           setActiveCharIndex(ev.charIndex);
           const ratio = Math.min(1, (ev.charIndex + 1) / text.length);
           setSentenceProgress(ratio);
@@ -389,9 +449,16 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
       };
 
       window.speechSynthesis.speak(utterance);
+      // Dự phòng nếu trình duyệt không gọi onstart sau 350ms
+      setTimeout(() => {
+        if (isPlayingRef.current && isUsingSpeechRef.current && !progressTickerRef.current && !speechHasBoundaryRef.current) {
+          startProgressTicker();
+        }
+      }, 350);
     };
 
-    if (article?.audioUrl && audioRef.current) {
+    if (resolvedAudioUrl && audioRef.current && !audioFailedRef.current) {
+      isUsingSpeechRef.current = false;
       const targetTimeSec = (sents[index].startTimeMs || 0) / 1000;
       audioRef.current.currentTime = targetTimeSec;
       audioRef.current.playbackRate = playbackSpeedRef.current;
@@ -679,7 +746,10 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
     );
   }
 
-  const cleanTitle = article.title.split('(')[0]?.trim() || article.title;
+  const cleanTitle =
+    article.title
+      .replace(/\s*\([^)]*[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ][^)]*\)?$/i, '')
+      .trim() || article.title;
 
   return (
     <div className="flex flex-col gap-4 max-w-7xl mx-auto w-full pb-20">
@@ -750,13 +820,23 @@ export const DokkaiStudyView: React.FC<DokkaiStudyViewProps> = ({
       </div>
 
       {/* 2. THANH ĐIỀU KHIỂN ÂM THANH MODULAR */}
-      {article?.audioUrl && (
+      {resolvedAudioUrl && (
           <audio
             ref={audioRef}
-            src={article.audioUrl}
+            src={resolvedAudioUrl}
             onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={(e) => setTotalDurationSec(e.currentTarget.duration)}
+            onLoadedMetadata={(e) => {
+              if (e.currentTarget.duration && Number.isFinite(e.currentTarget.duration)) {
+                setTotalDurationSec(Math.max(10, Math.ceil(e.currentTarget.duration)));
+              }
+            }}
             onEnded={handleAudioEnded}
+            onError={() => {
+              audioFailedRef.current = true;
+              if (isPlayingRef.current) {
+                playSentenceByIndex(activeSentenceIndexRef.current);
+              }
+            }}
             crossOrigin="anonymous"
           />
         )}

@@ -206,7 +206,14 @@ export const SharedLibraryView: React.FC<SharedLibraryViewProps> = ({ onRequestA
 
   // Lọc bài báo theo tìm kiếm, cấp độ và trạng thái đã lưu
   const filteredLibrary = useMemo(() => {
-    let list = [...libraryArticles];
+    const seenKeys = new Set<string>();
+    let list = libraryArticles.filter((a) => {
+      const urlKey = a.sourceUrl ? a.sourceUrl.split('?')[0].trim() : '';
+      const key = urlKey || `title:${a.title.slice(0, 60)}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
     
     // Filter by Category
     if (selectedCategory === 'NEWS') {

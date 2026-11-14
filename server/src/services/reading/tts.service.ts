@@ -5,121 +5,208 @@ import * as path from 'path';
 
 const execAsync = promisify(exec);
 
+interface VttCue {
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+function parseVttTimestamp(ts: string): number {
+  const m = ts.trim().match(/(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})/);
+  if (!m) return 0;
+  const h = parseInt(m[1] || '0', 10);
+  const min = parseInt(m[2], 10);
+  const sec = parseInt(m[3], 10);
+  const ms = parseInt(m[4], 10);
+  return ((h * 3600 + min * 60 + sec) * 1000) + ms;
+}
+
+function parseVttCues(vttContent: string): VttCue[] {
+  const cues: VttCue[] = [];
+  const blocks = vttContent.replace(/\r\n/g, '\n').split(/\n{2,}/);
+  for (const block of blocks) {
+    const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+    const arrowIdx = lines.findIndex((l) => l.includes('-->'));
+    if (arrowIdx === -1) continue;
+    const [rawStart, rawEnd] = lines[arrowIdx].split('-->');
+    if (!rawStart || !rawEnd) continue;
+    const text = lines.slice(arrowIdx + 1).join(' ').trim();
+    cues.push({
+      startMs: parseVttTimestamp(rawStart),
+      endMs: parseVttTimestamp(rawEnd),
+      text
+    });
+  }
+  return cues;
+}
+
+function normalizeForMatch(s: string): string {
+  return (s || '')
+    .replace(/【\/?下線】/g, '')
+    .replace(/[\s　、。！？「」『』・（）().,!?…]/g, '');
+}
+
 export class TtsService {
   private static edgeTtsAvailable: boolean | null = null;
 
   /**
-   * Sinh file âm thanh MP3 từ danh sách câu tiếng Nhật qua Edge-TTS,
-   * ghép nối file âm thanh và trả về mốc thời gian (startTimeMs, endTimeMs) cho từng câu.
-   * Xử lý bất đồng bộ (Non-blocking), có cơ chế Circuit Breaker (ngắt sớm khi lỗi mạng)
-   * để không bao giờ làm nghẽn Event Loop của Node.js API Gateway.
+   * Ước lượng thời lượng phát âm theo số phách âm Mora chuẩn xác (~145ms/mora + nhịp ngắt câu)
    */
-  static async generateArticleAudio(
-    articleId: string, 
-    sentencesJp: string[]
-  ): Promise<{ audioUrl: string | null; timings: { startTimeMs: number; endTimeMs: number }[] }> {
-    const tmpDir = path.join(__dirname, '../../../../client/public/audio');
-    if (!fs.existsSync(tmpDir)) {
-      fs.mkdirSync(tmpDir, { recursive: true });
+  static estimateSentenceTimings(sentencesJp: string[]): { startTimeMs: number; endTimeMs: number }[] {
+    const timings: { startTimeMs: number; endTimeMs: number }[] = [];
+    let offsetMs = 0;
+
+    for (const raw of sentencesJp) {
+      const clean = (raw || '').replace(/【\/?下線】/g, '').trim();
+      const kanaMoras = (clean.match(/[ぁ-んァ-ン][ゃゅょぁぃぅぇぉゎャュョァィゥェォヮ]?|[ーっッ]/g) || []).length;
+      const kanjiCount = (clean.match(/[\u4e00-\u9faf\u3400-\u4dbf]/g) || []).length;
+      // Mỗi chữ Kanji đọc trung bình ~2.05 mora
+      const estMoras = Math.max(2, kanaMoras + Math.round(kanjiCount * 2.05));
+      const commas = (clean.match(/[、,]/g) || []).length;
+      const ends = (clean.match(/[。!?！？]/g) || []).length;
+      const durMs = Math.max(1800, Math.round(estMoras * 148 + commas * 280 + ends * 380));
+
+      timings.push({ startTimeMs: offsetMs, endTimeMs: offsetMs + durMs });
+      offsetMs += durMs;
     }
 
-    const outputMp3Path = path.join(tmpDir, `${articleId}.mp3`);
+    return timings;
+  }
+
+  /**
+   * Căn chỉnh danh sách VTT cue trả về từ Edge-TTS khớp chính xác từng câu tiếng Nhật
+   */
+  private static alignCuesToSentences(
+    sentencesJp: string[],
+    cues: VttCue[]
+  ): { startTimeMs: number; endTimeMs: number }[] {
+    if (cues.length === 0) {
+      return this.estimateSentenceTimings(sentencesJp);
+    }
+
+    const totalAudioEndMs = cues[cues.length - 1].endMs;
+    const sentLengths = sentencesJp.map((s) => Math.max(1, normalizeForMatch(s).length));
+    const totalNormLen = sentLengths.reduce((a, b) => a + b, 0);
+
+    // Nếu số lượng cues khớp hoặc gần khớp từng dòng (do truyền \n\n giữa các câu)
     const timings: { startTimeMs: number; endTimeMs: number }[] = [];
-    let finalMp3Buffer = Buffer.alloc(0);
-    let currentOffsetMs = 0;
-    let consecutiveFailures = 0;
-    let ttsAvailable = this.edgeTtsAvailable !== false;
+    let cueCursor = 0;
 
     for (let i = 0; i < sentencesJp.length; i++) {
-      const sentence = sentencesJp[i];
-      const estimatedDurationMs = Math.max(2000, sentence.length * 250);
+      const targetNorm = normalizeForMatch(sentencesJp[i]);
+      const targetLen = targetNorm.length;
 
-      // Nếu TTS đã bị lỗi liên tiếp (mạng chặn, rate limit, thiếu CLI), ngắt gọi TTS để tránh nghẽn
-      if (!ttsAvailable) {
-        timings.push({
-          startTimeMs: currentOffsetMs,
-          endTimeMs: currentOffsetMs + estimatedDurationMs
-        });
-        currentOffsetMs += estimatedDurationMs;
+      if (cueCursor >= cues.length) {
+        const prevEnd = timings.length > 0 ? timings[timings.length - 1].endTimeMs : 0;
+        const propDur = Math.max(1500, Math.round((sentLengths[i] / totalNormLen) * totalAudioEndMs));
+        timings.push({ startTimeMs: prevEnd, endTimeMs: prevEnd + propDur });
         continue;
       }
 
-      const tmpTxt = path.join(tmpDir, `tmp_${articleId}_${i}.txt`);
-      const tmpMp3 = path.join(tmpDir, `tmp_${articleId}_${i}.mp3`);
-      const tmpVtt = path.join(tmpDir, `tmp_${articleId}_${i}.vtt`);
+      const startMs = cueCursor === 0 ? cues[0].startMs : Math.max(timings[i - 1]?.endTimeMs ?? 0, cues[cueCursor].startMs);
+      let endMs = cues[cueCursor].endMs;
+      let accCueText = normalizeForMatch(cues[cueCursor].text);
+      cueCursor++;
 
-      try {
-        await fs.promises.writeFile(tmpTxt, sentence, 'utf8');
-
-        // Gọi edge-tts bất đồng bộ không chặn Event Loop, timeout tối đa 8s
-        await execAsync(`edge-tts -f "${tmpTxt}" --voice ja-JP-NanamiNeural --write-media "${tmpMp3}" --write-subtitles "${tmpVtt}"`, {
-          timeout: 8000,
-          windowsHide: true
-        });
-
-        let durationMs = estimatedDurationMs;
-        if (fs.existsSync(tmpVtt)) {
-          const vttContent = await fs.promises.readFile(tmpVtt, 'utf8');
-          const matches = [...vttContent.matchAll(/--> \d\d:\d\d:(\d\d),(\d\d\d)/g)];
-          if (matches && matches.length > 0) {
-            const lastMatch = matches[matches.length - 1];
-            const endSec = parseInt(lastMatch[1], 10);
-            const endMs = parseInt(lastMatch[2], 10);
-            durationMs = (endSec * 1000) + endMs;
+      // Nếu 1 câu dài bị edge-tts tách thành nhiều VTT cues, gom các cues tiếp theo cho tới khi đủ độ dài câu
+      while (
+        cueCursor < cues.length &&
+        accCueText.length < Math.max(4, Math.floor(targetLen * 0.72)) &&
+        sentencesJp.length - i <= cues.length - cueCursor + 1
+      ) {
+        const nextNorm = normalizeForMatch(cues[cueCursor].text);
+        if (i + 1 < sentencesJp.length) {
+          const nextSentNorm = normalizeForMatch(sentencesJp[i + 1]);
+          if (nextSentNorm && nextNorm && nextSentNorm.startsWith(nextNorm.slice(0, Math.min(6, nextNorm.length)))) {
+            break;
           }
         }
-
-        if (fs.existsSync(tmpMp3)) {
-          const mp3Buffer = await fs.promises.readFile(tmpMp3);
-          if (mp3Buffer.length > 0) {
-            finalMp3Buffer = Buffer.concat([finalMp3Buffer, mp3Buffer]);
-            consecutiveFailures = 0; // Reset đếm lỗi khi thành công
-          }
-        }
-
-        timings.push({
-          startTimeMs: currentOffsetMs,
-          endTimeMs: currentOffsetMs + durationMs
-        });
-        currentOffsetMs += durationMs;
-
-      } catch (err: any) {
-        consecutiveFailures++;
-        console.warn(`[TtsService] Cảnh báo sinh audio câu ${i} (${consecutiveFailures}/2 lỗi): ${err?.message || err}`);
-
-        timings.push({
-          startTimeMs: currentOffsetMs,
-          endTimeMs: currentOffsetMs + estimatedDurationMs
-        });
-        currentOffsetMs += estimatedDurationMs;
-
-        // Circuit breaker: Nếu lỗi 2 lần liên tiếp, dừng toàn bộ gọi edge-tts cho bài này
-        if (consecutiveFailures >= 2 || (err?.message && err.message.includes('not found')) || (err?.message && err.message.includes('not recognized'))) {
-          ttsAvailable = false;
-          this.edgeTtsAvailable = false;
-          console.warn(`[TtsService] Edge-TTS không khả dụng trên môi trường này. Tự động chuyển sang tính toán mốc thời gian ước lượng (<1ms).`);
-        }
-      } finally {
-        try {
-          if (fs.existsSync(tmpTxt)) await fs.promises.unlink(tmpTxt);
-          if (fs.existsSync(tmpMp3)) await fs.promises.unlink(tmpMp3);
-          if (fs.existsSync(tmpVtt)) await fs.promises.unlink(tmpVtt);
-        } catch {}
+        accCueText += nextNorm;
+        endMs = cues[cueCursor].endMs;
+        cueCursor++;
       }
+
+      timings.push({
+        startTimeMs: Math.min(startMs, endMs),
+        endTimeMs: Math.max(startMs + 800, endMs)
+      });
     }
 
-    // Chỉ lưu file MP3 nếu có dữ liệu âm thanh hợp lệ (tránh sinh file 0-byte làm hỏng player)
-    if (finalMp3Buffer.length > 0) {
-      await fs.promises.writeFile(outputMp3Path, finalMp3Buffer);
+    return timings;
+  }
+
+  /**
+   * Sinh file âm thanh MP3 + phụ đề VTT trong 1 lượt chạy Single-Pass Edge-TTS (< 4s cho cả bài báo).
+   * Trả về URL phục vụ qua API (/api/reading/audio/:id.mp3) kèm timestamp chính xác từng câu.
+   */
+  static async generateArticleAudio(
+    articleId: string,
+    sentencesJp: string[]
+  ): Promise<{ audioUrl: string | null; timings: { startTimeMs: number; endTimeMs: number }[] }> {
+    const cleanSentences = sentencesJp
+      .map((s) => (s || '').replace(/【\/?下線】/g, '').trim())
+      .filter(Boolean);
+
+    if (cleanSentences.length === 0 || this.edgeTtsAvailable === false) {
       return {
-        audioUrl: `/audio/${articleId}.mp3`,
-        timings
+        audioUrl: null,
+        timings: this.estimateSentenceTimings(cleanSentences)
       };
+    }
+
+    const audioDir = path.resolve(__dirname, '../../../../client/public/audio');
+    if (!fs.existsSync(audioDir)) {
+      fs.mkdirSync(audioDir, { recursive: true });
+    }
+
+    const outputMp3Path = path.join(audioDir, `${articleId}.mp3`);
+    const tmpTxt = path.join(audioDir, `tmp_${articleId}.txt`);
+    const tmpVtt = path.join(audioDir, `tmp_${articleId}.vtt`);
+
+    try {
+      // Ngăn cách câu bằng 2 dấu xuống dòng để Edge-TTS tạo ranh giới VTT cue theo từng câu
+      await fs.promises.writeFile(tmpTxt, cleanSentences.join('\n\n'), 'utf8');
+
+      await execAsync(
+        `edge-tts -f "${tmpTxt}" --voice ja-JP-NanamiNeural --write-media "${outputMp3Path}" --write-subtitles "${tmpVtt}"`,
+        {
+          timeout: 25000,
+          windowsHide: true
+        }
+      );
+
+      let cues: VttCue[] = [];
+      if (fs.existsSync(tmpVtt)) {
+        const vttContent = await fs.promises.readFile(tmpVtt, 'utf8');
+        cues = parseVttCues(vttContent);
+      }
+
+      if (fs.existsSync(outputMp3Path)) {
+        const stat = await fs.promises.stat(outputMp3Path);
+        if (stat.size > 512) {
+          this.edgeTtsAvailable = true;
+          return {
+            audioUrl: `/api/reading/audio/${articleId}.mp3`,
+            timings: this.alignCuesToSentences(cleanSentences, cues)
+          };
+        }
+      }
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.warn(`[TtsService] Edge-TTS error for ${articleId}: ${msg}`);
+      if (msg.includes('not found') || msg.includes('not recognized')) {
+        this.edgeTtsAvailable = false;
+      }
+    } finally {
+      try {
+        if (fs.existsSync(tmpTxt)) await fs.promises.unlink(tmpTxt);
+        if (fs.existsSync(tmpVtt)) await fs.promises.unlink(tmpVtt);
+      } catch {}
     }
 
     return {
       audioUrl: null,
-      timings
+      timings: this.estimateSentenceTimings(cleanSentences)
     };
   }
 }

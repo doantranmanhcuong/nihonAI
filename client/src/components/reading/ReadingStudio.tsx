@@ -49,19 +49,13 @@ export const ReadingStudio: React.FC = () => {
     return null;
   }, []);
 
-  const handleSelectArticle = useCallback(async (articleId: string, updateUrl: boolean = true) => {
+  const handleSelectArticle = useCallback((articleId: string, updateUrl: boolean = true) => {
     setSelectedArticleId(articleId);
+    setSelectedArticle(null);
     setCurrentView('DOKKAI');
 
     if (updateUrl && typeof window !== 'undefined') {
       window.history.pushState(null, '', `#reading?id=${encodeURIComponent(articleId)}`);
-    }
-
-    try {
-      const art = await ReadingApi.getArticleDetail(articleId);
-      setSelectedArticle(art);
-    } catch (err) {
-      console.error('Failed to load article detail:', err);
     }
   }, []);
 
