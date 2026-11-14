@@ -2,6 +2,29 @@ export type JLPTLevel = 'N5' | 'N4' | 'N3' | 'N2' | 'N1';
 
 export type ExamSectionType = 'vocab' | 'grammar' | 'reading' | 'listening';
 
+export interface ShortExamSummary {
+  id: string;
+  level: JLPTLevel;
+  order: number;
+  skill: 'KANJI' | 'TỪ VỰNG' | 'NGỮ PHÁP';
+  title: string;
+  questionCount: number;
+  durationMinutes: number;
+}
+
+export interface ExamBankStats {
+  totalQuestions: number;
+  totalExams: number;
+  levels: {
+    [level: string]: {
+      exams: number;
+      questions: number;
+      shortCount: number;
+      subTypes: Record<string, number>;
+    };
+  };
+}
+
 export interface ExamQuestionItem {
   id: string;
   orderNumber: number;

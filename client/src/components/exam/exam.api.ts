@@ -3,14 +3,16 @@ import {
   ExamSubmissionPayload,
   ExamEvaluationResult,
   AIExplanationResult,
-  ExamDiagnosticReport
+  ExamDiagnosticReport,
+  ShortExamSummary,
+  ExamBankStats
 } from './exam.types';
 
 const API_BASE = typeof window !== 'undefined'
   ? (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/exam` : 'http://localhost:5000/api/exam')
   : 'http://localhost:5000/api/exam';
 
-const EXAM_STORAGE_PREFIX = 'nihonai_exam_v4:';
+const EXAM_STORAGE_PREFIX = 'nihonai_exam_v5:';
 const examMemoryCache = new Map<string, { data: any; timestamp: number }>();
 
 function readExamCache<T>(key: string): { data: T; isFresh: boolean } | null {
@@ -190,6 +192,92 @@ export class ExamApi {
       return json.data || null;
     } catch (err) {
       console.error('[ExamApi] getExamDetail error:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Thống kê thật ngân hàng đề từ CSDL
+   */
+  static async getBankStats(): Promise<ExamBankStats | null> {
+    const cacheKey = 'bank:stats';
+    const cached = readExamCache<ExamBankStats>(cacheKey);
+    if (cached && cached.isFresh) return cached.data;
+    try {
+      const res = await fetch(`${API_BASE}/stats`, { headers: getAuthHeaders() });
+      if (!res.ok) return cached?.data || null;
+      const json = await res.json();
+      if (json.data) writeExamCache(cacheKey, json.data);
+      return json.data || null;
+    } catch (err) {
+      console.error('[ExamApi] getBankStats error:', err);
+      return cached?.data || null;
+    }
+  }
+
+  /**
+   * Danh sách Đề ngắn mỗi ngày (phân tách không trùng lặp câu hỏi theo từng level)
+   */
+  static async getShortExamList(level: string): Promise<ShortExamSummary[]> {
+    const norm = (level || 'N3').toUpperCase();
+    const cacheKey = `short-list:${norm}`;
+    const cached = readExamCache<ShortExamSummary[]>(cacheKey);
+    if (cached && Array.isArray(cached.data) && cached.isFresh) {
+      return cached.data;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/short-list?level=${encodeURIComponent(norm)}`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return cached?.data || [];
+      const json = await res.json();
+      if (Array.isArray(json.data)) {
+        writeExamCache(cacheKey, json.data);
+        return json.data;
+      }
+      return cached?.data || [];
+    } catch (err) {
+      console.error('[ExamApi] getShortExamList error:', err);
+      return cached?.data || [];
+    }
+  }
+
+  /**
+   * Tải chi tiết Đề ngắn số :order
+   */
+  static async getShortExam(level: string, order: number): Promise<JLPTExam | null> {
+    const norm = (level || 'N3').toUpperCase();
+    const cacheKey = `short-detail:${norm}:${order}`;
+    const cached = readExamCache<JLPTExam>(cacheKey);
+    if (cached && cached.data && cached.isFresh) return cached.data;
+    try {
+      const res = await fetch(`${API_BASE}/short/${encodeURIComponent(norm)}/${order}`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      if (json.data) writeExamCache(cacheKey, json.data);
+      return json.data || null;
+    } catch (err) {
+      console.error('[ExamApi] getShortExam error:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Sinh Đề ngẫu nhiên theo Cấp độ + Kỹ năng + Mondai
+   */
+  static async getRandomExam(level: string, skill: string, mondai: string): Promise<JLPTExam | null> {
+    try {
+      const params = new URLSearchParams({ level, skill, mondai });
+      const res = await fetch(`${API_BASE}/random?${params.toString()}`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data || null;
+    } catch (err) {
+      console.error('[ExamApi] getRandomExam error:', err);
       return null;
     }
   }

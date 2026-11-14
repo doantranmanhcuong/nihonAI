@@ -38,6 +38,66 @@ examRouter.get('/list', async (req: Request, res: Response) => {
 });
 
 /**
+ * @route   GET /api/exam/stats
+ * @desc    Thống kê thật số đề thi, số câu hỏi và Mondai khả dụng trong CSDL
+ */
+examRouter.get('/stats', async (_req: Request, res: Response) => {
+  try {
+    const stats = await ExamService.getBankStats();
+    res.json(ResponseFormatter.success(stats, { service: 'exam-service' }));
+  } catch (error: any) {
+    res.status(500).json(ResponseFormatter.error('Lỗi lấy thống kê ngân hàng đề', error.message));
+  }
+});
+
+/**
+ * @route   GET /api/exam/short-list
+ * @desc    Lấy danh sách các đề ngắn không trùng lặp câu hỏi theo level
+ */
+examRouter.get('/short-list', async (req: Request, res: Response) => {
+  try {
+    const level = (req.query.level as string) || 'N3';
+    const items = await ExamService.getShortExamList(level);
+    res.json(ResponseFormatter.success(items, { service: 'exam-service' }));
+  } catch (error: any) {
+    res.status(500).json(ResponseFormatter.error('Lỗi lấy danh sách đề ngắn', error.message));
+  }
+});
+
+/**
+ * @route   GET /api/exam/short/:level/:order
+ * @desc    Lấy nội dung 10 câu hỏi độc lập của đề ngắn số :order
+ */
+examRouter.get('/short/:level/:order', async (req: Request, res: Response) => {
+  try {
+    const level = req.params.level || 'N3';
+    const order = parseInt(req.params.order, 10) || 1;
+    const reveal = req.query.reveal === 'true';
+    const exam = await ExamService.getShortExam(level, order, !reveal);
+    res.json(ResponseFormatter.success(exam, { service: 'exam-service' }));
+  } catch (error: any) {
+    res.status(404).json(ResponseFormatter.error('Không tìm thấy đề ngắn', error.message));
+  }
+});
+
+/**
+ * @route   GET /api/exam/random
+ * @desc    Tạo đề ngẫu nhiên theo Cấp độ + Kỹ năng + Mondai
+ */
+examRouter.get('/random', async (req: Request, res: Response) => {
+  try {
+    const level = (req.query.level as string) || 'N3';
+    const skill = (req.query.skill as string) || 'kanji';
+    const mondai = (req.query.mondai as string) || 'all';
+    const reveal = req.query.reveal === 'true';
+    const exam = await ExamService.getRandomExam(level, skill, mondai, !reveal);
+    res.json(ResponseFormatter.success(exam, { service: 'exam-service' }));
+  } catch (error: any) {
+    res.status(404).json(ResponseFormatter.error('Không thể tạo đề ngẫu nhiên', error.message));
+  }
+});
+
+/**
  * @route   GET /api/exam/:id
  * @desc    Lấy chi tiết bài thi để bắt đầu làm bài
  */

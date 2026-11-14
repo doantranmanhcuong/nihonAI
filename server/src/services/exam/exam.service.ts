@@ -12,7 +12,9 @@ import {
   ExamQuestionItem,
   ExamDiagnosticReport,
   ExamDiagnosticRequest,
-  DiagnosticLessonLearned
+  DiagnosticLessonLearned,
+  ShortExamSummary,
+  ExamBankStats
 } from './exam.types';
 
 export const EXPRESS_DURATIONS: Record<string, number> = {
@@ -109,6 +111,183 @@ export function deduplicateRuntimeOptions(opts: string[], correctIdx: number): s
     seen.add(res[i]);
   }
   return res;
+}
+
+const SHORT_QUESTIONS_PER_EXAM = 10;
+
+const RANDOM_SKILL_CONFIG: Record<
+  string,
+  {
+    sectionTitle: string;
+    mondais: Record<string, { label: string; subTypes: string[] }>;
+  }
+> = {
+  kanji: {
+    sectionTitle: 'Kanji',
+    mondais: {
+      mondai1: { label: 'Mondai 1: Cách đọc Kanji', subTypes: ['kanji_reading'] },
+      mondai2: { label: 'Mondai 2: Viết Hán tự', subTypes: ['orthography'] },
+      all: { label: 'Tất cả dạng Kanji', subTypes: ['kanji_reading', 'orthography'] }
+    }
+  },
+  vocab: {
+    sectionTitle: 'Từ vựng',
+    mondais: {
+      mondai3: { label: 'Mondai 3: Ngữ cảnh từ vựng', subTypes: ['context'] },
+      mondai4: { label: 'Mondai 4: Từ đồng nghĩa', subTypes: ['paraphrase'] },
+      mondai5: { label: 'Mondai 5: Cách dùng từ', subTypes: ['usage'] },
+      all: { label: 'Tất cả dạng Từ vựng', subTypes: ['context', 'paraphrase', 'usage'] }
+    }
+  },
+  grammar: {
+    sectionTitle: 'Ngữ pháp',
+    mondais: {
+      mondai1: { label: 'Mondai 1: Ngữ pháp câu', subTypes: ['grammar_form'] },
+      mondai2: { label: 'Mondai 2: Sắp xếp câu ★', subTypes: ['star_order', 'sentence_order'] },
+      mondai3: { label: 'Mondai 3: Ngữ pháp đoạn văn', subTypes: ['passage_grammar'] },
+      all: { label: 'Tất cả dạng Ngữ pháp', subTypes: ['grammar_form', 'star_order', 'sentence_order', 'passage_grammar'] }
+    }
+  },
+  reading: {
+    sectionTitle: 'Đọc hiểu',
+    mondais: {
+      mondai1: { label: 'Mondai 1: Đoạn văn ngắn', subTypes: ['short_reading'] },
+      mondai2: { label: 'Mondai 2: Đoạn văn trung', subTypes: ['mid_reading', 'medium_reading'] },
+      mondai3: { label: 'Mondai 3: Đoạn văn dài & Tìm thông tin', subTypes: ['long_reading', 'info_search'] },
+      all: { label: 'Tất cả dạng Đọc hiểu', subTypes: ['short_reading', 'mid_reading', 'medium_reading', 'long_reading', 'info_search'] }
+    }
+  },
+  listening: {
+    sectionTitle: 'Nghe hiểu',
+    mondais: {
+      mondai1: { label: 'Mondai 1: Hiểu nhiệm vụ', subTypes: ['task_listen'] },
+      mondai2: { label: 'Mondai 2: Hiểu điểm chính', subTypes: ['point_listen'] },
+      mondai3: { label: 'Mondai 3: Hiểu khái quát', subTypes: ['overview_listen'] },
+      mondai4: { label: 'Mondai 4: Phản xạ nhanh', subTypes: ['quick_response'] },
+      mondai5: { label: 'Mondai 5: Nghe tổng hợp', subTypes: ['integrated_listen'] },
+      all: { label: 'Tất cả dạng Nghe hiểu', subTypes: ['task_listen', 'point_listen', 'overview_listen', 'quick_response', 'integrated_listen'] }
+    }
+  }
+};
+
+function toHalfWidthDigits(s: string): string {
+  return s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+}
+
+function replacePassageMarkers(text: string | null | undefined, map: Map<number, number>): string | undefined {
+  if (!text) return text || undefined;
+  return text.replace(
+    /(【\s*[0-9０-９]+\s*】|\[\s*[0-9０-９]+\s*\]|（\s*[0-9０-９]+\s*）|\(\s*[0-9０-９]+\s*\))/g,
+    (full) => {
+      const m = full.match(/[0-9０-９]+/);
+      if (!m) return full;
+      const oldNum = parseInt(toHalfWidthDigits(m[0]), 10);
+      const newNum = map.get(oldNum);
+      if (!newNum) return full;
+      if (full.startsWith('【')) return `【${newNum}】`;
+      if (full.startsWith('[')) return `[${newNum}]`;
+      if (full.startsWith('（')) return `（${newNum}）`;
+      return `(${newNum})`;
+    }
+  );
+}
+
+/**
+ * Đánh số câu tuần tự 1..N và cập nhật đồng bộ các ô trống 【n】 trong đoạn văn cloze nếu có.
+ */
+export function renumberQuestionsSequentially(questions: any[]): any[] {
+  const groupMaps = new Map<string, Map<number, number>>();
+  const numbered = questions.map((q, idx) => {
+    const newOrder = idx + 1;
+    if (q.passage && q.subType === 'passage_grammar') {
+      const key = `${q.examId || 'ex'}::${q.passage}`;
+      let m = groupMaps.get(key);
+      if (!m) {
+        m = new Map<number, number>();
+        groupMaps.set(key, m);
+      }
+      m.set(q.orderNumber, newOrder);
+    }
+    return { ...q, _newOrder: newOrder };
+  });
+
+  return numbered.map((q) => {
+    const newOrder = q._newOrder;
+    const key = `${q.examId || 'ex'}::${q.passage}`;
+    const map = q.passage && q.subType === 'passage_grammar' ? groupMaps.get(key) : undefined;
+    if (!map) {
+      return { ...q, orderNumber: newOrder };
+    }
+    const singleMap = new Map<number, number>([[q.orderNumber, newOrder]]);
+    return {
+      ...q,
+      orderNumber: newOrder,
+      passage: replacePassageMarkers(q.passage, map),
+      question: replacePassageMarkers(q.question, singleMap) || q.question,
+      questionVi: replacePassageMarkers(q.questionVi, map) || q.questionVi
+    };
+  });
+}
+
+function parseJsonArraySafe(raw: any): string[] {
+  if (Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildActiveSectionsList(formattedQuestions: ExamQuestionItem[]): {
+  section: ExamSectionType;
+  title: string;
+  totalQuestions: number;
+  maxScore: number;
+}[] {
+  const counts: Record<ExamSectionType, number> = { vocab: 0, grammar: 0, reading: 0, listening: 0 };
+  for (const q of formattedQuestions) {
+    if (counts[q.section] !== undefined) counts[q.section]++;
+  }
+  const defs: { section: ExamSectionType; title: string }[] = [
+    { section: 'vocab', title: 'Kiến thức chữ Hán & Từ vựng (文字・語彙)' },
+    { section: 'grammar', title: 'Cấu trúc Ngữ pháp (文法)' },
+    { section: 'reading', title: 'Đọc hiểu nội dung (読解)' },
+    { section: 'listening', title: 'Nghe hiểu tiếng Nhật (聴解)' }
+  ];
+  const active = defs
+    .filter((d) => counts[d.section] > 0)
+    .map((d) => ({ section: d.section, title: d.title, totalQuestions: counts[d.section], maxScore: 60 }));
+  return active.length > 0 ? active : defs.map((d) => ({ ...d, totalQuestions: 0, maxScore: 60 }));
+}
+
+function formatExamQuestionItems(questions: any[], level: JLPTLevel, hideAnswers: boolean): ExamQuestionItem[] {
+  return questions.map((q) => {
+    const optionsList = parseJsonArraySafe(q.options);
+    const optionsViList = parseJsonArraySafe(q.optionsVi);
+    const cleanQ = cleanBoldQuestionText(q.question);
+    const safeOpts = deduplicateRuntimeOptions(optionsList, q.correctIndex);
+
+    return {
+      id: q.id,
+      orderNumber: q.orderNumber,
+      level,
+      section: q.section as ExamSectionType,
+      subType: q.subType,
+      subTypeLabel: q.subTypeLabel,
+      question: cleanQ,
+      questionVi: q.questionVi,
+      passage: q.passage || undefined,
+      passageVi: q.passageVi || undefined,
+      audioUrl: q.audioUrl || (q.section === 'listening' ? `/api/exam/audio/${q.id}` : undefined),
+      imageUrl: q.imageUrl || undefined,
+      options: safeOpts,
+      optionsVi: optionsViList,
+      correctIndex: hideAnswers ? -1 : q.correctIndex,
+      explanation: hideAnswers ? '' : q.explanation,
+      officialSource: q.officialSource
+    };
+  });
 }
 
 function extractKeyGrammar(q: any): string {
@@ -336,76 +515,20 @@ export class ExamService {
       }
     }
 
-    // Nếu chọn Phương án 1 (Thi Tinh Gọn) và có hơn 34 câu, chọn lọc 34 câu đại diện đủ 16 Mondai
-    if (format === 'express' && questionsToUse.length > 34) {
+    // Chỉ rút gọn 34 câu ở chế độ Toàn đề (ALL + express); luyện riêng từng phần giữ đủ câu của phần đó
+    const hasSectionFilter = Boolean(sectionFilter && sectionFilter !== 'ALL');
+    if (!hasSectionFilter && format === 'express' && questionsToUse.length > 34) {
       questionsToUse = pickExpressQuestions(questionsToUse);
+    } else if (hasSectionFilter) {
+      questionsToUse = renumberQuestionsSequentially(questionsToUse);
     }
 
     const chosenDuration = format === 'express'
       ? (EXPRESS_DURATIONS[exam.level] || 50)
       : (FULL_DURATIONS[exam.level] || exam.durationMinutes);
 
-    let vocabCount = 0;
-    let grammarCount = 0;
-    let readingCount = 0;
-    let listeningCount = 0;
-
-    const formattedQuestions: ExamQuestionItem[] = questionsToUse.map((q) => {
-      let optionsList: string[] = [];
-      let optionsViList: string[] = [];
-      try {
-        optionsList = JSON.parse(q.options || '[]');
-      } catch {
-        optionsList = [];
-      }
-      try {
-        optionsViList = q.optionsVi ? JSON.parse(q.optionsVi) : [];
-      } catch {
-        optionsViList = [];
-      }
-
-      if (q.section === 'vocab') vocabCount++;
-      else if (q.section === 'grammar') grammarCount++;
-      else if (q.section === 'reading') readingCount++;
-      else if (q.section === 'listening') listeningCount++;
-
-      const cleanQ = cleanBoldQuestionText(q.question);
-      const safeOpts = deduplicateRuntimeOptions(optionsList, q.correctIndex);
-
-      return {
-        id: q.id,
-        orderNumber: q.orderNumber,
-        level: exam.level as JLPTLevel,
-        section: q.section as ExamSectionType,
-        subType: q.subType,
-        subTypeLabel: q.subTypeLabel,
-        question: cleanQ,
-        questionVi: q.questionVi,
-        passage: q.passage || undefined,
-        passageVi: q.passageVi || undefined,
-        audioUrl: q.audioUrl || (q.section === 'listening' ? `/api/exam/audio/${q.id}` : undefined),
-        imageUrl: q.imageUrl || undefined,
-        options: safeOpts,
-        optionsVi: optionsViList,
-        correctIndex: hideAnswers ? -1 : q.correctIndex,
-        explanation: hideAnswers ? '' : q.explanation,
-        officialSource: q.officialSource
-      };
-    });
-
-    const activeSections: { section: ExamSectionType; title: string; totalQuestions: number; maxScore: number }[] = [];
-    if (vocabCount > 0) {
-      activeSections.push({ section: 'vocab', title: 'Kiến thức chữ Hán & Từ vựng (文字・語彙)', totalQuestions: vocabCount, maxScore: 60 });
-    }
-    if (grammarCount > 0) {
-      activeSections.push({ section: 'grammar', title: 'Cấu trúc Ngữ pháp (文法)', totalQuestions: grammarCount, maxScore: 60 });
-    }
-    if (readingCount > 0) {
-      activeSections.push({ section: 'reading', title: 'Đọc hiểu nội dung (読解)', totalQuestions: readingCount, maxScore: 60 });
-    }
-    if (listeningCount > 0) {
-      activeSections.push({ section: 'listening', title: 'Nghe hiểu tiếng Nhật (聴解)', totalQuestions: listeningCount, maxScore: 60 });
-    }
+    const formattedQuestions = formatExamQuestionItems(questionsToUse, exam.level as JLPTLevel, hideAnswers);
+    const activeSections = buildActiveSectionsList(formattedQuestions);
 
     return {
       id: exam.id,
@@ -425,12 +548,289 @@ export class ExamService {
       totalQuestions: formattedQuestions.length,
       passingScore: exam.passingScore,
       sectionalMinScore: exam.sectionalMinScore,
-      sections: activeSections.length > 0 ? activeSections : [
-        { section: 'vocab', title: 'Kiến thức chữ Hán & Từ vựng (文字・語彙)', totalQuestions: vocabCount, maxScore: 60 },
-        { section: 'grammar', title: 'Cấu trúc Ngữ pháp (文法)', totalQuestions: grammarCount, maxScore: 60 },
-        { section: 'reading', title: 'Đọc hiểu nội dung (読解)', totalQuestions: readingCount, maxScore: 60 },
-        { section: 'listening', title: 'Nghe hiểu tiếng Nhật (聴解)', totalQuestions: listeningCount, maxScore: 60 }
-      ],
+      sections: activeSections,
+      questions: formattedQuestions
+    };
+  }
+
+  /**
+   * Thống kê thật số lượng đề thi, câu hỏi và Mondai khả dụng trong CSDL theo từng cấp độ
+   */
+  static async getBankStats(): Promise<ExamBankStats> {
+    const { data } = await RedisService.getOrSet(
+      'exams:bank:stats:v1',
+      async () => {
+        const exams = await prisma.jlptExam.findMany({
+          where: { isPublished: true },
+          select: { id: true, level: true }
+        });
+        const examLevelMap = new Map(exams.map((e) => [e.id, e.level]));
+        const questions = await prisma.jlptQuestion.findMany({
+          select: { examId: true, section: true, subType: true }
+        });
+
+        const levels: ExamBankStats['levels'] = {};
+        for (const lvl of ['N5', 'N4', 'N3', 'N2', 'N1']) {
+          levels[lvl] = { exams: 0, questions: 0, shortCount: 0, subTypes: {} };
+        }
+        for (const ex of exams) {
+          if (levels[ex.level]) levels[ex.level].exams++;
+        }
+
+        const shortPools: Record<string, { kanji: number; vocab: number; grammar: number }> = {
+          N5: { kanji: 0, vocab: 0, grammar: 0 },
+          N4: { kanji: 0, vocab: 0, grammar: 0 },
+          N3: { kanji: 0, vocab: 0, grammar: 0 },
+          N2: { kanji: 0, vocab: 0, grammar: 0 },
+          N1: { kanji: 0, vocab: 0, grammar: 0 }
+        };
+
+        for (const q of questions) {
+          const lvl = examLevelMap.get(q.examId);
+          if (!lvl || !levels[lvl]) continue;
+          levels[lvl].questions++;
+          levels[lvl].subTypes[q.subType] = (levels[lvl].subTypes[q.subType] || 0) + 1;
+
+          if (q.subType === 'kanji_reading' || q.subType === 'orthography') {
+            shortPools[lvl].kanji++;
+          } else if (q.section === 'vocab') {
+            shortPools[lvl].vocab++;
+          } else if (q.section === 'grammar' && q.subType !== 'passage_grammar') {
+            shortPools[lvl].grammar++;
+          }
+        }
+
+        for (const lvl of Object.keys(levels)) {
+          const sp = shortPools[lvl];
+          levels[lvl].shortCount =
+            Math.floor(sp.kanji / SHORT_QUESTIONS_PER_EXAM) +
+            Math.floor(sp.vocab / SHORT_QUESTIONS_PER_EXAM) +
+            Math.floor(sp.grammar / SHORT_QUESTIONS_PER_EXAM);
+        }
+
+        return {
+          totalQuestions: questions.length,
+          totalExams: exams.length,
+          levels
+        };
+      },
+      1800
+    );
+
+    return data;
+  }
+
+  /**
+   * Chia kho câu hỏi độc lập (không trùng lặp giữa các đề) thành danh sách Đề ngắn mỗi ngày (10 câu/đề)
+   */
+  private static async buildShortExamBuckets(level: string) {
+    const normLevel = (level || 'N3').toUpperCase();
+    const { data } = await RedisService.getOrSet(
+      `exams:short:buckets:${normLevel}:v1`,
+      async () => {
+        const poolQuestions = await prisma.jlptQuestion.findMany({
+          where: {
+            exam: { level: normLevel, isPublished: true },
+            section: { in: ['vocab', 'grammar'] }
+          },
+          select: { id: true, section: true, subType: true, examId: true, orderNumber: true },
+          orderBy: [{ examId: 'asc' }, { orderNumber: 'asc' }, { id: 'asc' }]
+        });
+
+        const kanjiIds: string[] = [];
+        const vocabIds: string[] = [];
+        const grammarIds: string[] = [];
+
+        for (const q of poolQuestions) {
+          if (q.subType === 'kanji_reading' || q.subType === 'orthography') {
+            kanjiIds.push(q.id);
+          } else if (q.section === 'vocab') {
+            vocabIds.push(q.id);
+          } else if (q.section === 'grammar' && q.subType !== 'passage_grammar') {
+            grammarIds.push(q.id);
+          }
+        }
+
+        const sliceIntoChunks = (ids: string[], skill: 'KANJI' | 'TỪ VỰNG' | 'NGỮ PHÁP') => {
+          const chunks: { skill: 'KANJI' | 'TỪ VỰNG' | 'NGỮ PHÁP'; questionIds: string[] }[] = [];
+          const count = Math.floor(ids.length / SHORT_QUESTIONS_PER_EXAM);
+          for (let i = 0; i < count; i++) {
+            chunks.push({
+              skill,
+              questionIds: ids.slice(i * SHORT_QUESTIONS_PER_EXAM, (i + 1) * SHORT_QUESTIONS_PER_EXAM)
+            });
+          }
+          return chunks;
+        };
+
+        const kChunks = sliceIntoChunks(kanjiIds, 'KANJI');
+        const vChunks = sliceIntoChunks(vocabIds, 'TỪ VỰNG');
+        const gChunks = sliceIntoChunks(grammarIds, 'NGỮ PHÁP');
+
+        // Xen kẽ KANJI -> TỪ VỰNG -> NGỮ PHÁP để học viên đổi kỹ năng mỗi đề, hoàn toàn không trùng câu hỏi
+        const combined: { skill: 'KANJI' | 'TỪ VỰNG' | 'NGỮ PHÁP'; questionIds: string[] }[] = [];
+        const maxLen = Math.max(kChunks.length, vChunks.length, gChunks.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < kChunks.length) combined.push(kChunks[i]);
+          if (i < vChunks.length) combined.push(vChunks[i]);
+          if (i < gChunks.length) combined.push(gChunks[i]);
+        }
+
+        return combined.map((c, idx) => ({
+          order: idx + 1,
+          skill: c.skill,
+          questionIds: c.questionIds
+        }));
+      },
+      1800
+    );
+
+    return data;
+  }
+
+  static async getShortExamList(level: string): Promise<ShortExamSummary[]> {
+    const normLevel = (level || 'N3').toUpperCase() as JLPTLevel;
+    const buckets = await ExamService.buildShortExamBuckets(normLevel);
+    return buckets.map((b) => ({
+      id: `short:${normLevel}:${b.order}`,
+      level: normLevel,
+      order: b.order,
+      skill: b.skill,
+      title: `ĐỀ ${b.order}`,
+      questionCount: b.questionIds.length,
+      durationMinutes: 10
+    }));
+  }
+
+  static async getShortExam(level: string, order: number, hideAnswers = true): Promise<JLPTExam> {
+    const normLevel = (level || 'N3').toUpperCase() as JLPTLevel;
+    const buckets = await ExamService.buildShortExamBuckets(normLevel);
+    const target = buckets.find((b) => b.order === order);
+    if (!target) {
+      throw new Error(`Không tìm thấy đề ngắn ${normLevel} số ${order}`);
+    }
+
+    const rawQuestions = await prisma.jlptQuestion.findMany({
+      where: { id: { in: target.questionIds } }
+    });
+    const byId = new Map(rawQuestions.map((q) => [q.id, q]));
+    const ordered = target.questionIds.map((id) => byId.get(id)).filter(Boolean);
+    const renumbered = renumberQuestionsSequentially(ordered);
+    const formattedQuestions = formatExamQuestionItems(renumbered, normLevel, hideAnswers);
+    const activeSections = buildActiveSectionsList(formattedQuestions);
+    const passingMap: Record<string, number> = { N1: 100, N2: 90, N3: 95, N4: 90, N5: 80 };
+
+    return {
+      id: `short:${normLevel}:${order}`,
+      code: `SHORT-${normLevel}-${order}`,
+      title: `ĐỀ NGẮN ${normLevel} - SỐ ${order} (${target.skill})`,
+      level: normLevel,
+      edition: `Đề ngắn mỗi ngày • ${target.skill}`,
+      description: `Bộ 10 câu hỏi ${target.skill} độc lập, không trùng lặp với các đề khác.`,
+      durationMinutes: 10,
+      expressDurationMinutes: 10,
+      fullDurationMinutes: 10,
+      expressTotalQuestions: formattedQuestions.length,
+      fullTotalQuestions: formattedQuestions.length,
+      format: 'full',
+      totalQuestions: formattedQuestions.length,
+      passingScore: passingMap[normLevel] || 95,
+      sectionalMinScore: 19,
+      sections: activeSections,
+      questions: formattedQuestions
+    };
+  }
+
+  /**
+   * Tạo đề ngẫu nhiên chuẩn theo từng Kỹ năng & Mondai (bảo toàn nhóm câu chung đoạn văn đọc hiểu / cloze)
+   */
+  static async getRandomExam(
+    level: string,
+    skill: string,
+    mondai: string,
+    hideAnswers = true
+  ): Promise<JLPTExam> {
+    const normLevel = (level || 'N3').toUpperCase() as JLPTLevel;
+    const normSkill = (skill || 'kanji').toLowerCase();
+    const skillCfg = RANDOM_SKILL_CONFIG[normSkill] || RANDOM_SKILL_CONFIG.kanji;
+    const normMondai = (mondai || 'all').toLowerCase();
+    const mondaiCfg = skillCfg.mondais[normMondai] || skillCfg.mondais.all;
+
+    const candidates = await prisma.jlptQuestion.findMany({
+      where: {
+        exam: { level: normLevel, isPublished: true },
+        subType: { in: mondaiCfg.subTypes }
+      },
+      orderBy: [{ examId: 'asc' }, { orderNumber: 'asc' }, { id: 'asc' }]
+    });
+
+    if (candidates.length === 0) {
+      throw new Error(`Chưa có câu hỏi cho ${normLevel} • ${skillCfg.sectionTitle} (${mondaiCfg.label})`);
+    }
+
+    // Gom nhóm câu dùng chung đoạn văn dài / cloze để không cắt đôi bài đọc
+    const atomicGroups: any[][] = [];
+    const passageGroupMap = new Map<string, any[]>();
+    const hasGroupedPassage = (q: any) =>
+      Boolean(q.passage && (q.section === 'reading' || q.subType === 'passage_grammar'));
+
+    for (const q of candidates) {
+      if (hasGroupedPassage(q)) {
+        const key = `${q.examId}::${q.subType}::${q.passage}`;
+        let grp = passageGroupMap.get(key);
+        if (!grp) {
+          grp = [];
+          passageGroupMap.set(key, grp);
+          atomicGroups.push(grp);
+        }
+        grp.push(q);
+      } else {
+        atomicGroups.push([q]);
+      }
+    }
+
+    // Fisher-Yates shuffle trên các đơn vị câu/bài đọc
+    for (let i = atomicGroups.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [atomicGroups[i], atomicGroups[j]] = [atomicGroups[j], atomicGroups[i]];
+    }
+
+    const isPassageHeavy = normSkill === 'reading' || normMondai === 'mondai3' && normSkill === 'grammar';
+    const targetLimit = isPassageHeavy ? 10 : 15;
+    const chosen: any[] = [];
+
+    for (const grp of atomicGroups) {
+      if (chosen.length >= targetLimit) break;
+      if (chosen.length > 0 && isPassageHeavy && chosen.length + grp.length > 14) continue;
+      chosen.push(...grp);
+    }
+    if (chosen.length === 0 && atomicGroups.length > 0) {
+      chosen.push(...atomicGroups[0]);
+    }
+
+    const renumbered = renumberQuestionsSequentially(chosen);
+    const formattedQuestions = formatExamQuestionItems(renumbered, normLevel, hideAnswers);
+    const activeSections = buildActiveSectionsList(formattedQuestions);
+    const passingMap: Record<string, number> = { N1: 100, N2: 90, N3: 95, N4: 90, N5: 80 };
+    const nonce = Date.now().toString(36);
+
+    return {
+      id: `random:${normLevel}:${normSkill}:${normMondai}:${nonce}`,
+      code: `RAND-${normLevel}-${normSkill.toUpperCase()}`,
+      title: `ĐỀ NGẪU NHIÊN ${normLevel} • ${skillCfg.sectionTitle.toUpperCase()} (${mondaiCfg.label})`,
+      level: normLevel,
+      edition: `Đề ngẫu nhiên • ${mondaiCfg.label}`,
+      description: `Sinh ngẫu nhiên ${formattedQuestions.length} câu hỏi ${normLevel} cho ${skillCfg.sectionTitle} (${mondaiCfg.label}).`,
+      durationMinutes: Math.max(10, Math.min(45, formattedQuestions.length * 2)),
+      expressDurationMinutes: Math.max(10, formattedQuestions.length * 2),
+      fullDurationMinutes: Math.max(10, formattedQuestions.length * 2),
+      expressTotalQuestions: formattedQuestions.length,
+      fullTotalQuestions: formattedQuestions.length,
+      format: 'full',
+      totalQuestions: formattedQuestions.length,
+      passingScore: passingMap[normLevel] || 95,
+      sectionalMinScore: 19,
+      sections: activeSections,
       questions: formattedQuestions
     };
   }
@@ -439,39 +839,82 @@ export class ExamService {
    * Chấm điểm bài thi tự động theo chuẩn thang điểm 180 của JLPT và lưu vào CSDL
    */
   static async submitExam(payload: ExamSubmissionPayload, userId?: string): Promise<ExamEvaluationResult> {
-    let exam = await prisma.jlptExam.findUnique({
-      where: { id: payload.examId },
-      include: {
-        questions: {
-          orderBy: { orderNumber: 'asc' }
-        }
-      }
-    });
+    const isVirtualExam = payload.examId.startsWith('short:') || payload.examId.startsWith('random:');
+    let exam: any = null;
 
-    if (!exam) {
+    if (!isVirtualExam) {
       exam = await prisma.jlptExam.findUnique({
-        where: { code: payload.examId },
+        where: { id: payload.examId },
         include: {
           questions: {
             orderBy: { orderNumber: 'asc' }
           }
         }
       });
-    }
 
-    if (!exam) {
-      throw new Error(`Không tìm thấy đề thi với mã ID: ${payload.examId}`);
+      if (!exam) {
+        exam = await prisma.jlptExam.findUnique({
+          where: { code: payload.examId },
+          include: {
+            questions: {
+              orderBy: { orderNumber: 'asc' }
+            }
+          }
+        });
+      }
     }
 
     const userAnswers = payload.userAnswers || {};
     let totalCorrect = 0;
+    let targetQuestions: any[] = [];
 
-    let targetQuestions = exam.questions;
-    if (payload.questionIds && payload.questionIds.length > 0) {
-      const qIdSet = new Set(payload.questionIds);
-      targetQuestions = exam.questions.filter((q) => qIdSet.has(q.id));
-    } else if (payload.format === 'express' && exam.questions.length > 34) {
-      targetQuestions = pickExpressQuestions(exam.questions);
+    if (isVirtualExam) {
+      const ids = payload.questionIds || Object.keys(userAnswers);
+      if (ids.length === 0) {
+        throw new Error(`Không có danh sách câu hỏi cho đề luyện tập: ${payload.examId}`);
+      }
+      const rawQuestions = await prisma.jlptQuestion.findMany({
+        where: { id: { in: ids } }
+      });
+      const byId = new Map(rawQuestions.map((q) => [q.id, q]));
+      targetQuestions = renumberQuestionsSequentially(
+        ids.map((id) => byId.get(id)).filter(Boolean)
+      );
+      const parts = payload.examId.split(':');
+      const inferredLevel = (['N1', 'N2', 'N3', 'N4', 'N5'].includes((parts[1] || '').toUpperCase())
+        ? parts[1].toUpperCase()
+        : 'N3') as JLPTLevel;
+      const passingMap: Record<string, number> = { N1: 100, N2: 90, N3: 95, N4: 90, N5: 80 };
+      const titlePrefix = payload.examId.startsWith('short:')
+        ? `ĐỀ NGẮN ${inferredLevel} - SỐ ${parts[2] || '1'}`
+        : `ĐỀ NGẪU NHIÊN ${inferredLevel}`;
+      exam = {
+        id: payload.examId,
+        title: titlePrefix,
+        level: inferredLevel,
+        passingScore: passingMap[inferredLevel] || 95,
+        sectionalMinScore: 19,
+        questions: targetQuestions
+      };
+    } else {
+      if (!exam) {
+        throw new Error(`Không tìm thấy đề thi với mã ID: ${payload.examId}`);
+      }
+      targetQuestions = exam.questions;
+      if (payload.questionIds && payload.questionIds.length > 0) {
+        const qIdSet = new Set(payload.questionIds);
+        const byId = new Map<string, any>(exam.questions.map((q: any) => [q.id, q]));
+        const subset = payload.questionIds
+          .map((id) => byId.get(id))
+          .filter((q): q is any => Boolean(q));
+        const filtered = subset.length > 0 ? subset : exam.questions.filter((q: any) => qIdSet.has(q.id));
+        targetQuestions =
+          filtered.length < exam.questions.length
+            ? renumberQuestionsSequentially(filtered)
+            : filtered;
+      } else if (payload.format === 'express' && exam.questions.length > 34) {
+        targetQuestions = pickExpressQuestions(exam.questions);
+      }
     }
 
     const sectionGroups: {
@@ -618,24 +1061,26 @@ export class ExamService {
       summaryMessage = `Rất tiếc! Bạn chưa đạt điểm chuẩn tối thiểu (${totalScore}/${effectivePassingScore} điểm). Hãy tiếp tục ôn luyện cùng NihonAI nhé!`;
     }
 
-    // Lưu kết quả làm bài vào cơ sở dữ liệu `jlpt_exam_attempts`
-    try {
-      await prisma.jlptExamAttempt.create({
-        data: {
-          examId: exam.id,
-          userId: userId || null,
-          totalScore,
-          totalCorrect,
-          totalQuestions: targetQuestions.length,
-          isPassed,
-          hasSectionalFailure,
-          timeSpentSeconds: payload.timeSpentSeconds || 0,
-          userAnswers: JSON.stringify(userAnswers),
-          sectionScores: JSON.stringify(sectionScoreMap)
-        }
-      });
-    } catch (saveErr) {
-      console.warn('Lỗi ghi lại lịch sử làm bài thi (jlptExamAttempt):', saveErr);
+    // Lưu kết quả làm bài vào cơ sở dữ liệu `jlpt_exam_attempts` (chỉ lưu đề DB chuẩn, bỏ qua đề short/random ảo)
+    if (!isVirtualExam) {
+      try {
+        await prisma.jlptExamAttempt.create({
+          data: {
+            examId: exam.id,
+            userId: userId || null,
+            totalScore,
+            totalCorrect,
+            totalQuestions: targetQuestions.length,
+            isPassed,
+            hasSectionalFailure,
+            timeSpentSeconds: payload.timeSpentSeconds || 0,
+            userAnswers: JSON.stringify(userAnswers),
+            sectionScores: JSON.stringify(sectionScoreMap)
+          }
+        });
+      } catch (saveErr) {
+        console.warn('Lỗi ghi lại lịch sử làm bài thi (jlptExamAttempt):', saveErr);
+      }
     }
 
     return {

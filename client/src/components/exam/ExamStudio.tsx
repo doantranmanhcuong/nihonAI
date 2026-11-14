@@ -58,6 +58,7 @@ import {
   ExamQuestionItem,
   ExamEvaluationResult,
   AIExplanationResult,
+  ExamBankStats,
   ExamSectionType,
   ExamDiagnosticReport,
   DiagnosticLessonLearned,
@@ -1056,8 +1057,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
 
 
-  // State tính năng Đánh giá đa chiều: Gạch bỏ phương án sai (Strikethrough / Elimination)
-  const [eliminatedOptions, setEliminatedOptions] = useState<{ [questionId: string]: number[] }>({});
+  // Thống kê thật ngân hàng đề & câu hỏi
+  const [bankStats, setBankStats] = useState<ExamBankStats | null>(null);
 
   // State theo dõi thời gian dừng ở câu hiện tại (Pacing Guide cảnh báo nhịp độ)
   const [questionTimeSpentSeconds, setQuestionTimeSpentSeconds] = useState<number>(0);
@@ -1191,11 +1192,16 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     };
   }, [selectedLevel, selectedYear, selectedSession]);
 
-  // Tải trước số lượng câu làm sai trên nhãn Tab ngay khi mở trang
+  // Tải trước số lượng câu làm sai & thống kê ngân hàng câu hỏi ngay khi mở trang
   useEffect(() => {
     NotebookApi.getItems({ tags: 'Câu_sai' })
       .then((items) => setMistakeItems(items || []))
       .catch((err) => console.warn('Lỗi tải danh sách câu sai ban đầu:', err));
+    ExamApi.getBankStats()
+      .then((stats) => {
+        if (stats) setBankStats(stats);
+      })
+      .catch(() => {});
   }, []);
 
   // Tải danh sách câu làm sai khi vào tab Ngân hàng câu sai (Mistake Bank)
@@ -1373,27 +1379,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     setShowCoverModal(true);
   };
 
-  // Bắt đầu làm bài thi (hỗ trợ Phương án 1: 34 câu tinh gọn rút ngắn thời gian hoặc Phương án 2: Đầy đủ thời gian chuẩn)
-  const handleStartExam = async (
-    exam: JLPTExam,
-    mode: ExamMode,
-    section?: string,
-    format: 'express' | 'full' = selectedFormat
-  ) => {
-    if (!isAuthenticated) {
-      openAuthModal('login');
-      return;
-    }
-    setShowCoverModal(false);
-    setIsLoadingList(true);
-    setSelectedFormat(format);
-    const fullExam = await ExamApi.getExamDetail(exam.id, section, format);
-    setIsLoadingList(false);
-    if (!fullExam) {
-      showNotification('Không thể tải chi tiết đề thi.', 'error');
-      return;
-    }
-
+  const launchExamSession = (fullExam: JLPTExam, mode: ExamMode, format: 'express' | 'full') => {
     let finalQuestions = fullExam.questions || [];
     if (selectedMondaiFilter && selectedMondaiFilter !== 'ALL') {
       const kws = MONDAI_KEYWORDS[selectedMondaiFilter] || [selectedMondaiFilter];
@@ -1428,7 +1414,6 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     setBreakTimeRemaining(300);
 
     if (mode === 'exam') {
-      // Don't start timer yet, show intro screen
       setCurrentScreen('intro');
     } else {
       examStartTimestampRef.current = Date.now();
@@ -1436,6 +1421,61 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       setIsTimerRunning(false);
       setCurrentScreen('taking');
     }
+  };
+
+  // Bắt đầu làm bài thi (Chuẩn JLPT toàn đề hoặc từng phần)
+  const handleStartExam = async (
+    exam: JLPTExam,
+    mode: ExamMode,
+    section?: string,
+    format: 'express' | 'full' = selectedFormat
+  ) => {
+    if (!isAuthenticated) {
+      openAuthModal('login');
+      return;
+    }
+    setShowCoverModal(false);
+    setIsLoadingList(true);
+    setSelectedFormat(format);
+    const fullExam = await ExamApi.getExamDetail(exam.id, section, format);
+    setIsLoadingList(false);
+    if (!fullExam) {
+      showNotification('Không thể tải chi tiết đề thi.', 'error');
+      return;
+    }
+    launchExamSession(fullExam, mode, format);
+  };
+
+  const handleStartShortExam = async (level: string, order: number) => {
+    if (!isAuthenticated) {
+      openAuthModal('login');
+      return;
+    }
+    setIsLoadingList(true);
+    setSelectedFormat('full');
+    const shortExam = await ExamApi.getShortExam(level, order);
+    setIsLoadingList(false);
+    if (!shortExam) {
+      showNotification(`Không thể tải Đề ngắn ${level} số ${order}.`, 'error');
+      return;
+    }
+    launchExamSession(shortExam, 'practice', 'full');
+  };
+
+  const handleStartRandomExam = async (level: string, skill: string, mondai: string) => {
+    if (!isAuthenticated) {
+      openAuthModal('login');
+      return;
+    }
+    setIsLoadingList(true);
+    setSelectedFormat('full');
+    const randExam = await ExamApi.getRandomExam(level, skill, mondai);
+    setIsLoadingList(false);
+    if (!randExam) {
+      showNotification(`Không tìm thấy câu hỏi phù hợp cho ${level} • ${skill} (${mondai}).`, 'error');
+      return;
+    }
+    launchExamSession(randExam, 'practice', 'full');
   };
 
   const handleConfirmStartRealExam = () => {
@@ -1901,22 +1941,6 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       ...prev,
       [questionId]: optionIndex
     }));
-  };
-
-  // Tính năng Đánh giá đa chiều: Gạch bỏ loại trừ phương án sai (Strikethrough / Elimination)
-  const handleToggleEliminate = (questionId: string, optIdx: number, e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    setEliminatedOptions((prev) => {
-      const currentList = prev[questionId] || [];
-      if (currentList.includes(optIdx)) {
-        return { ...prev, [questionId]: currentList.filter((i) => i !== optIdx) };
-      } else {
-        return { ...prev, [questionId]: [...currentList, optIdx] };
-      }
-    });
   };
 
   // Xử lý bôi đen / nhấn đúp để tra cứu nhanh & câu ví dụ tương tự (tiện ích eJOY style)
@@ -2611,9 +2635,12 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         completedExamKeys={completedExamKeys}
         mistakeItems={mistakeItems}
         examList={examList}
+        bankStats={bankStats}
         onStartExam={(exam, mode, section, format) => {
           handleStartExam(exam, mode, section, format || 'full');
         }}
+        onStartShortExam={handleStartShortExam}
+        onStartRandomExam={handleStartRandomExam}
         onStartMistakePractice={handleStartMistakePractice}
       />
     );
