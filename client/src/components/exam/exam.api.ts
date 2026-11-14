@@ -10,7 +10,7 @@ const API_BASE = typeof window !== 'undefined'
   ? (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/exam` : 'http://localhost:5000/api/exam')
   : 'http://localhost:5000/api/exam';
 
-const EXAM_STORAGE_PREFIX = 'nihonai_exam_v3:';
+const EXAM_STORAGE_PREFIX = 'nihonai_exam_v4:';
 const examMemoryCache = new Map<string, { data: any; timestamp: number }>();
 
 function readExamCache<T>(key: string): { data: T; isFresh: boolean } | null {

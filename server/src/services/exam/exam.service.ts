@@ -323,7 +323,14 @@ export class ExamService {
 
     let questionsToUse = exam.questions;
     if (sectionFilter && sectionFilter !== 'ALL') {
-      const filtered = exam.questions.filter((q) => q.section.toLowerCase() === sectionFilter.toLowerCase());
+      const normFilter = sectionFilter.toLowerCase();
+      const filtered = exam.questions.filter((q) => {
+        const sec = q.section.toLowerCase();
+        if (normFilter === 'grammar_reading') {
+          return sec === 'grammar' || sec === 'reading';
+        }
+        return sec === normFilter;
+      });
       if (filtered.length > 0) {
         questionsToUse = filtered;
       }
@@ -512,6 +519,7 @@ export class ExamService {
         questionId: q.id,
         orderNumber: q.orderNumber,
         section: q.section as ExamSectionType,
+        subType: q.subType,
         subTypeLabel: q.subTypeLabel,
         question: q.question,
         questionVi: q.questionVi,
@@ -553,16 +561,9 @@ export class ExamService {
       if (hasReading && readingScore < exam.sectionalMinScore) hasSectionalFailure = true;
       if (hasListening && listeningScore < exam.sectionalMinScore) hasSectionalFailure = true;
     } else {
-      const vocabScore = sectionGroups.vocab.totalQuestions > 0
-        ? Math.round((sectionGroups.vocab.correctCount / sectionGroups.vocab.totalQuestions) * 60)
-        : 0;
-      const grammarScore = sectionGroups.grammar.totalQuestions > 0
-        ? Math.round((sectionGroups.grammar.correctCount / sectionGroups.grammar.totalQuestions) * 60)
-        : 0;
-      totalScore = vocabScore + grammarScore + readingScore;
-      if (vocabScore < exam.sectionalMinScore || grammarScore < exam.sectionalMinScore || readingScore < exam.sectionalMinScore) {
-        hasSectionalFailure = true;
-      }
+      totalScore = knowledgeScore + readingScore;
+      if (knowledgeTotal > 0 && knowledgeScore < exam.sectionalMinScore) hasSectionalFailure = true;
+      if (hasReading && readingScore < exam.sectionalMinScore) hasSectionalFailure = true;
     }
 
     const activeSections = (['vocab', 'grammar', 'reading', 'listening'] as ExamSectionType[])
@@ -574,11 +575,11 @@ export class ExamService {
       let isFailed = false;
 
       if (secKey === 'vocab') {
-        sectionScore = group.totalQuestions > 0 ? Math.round((group.correctCount / group.totalQuestions) * (hasListening ? 30 : 60)) : 0;
-        isFailed = hasListening ? (knowledgeScore < exam.sectionalMinScore) : (sectionScore < exam.sectionalMinScore);
+        sectionScore = group.totalQuestions > 0 ? Math.round((group.correctCount / group.totalQuestions) * (sectionGroups.grammar.totalQuestions > 0 ? 30 : 60)) : 0;
+        isFailed = knowledgeScore < exam.sectionalMinScore;
       } else if (secKey === 'grammar') {
-        sectionScore = group.totalQuestions > 0 ? Math.round((group.correctCount / group.totalQuestions) * (hasListening ? 30 : 60)) : 0;
-        isFailed = hasListening ? (knowledgeScore < exam.sectionalMinScore) : (sectionScore < exam.sectionalMinScore);
+        sectionScore = group.totalQuestions > 0 ? Math.round((group.correctCount / group.totalQuestions) * (sectionGroups.vocab.totalQuestions > 0 ? 30 : 60)) : 0;
+        isFailed = knowledgeScore < exam.sectionalMinScore;
       } else if (secKey === 'reading') {
         sectionScore = readingScore;
         isFailed = readingScore < exam.sectionalMinScore;
@@ -599,15 +600,22 @@ export class ExamService {
       };
     });
 
-    const isPassed = totalScore >= exam.passingScore && !hasSectionalFailure;
+    const maxPossibleScore =
+      ((knowledgeTotal > 0 ? 60 : 0) +
+        (hasReading ? 60 : 0) +
+        (hasListening ? 60 : 0)) || 180;
+    const effectivePassingScore = maxPossibleScore < 180
+      ? Math.round((exam.passingScore / 180) * maxPossibleScore)
+      : exam.passingScore;
+    const isPassed = totalScore >= effectivePassingScore && !hasSectionalFailure;
 
     let summaryMessage = '';
     if (isPassed) {
-      summaryMessage = `Chúc mừng bạn đã XUẤT SẮC ĐẠT (合格 - PASSED) kỳ thi JLPT ${exam.level} với ${totalScore}/180 điểm!`;
+      summaryMessage = `Chúc mừng bạn đã XUẤT SẮC ĐẠT (合格 - PASSED) kỳ thi JLPT ${exam.level} với ${totalScore}/${maxPossibleScore} điểm!`;
     } else if (hasSectionalFailure) {
-      summaryMessage = `Rất tiếc! Mặc dù tổng điểm của bạn đạt ${totalScore}/180, nhưng bạn bị ĐIỂM LIỆT (< ${exam.sectionalMinScore}/60) ở một phần thi theo quy chuẩn JLPT.`;
+      summaryMessage = `Rất tiếc! Mặc dù tổng điểm của bạn đạt ${totalScore}/${maxPossibleScore}, nhưng bạn bị ĐIỂM LIỆT (< ${exam.sectionalMinScore}/60) ở một phần thi theo quy chuẩn JLPT.`;
     } else {
-      summaryMessage = `Rất tiếc! Bạn chưa đạt điểm chuẩn tối thiểu (${totalScore}/${exam.passingScore} điểm). Hãy tiếp tục ôn luyện cùng NihonAI nhé!`;
+      summaryMessage = `Rất tiếc! Bạn chưa đạt điểm chuẩn tối thiểu (${totalScore}/${effectivePassingScore} điểm). Hãy tiếp tục ôn luyện cùng NihonAI nhé!`;
     }
 
     // Lưu kết quả làm bài vào cơ sở dữ liệu `jlpt_exam_attempts`

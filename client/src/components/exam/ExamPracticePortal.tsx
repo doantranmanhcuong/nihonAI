@@ -553,7 +553,7 @@ export function ExamPracticePortal({
                   onClick={() => {
                     const ex = selectedExamForModal;
                     setSelectedExamForModal(null);
-                    onStartExam(ex, 'practice', 'grammar');
+                    onStartExam(ex, 'practice', 'grammar_reading');
                   }}
                   className="w-full p-4 rounded-2xl border border-slate-200/90 hover:border-blue-500 hover:bg-blue-50/40 transition-all flex items-center justify-between group cursor-pointer"
                 >

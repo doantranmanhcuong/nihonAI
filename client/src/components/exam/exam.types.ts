@@ -70,6 +70,7 @@ export interface QuestionResultItem {
   questionId: string;
   orderNumber: number;
   section: ExamSectionType;
+  subType?: string;
   subTypeLabel: string;
   question: string;
   questionVi: string;

@@ -709,14 +709,16 @@ const parseDialogueTurns = (q: ExamQuestionItem, fallbackPassage?: string): Dial
 const renderPassageWithHighlight = (passage: string, activeOrderNumber?: number) => {
     if (!passage) return '';
     if (!activeOrderNumber) {
-      return `<p class="text-slate-900 text-sm md:text-base leading-loose whitespace-pre-line font-japanese">${passage}</p>`;
+      return `<div class="text-slate-900 text-sm md:text-base leading-loose whitespace-pre-line font-japanese">${passage}</div>`;
     }
 
-    const parts = passage.split(/(【\s*\d+\s*】|\[\s*\d+\s*\]|（\s*\d+\s*）)/g);
+    const parts = passage.split(/(【\s*[0-9０-９]+\s*】|\[\s*[0-9０-９]+\s*\]|（\s*[0-9０-９]+\s*）|\(\s*[0-9０-９]+\s*\))/g);
+    const toAsciiDigits = (s: string) => s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
     const innerHtml = parts.map((part) => {
-      const numMatch = part.match(/\d+/);
-      if (numMatch) {
-        const num = parseInt(numMatch[0], 10);
+      const markerMatch = part.match(/^(?:【\s*([0-9０-９]+)\s*】|\[\s*([0-9０-９]+)\s*\]|（\s*([0-9０-９]+)\s*）|\(\s*([0-9０-９]+)\s*\))$/);
+      if (markerMatch) {
+        const rawNum = markerMatch[1] || markerMatch[2] || markerMatch[3] || markerMatch[4] || '';
+        const num = parseInt(toAsciiDigits(rawNum), 10);
         const isActive = num === activeOrderNumber;
         if (isActive) {
           return `<span class="inline-flex items-center justify-center px-3 py-0.5 mx-1 rounded-sm font-black text-xs md:text-sm border-b-2 border-amber-500 bg-amber-50 text-amber-900 select-none align-baseline min-w-[3rem]">（　${num}　）</span>`;
@@ -1015,6 +1017,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
   const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number>(0);
   const [showFurigana, setShowFurigana] = useState<boolean>(true);
   const [isDrawingMode, setIsDrawingMode] = useState<boolean>(false);
+  const examStartTimestampRef = useRef<number>(Date.now());
 
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
   // Quản lý các phiên thi (Exam Sessions) chuẩn JLPT (Từ vựng -> Nghỉ -> Ngữ pháp Đọc hiểu -> Nghỉ -> Nghe)
@@ -1357,7 +1360,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       setTimeRemainingSeconds(nextSess ? nextSess.durationMinutes * 60 : 2400);
       setIsTimerRunning(true);
       if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: 'auto' });
       }
     } else {
       handleForceSubmit();
@@ -1412,6 +1415,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       window.history.pushState(null, '', `#exam?id=${encodeURIComponent(fullExam.id)}`);
     }
     setExamMode(mode);
+    setShowFurigana(mode !== 'exam');
     setCurrentQuestionIndex(0);
     setUserAnswers({});
     setAiExplanations({});
@@ -1427,6 +1431,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       // Don't start timer yet, show intro screen
       setCurrentScreen('intro');
     } else {
+      examStartTimestampRef.current = Date.now();
       setTimeRemainingSeconds(0);
       setIsTimerRunning(false);
       setCurrentScreen('taking');
@@ -1436,8 +1441,10 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
   const handleConfirmStartRealExam = () => {
     if (!activeExam) return;
     setCurrentSessionIndex(0);
+    setShowFurigana(false);
     setIsBreakModalOpen(false);
     setBreakTimeRemaining(300);
+    examStartTimestampRef.current = Date.now();
     const sessions = getExamSessions(activeExam.level, activeExam.format || selectedFormat, activeExam.questions || []);
     const initialSession = sessions[0];
     const minutes = initialSession ? initialSession.durationMinutes : (
@@ -2029,9 +2036,10 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       window.speechSynthesis.cancel();
     }
 
-    const timeSpent = examMode === 'exam'
-      ? (activeExam.durationMinutes * 60) - timeRemainingSeconds
-      : 3600;
+    const timeSpent = Math.max(
+      1,
+      Math.round((Date.now() - (examStartTimestampRef.current || Date.now())) / 1000)
+    );
 
     let result = await ExamApi.submitExam({
       examId: activeExam.id,
@@ -2121,6 +2129,8 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     setShowSubmitModal(false);
 
     if (result) {
+      setResultFilter('all');
+      setResultSectionFilter('all');
       setExamResult(result);
       if (activeExam?.id) {
         setCompletedExamKeys((prev) => {
@@ -2701,13 +2711,15 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     let currentGroupList: ExamQuestionItem[] = [];
 
     currentSessionQuestions.forEach((q: ExamQuestionItem) => {
-      const key = q.subTypeLabel || q.subType || q.section;
+      const baseLabel = (q.subTypeLabel || '').replace(/\s*\(.*?\)\s*$/, '').trim();
+      const key = q.subType || baseLabel || q.section;
       if (key !== currentGroupKey) {
         if (currentGroupList.length > 0) {
           const first = currentGroupList[0];
+          const firstBaseLabel = (first.subTypeLabel || '').replace(/\s*\(.*?\)\s*$/, '').trim();
           sessionMondaiGroups.push({
             key: currentGroupKey,
-            label: first.subTypeLabel || currentGroupKey,
+            label: firstBaseLabel || currentGroupKey,
             instruction: getMondaiInstruction(first.subType, first.subTypeLabel),
             questions: currentGroupList
           });
@@ -2721,9 +2733,10 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
     if (currentGroupList.length > 0) {
       const first = currentGroupList[0];
+      const firstBaseLabel = (first.subTypeLabel || '').replace(/\s*\(.*?\)\s*$/, '').trim();
       sessionMondaiGroups.push({
         key: currentGroupKey,
-        label: first.subTypeLabel || currentGroupKey,
+        label: firstBaseLabel || currentGroupKey,
         instruction: getMondaiInstruction(first.subType, first.subTypeLabel),
         questions: currentGroupList
       });
@@ -2808,24 +2821,26 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                 <span className="hidden sm:inline">BÚT VẼ</span>
               </button>
 
-              {/* Furigana toggle */}
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowFurigana(!showFurigana)}
-                  className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors cursor-pointer ${
-                    showFurigana ? 'bg-[#4F46E5]' : 'bg-slate-300'
-                  }`}
-                  title="Bật/Tắt Furigana"
-                >
-                  <span
-                    className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
-                      showFurigana ? 'translate-x-4.5 sm:translate-x-6' : 'translate-x-1'
+              {/* Furigana toggle (chỉ bật trong chế độ Luyện tập, khóa hoàn toàn khi Thi thật) */}
+              {examMode === 'practice' && (
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFurigana(!showFurigana)}
+                    className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      showFurigana ? 'bg-[#4F46E5]' : 'bg-slate-300'
                     }`}
-                  />
-                </button>
-                <span className="text-[11px] font-bold text-slate-600 hidden sm:inline">FURIGANA</span>
-              </div>
+                    title="Bật/Tắt Furigana"
+                  >
+                    <span
+                      className={`inline-block h-3.5 w-3.5 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform ${
+                        showFurigana ? 'translate-x-4.5 sm:translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-[11px] font-bold text-slate-600 hidden sm:inline">FURIGANA</span>
+                </div>
+              )}
 
               {/* Tiến độ toggle */}
               <button
@@ -2846,11 +2861,11 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         </header>
 
         {/* KHU VỰC LÀM BÀI CHÍNH */}
-        <main className="max-w-6xl mx-auto px-4 py-6">
+        <main key={`session-main-${currentSessionIndex}-${currentSession.id}`} className="max-w-6xl mx-auto px-4 py-6">
           {/* Header Banner Phân môn (Image 9) */}
           <div className="bg-[#F1F5F9] border border-slate-200/80 rounded-2xl p-6 text-center mb-8 shadow-xs">
             <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-wide mb-2 uppercase font-sans">
-              {activeExam.title} • {currentSession.title}
+              {activeExam.title} • {examMode === 'practice' && examSessions.length > 1 ? 'LUYỆN TẬP TOÀN ĐỀ' : currentSession.title}
             </h1>
             <div className="flex items-center justify-center gap-2">
               <span className="px-3 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-200">
@@ -2867,7 +2882,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
             <div className="flex-1 w-full min-w-0 space-y-6">
               {sessionMondaiGroups.map((group, gIdx) => {
                 return (
-                  <div key={group.key || gIdx} className="space-y-4">
+                  <div key={`session-group-${currentSessionIndex}-${group.key}-${gIdx}`} className="space-y-4">
                     {/* Hướng dẫn Mondai chuẩn JLPT (Image 9) */}
                     <div className="pt-2 pb-1">
                       <div className="text-sm md:text-base font-bold text-slate-800 font-japanese leading-relaxed">
@@ -2884,6 +2899,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                     {group.questions.map((q, qSubIdx) => {
                       const isAnswered = userAnswers[q.id] !== undefined;
                       const globalOrSessionNum = q.orderNumber || (qSubIdx + 1);
+                      const isSamePassageAsPrev = qSubIdx > 0 && group.questions[qSubIdx - 1].passage === q.passage;
 
                       return (
                         <div
@@ -2893,18 +2909,36 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                             isAnswered ? 'border-slate-300' : 'border-slate-200/80'
                           }`}
                         >
-                          {/* ĐOẠN VĂN ĐỌC HIỂU NẾU CÓ (Chỉ hiển thị cho bài Đọc hiểu, tuyệt đối KHÔNG hiển thị kịch bản nghe khi đang làm bài) */}
+                          {/* ĐOẠN VĂN ĐỌC HIỂU NẾU CÓ (Chỉ hiển thị cho bài Đọc hiểu / Ngữ pháp đoạn văn, tuyệt đối KHÔNG hiển thị kịch bản nghe khi đang làm bài) */}
                           {q.passage && q.section !== 'listening' && !q.audioUrl && (
-                            <div className="p-4 md:p-5 rounded-2xl bg-amber-50/40 border border-amber-200/80 mb-5 font-japanese text-sm md:text-base leading-relaxed text-slate-900 whitespace-pre-line">
-                              {q.imageUrl && (
-                                <img
-                                  src={q.imageUrl}
-                                  alt="Bài đọc Dokkai"
-                                  className="max-h-56 mx-auto rounded-xl border border-amber-200 mb-3 object-contain"
-                                />
-                              )}
-                              <div dangerouslySetInnerHTML={{ __html: renderPassageWithHighlight(q.passage, q.orderNumber) }} />
-                            </div>
+                            isSamePassageAsPrev && q.section === 'reading' ? (
+                              <details open className="mb-4 rounded-2xl bg-amber-50/40 border border-amber-200/80">
+                                <summary className="px-4 py-2.5 text-xs font-bold text-amber-800 cursor-pointer select-none font-sans">
+                                  Đoạn văn dùng chung (Nhấn để thu gọn / mở rộng)
+                                </summary>
+                                <div className="px-4 pb-4 md:px-5 md:pb-5 font-japanese text-sm md:text-base leading-relaxed text-slate-900 whitespace-pre-line border-t border-amber-200/60 pt-3">
+                                  {q.imageUrl && (
+                                    <img
+                                      src={q.imageUrl}
+                                      alt="Bài đọc Dokkai"
+                                      className="max-h-56 mx-auto rounded-xl border border-amber-200 mb-3 object-contain"
+                                    />
+                                  )}
+                                  <div dangerouslySetInnerHTML={{ __html: renderPassageWithHighlight(q.passage, undefined) }} />
+                                </div>
+                              </details>
+                            ) : (
+                              <div className="p-4 md:p-5 rounded-2xl bg-amber-50/40 border border-amber-200/80 mb-5 font-japanese text-sm md:text-base leading-relaxed text-slate-900 whitespace-pre-line">
+                                {q.imageUrl && (
+                                  <img
+                                    src={q.imageUrl}
+                                    alt="Bài đọc Dokkai"
+                                    className="max-h-56 mx-auto rounded-xl border border-amber-200 mb-3 object-contain"
+                                  />
+                                )}
+                                <div dangerouslySetInnerHTML={{ __html: renderPassageWithHighlight(q.passage, q.section === 'grammar' ? q.orderNumber : undefined) }} />
+                              </div>
+                            )
                           )}
 
                           {/* HÌNH ẢNH MINH HỌA CHO BÀI NGHE HOẶC BÀI ĐỌC NẾU CÓ */}
@@ -2915,9 +2949,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                           )}
 
                           {/* TRÌNH PHÁT AUDIO CHO CHOUKAI NẾU CÓ (Giao diện tinh gọn, không chồng chéo số) */}
-                          {q.section === 'listening' && q.audioUrl && (
+                          {q.section === 'listening' && (
                             <ChoukaiAudioPlayer
-                              src={resolveAudioUrl(q.audioUrl)}
+                              src={resolveAudioUrl(q.audioUrl || `/api/exam/audio/${q.id}`)}
                               orderNumber={globalOrSessionNum}
                               className="mb-4"
                             />
@@ -2928,10 +2962,17 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                             <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                               {globalOrSessionNum}
                             </span>
-                            <div
-                              className="text-base md:text-lg font-japanese text-slate-900 leading-relaxed font-japanese flex-1"
-                              dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(q.question, q.orderNumber)) }}
-                            />
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className="text-base md:text-lg font-japanese text-slate-900 leading-relaxed"
+                                dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(q.question, q.orderNumber)) }}
+                              />
+                              {q.section === 'listening' && q.subType === 'quick_response' && (
+                                <p className="text-xs text-slate-500 italic mt-1 font-sans">
+                                  Nghe băng và chọn câu phản hồi phù hợp nhất
+                                </p>
+                              )}
+                            </div>
                           </div>
 
                           {/* 4 ĐÁP ÁN XẾP LƯỚI 2x2 (IMAGE 9) */}
@@ -2987,7 +3028,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
                 {/* Tên phân môn phiên hiện tại */}
                 <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">
-                  {currentSession.title}
+                  {examMode === 'practice' && examSessions.length > 1 ? 'TOÀN BỘ CÂU HỎI' : currentSession.title}
                 </div>
 
                 {/* Lưới 5 cột các câu hỏi (Image 9) */}
@@ -3010,7 +3051,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                             : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        {idx + 1}
+                        {sq.orderNumber || idx + 1}
                       </button>
                     );
                   })}
@@ -3073,54 +3114,57 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         )}
 
         {/* MODAL XÁC NHẬN KHI BẤM NỘP BÀI TRONG PHÒNG THI */}
-        {showSectionFinishConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn font-sans">
-            <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full mx-auto shadow-2xl space-y-5 border border-slate-100 animate-scaleUp">
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold text-slate-800">
-                  {nextSession ? `Hoàn thành ${currentSession.title}?` : 'Nộp bài thi JLPT?'}
-                </h3>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  {nextSession ? (
-                    <>
-                      Bạn đã hoàn thành <span className="font-bold text-indigo-600">{answeredSessionCount}/{currentSessionQuestions.length}</span> câu của phần này. Bạn có muốn kết thúc phần thi để chuyển sang thời gian <span className="font-bold text-slate-900">Giải lao</span> không?
-                    </>
-                  ) : (
-                    <>
-                      Bạn đã hoàn thành tất cả các phần thi của kỳ thi JLPT. Bạn có muốn nộp bài ngay để hệ thống chấm điểm và xuất báo cáo kết quả chi tiết không?
-                    </>
-                  )}
-                </p>
-              </div>
+        {showSectionFinishConfirm && (() => {
+          const hasNextExamSession = examMode === 'exam' && Boolean(nextSession);
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fadeIn font-sans">
+              <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full mx-auto shadow-2xl space-y-5 border border-slate-100 animate-scaleUp">
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-bold text-slate-800">
+                    {hasNextExamSession ? `Hoàn thành ${currentSession.title}?` : 'Nộp bài thi JLPT?'}
+                  </h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {hasNextExamSession ? (
+                      <>
+                        Bạn đã hoàn thành <span className="font-bold text-indigo-600">{answeredSessionCount}/{currentSessionQuestions.length}</span> câu của phần này. Bạn có muốn kết thúc phần thi để chuyển sang thời gian <span className="font-bold text-slate-900">Giải lao</span> không?
+                      </>
+                    ) : (
+                      <>
+                        Bạn đã hoàn thành <span className="font-bold text-indigo-600">{answeredSessionCount}/{currentSessionQuestions.length}</span> câu hỏi. Bạn có muốn nộp bài ngay để hệ thống chấm điểm và xuất báo cáo kết quả chi tiết không?
+                      </>
+                    )}
+                  </p>
+                </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSectionFinishConfirm(false)}
-                  className="flex-1 py-3 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
-                >
-                  Tiếp tục làm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSectionFinishConfirm(false);
-                    if (nextSession) {
-                      setIsTimerRunning(false);
-                      setIsBreakModalOpen(true);
-                      setBreakTimeRemaining(300);
-                    } else {
-                      handleForceSubmit();
-                    }
-                  }}
-                  className="flex-1 py-3 rounded-xl text-xs font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-md shadow-indigo-100 transition-all cursor-pointer"
-                >
-                  {nextSession ? 'Nộp & Nghỉ giải lao' : 'Nộp bài chấm điểm'}
-                </button>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSectionFinishConfirm(false)}
+                    className="flex-1 py-3 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
+                  >
+                    Tiếp tục làm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSectionFinishConfirm(false);
+                      if (hasNextExamSession) {
+                        setIsTimerRunning(false);
+                        setIsBreakModalOpen(true);
+                        setBreakTimeRemaining(300);
+                      } else {
+                        handleForceSubmit();
+                      }
+                    }}
+                    className="flex-1 py-3 rounded-xl text-xs font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-md shadow-indigo-100 transition-all cursor-pointer"
+                  >
+                    {hasNextExamSession ? 'Nộp & Nghỉ giải lao' : 'Nộp bài chấm điểm'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* MODAL XÁC NHẬN THOÁT PHÒNG THI */}
         {showExitModal && (
@@ -3192,17 +3236,14 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     const readingCorrect = readingQuestions.filter(q => q.isCorrect).length;
     const listeningCorrect = listeningQuestions.filter(q => q.isCorrect).length;
 
-    const vocabFound = examResult.sectionResults?.find(s => s.section === 'vocab');
-    const grammarFound = examResult.sectionResults?.find(s => s.section === 'grammar');
-    const readingFound = examResult.sectionResults?.find(s => s.section === 'reading');
-    const listeningFound = examResult.sectionResults?.find(s => s.section === 'listening');
+    const langScore = langQuestions.length > 0 ? Math.round((langCorrect / langQuestions.length) * 60) : 0;
+    const readingScore = readingQuestions.length > 0 ? Math.round((readingCorrect / readingQuestions.length) * 60) : 0;
+    const listeningScore = listeningQuestions.length > 0 ? Math.round((listeningCorrect / listeningQuestions.length) * 60) : 0;
 
-    const langScore = (vocabFound && grammarFound)
-      ? Math.min(60, Math.round(((vocabFound.score + grammarFound.score) / 120) * 60))
-      : vocabFound?.score || grammarFound?.score || (langQuestions.length > 0 ? Math.round((langCorrect / langQuestions.length) * 60) : 0);
-
-    const readingScore = readingFound?.score ?? (readingQuestions.length > 0 ? Math.round((readingCorrect / readingQuestions.length) * 60) : 0);
-    const listeningScore = listeningFound?.score ?? (listeningQuestions.length > 0 ? Math.round((listeningCorrect / listeningQuestions.length) * 60) : 0);
+    const maxPossibleResultScore =
+      ((langQuestions.length > 0 ? 60 : 0) +
+        (readingQuestions.length > 0 ? 60 : 0) +
+        (listeningQuestions.length > 0 ? 60 : 0)) || 180;
 
     const totalMinutesSpent = Math.floor(examResult.timeSpentSeconds / 60);
     const totalSecondsSpent = examResult.timeSpentSeconds % 60;
@@ -3229,7 +3270,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
     // Circular gauge calculations (Image 1)
     const radius = 38;
     const circumference = 2 * Math.PI * radius;
-    const strokeDashoffset = circumference - (Math.min(180, Math.max(0, examResult.totalScore)) / 180) * circumference;
+    const strokeDashoffset = circumference - (Math.min(maxPossibleResultScore, Math.max(0, examResult.totalScore)) / maxPossibleResultScore) * circumference;
     const gaugeColor = isPassed ? '#10B981' : '#EF4444';
 
     // Helper render listening script with translation under each turn (Image 9)
@@ -3305,7 +3346,9 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
               <div className="space-y-2 pt-1 text-slate-700 leading-relaxed">
                 {q.options.map((opt, optIdx) => {
                   const isRight = optIdx === q.correctAnswer;
-                  const optVi = q.optionsVi?.[optIdx] || stripRuby(opt);
+                  const cleanOptJp = stripRuby(opt);
+                  const rawOptVi = (q.optionsVi?.[optIdx] || '').replace(/^Phương án:\s*/i, '').trim();
+                  const optVi = rawOptVi && rawOptVi !== cleanOptJp ? rawOptVi : cleanOptJp;
                   return (
                     <div key={optIdx} className="space-y-0.5">
                       <p className="font-bold text-slate-800">{optIdx + 1}. {optVi}</p>
@@ -3326,10 +3369,24 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         );
       }
 
-      // 2. Grammar question (Image 4)
+      // Helper lọc placeholder "Phương án: <Japanese>"
+      const sanitizeOptVi = (rawVi?: string, jpOpt?: string) => {
+        if (!rawVi) return '';
+        const cleaned = rawVi.replace(/^Phương án:\s*/i, '').trim();
+        if (!cleaned) return '';
+        if (jpOpt && cleaned === stripRuby(jpOpt)) return '';
+        return cleaned;
+      };
+
+      // 2. Grammar question (Image 4 & Star Questions)
       if (q.section === 'grammar') {
         const rightOpt = stripRuby(q.options[q.correctAnswer] || '');
-        const rightVi = q.optionsVi?.[q.correctAnswer] || '';
+        const rightVi = sanitizeOptVi(q.optionsVi?.[q.correctAnswer], q.options[q.correctAnswer]);
+        const isStarQuestion =
+          q.subType === 'star_order' ||
+          q.subTypeLabel?.includes('★') ||
+          (q.question || '').includes('★');
+
         let grammarTitle = '';
         if (q.keyGrammarOrVocab) {
           grammarTitle = q.keyGrammarOrVocab
@@ -3341,29 +3398,56 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
             .replace(/Các mảnh ghép[\s\S]*$/, '')
             .trim();
         } else {
-          grammarTitle = `${rightOpt} ${rightVi}`.trim();
+          grammarTitle = rightVi ? `${rightOpt} (${rightVi})` : rightOpt;
         }
+
+        const hasRealTranslation =
+          cleanVi && !cleanVi.toLowerCase().includes('sắp xếp các cụm từ để tạo thành câu hoàn chỉnh');
+
+        const expLines = (q.explanation || '')
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l && !l.includes('Hội đồng') && !l.includes('Chiến thuật'));
 
         return (
           <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100/70 text-xs font-sans space-y-2">
             <div className="font-black text-blue-600 tracking-wider text-xs uppercase">
               GIẢI THÍCH:
             </div>
-            {grammarTitle && (
+            {!isStarQuestion && grammarTitle && (
               <p className="font-bold text-blue-800 text-sm">
                 {grammarTitle}
               </p>
             )}
-            {cleanVi && (
-              <div className="space-y-0.5">
-                <span className="font-bold text-slate-800 block">Dịch:</span>
-                <p className="text-slate-700 leading-relaxed">{cleanVi}</p>
+            {expLines.length > 0 && (
+              <div className="space-y-1.5 text-slate-700 leading-relaxed">
+                {expLines.map((line, lIdx) => {
+                  const isOrderLine = /^Thứ tự đúng:/i.test(line);
+                  const isFullSentenceLine = /^Câu hoàn chỉnh:/i.test(line);
+                  return (
+                    <p
+                      key={lIdx}
+                      className={
+                        isOrderLine
+                          ? 'font-bold text-blue-800 text-xs sm:text-sm font-japanese'
+                          : isFullSentenceLine
+                          ? 'font-bold text-slate-900 text-xs sm:text-sm font-japanese'
+                          : 'text-slate-600'
+                      }
+                    >
+                      {line}
+                    </p>
+                  );
+                })}
               </div>
             )}
-            {q.explanation && !q.explanation.includes('Hội đồng') && !q.explanation.includes('Chiến thuật') && (
-              <p className="text-slate-600 leading-relaxed pt-1 border-t border-blue-100/50">
-                {q.explanation}
-              </p>
+            {hasRealTranslation && (
+              <div className="space-y-0.5 pt-1 border-t border-blue-100/50">
+                <span className="font-bold text-slate-800 block">
+                  {isStarQuestion ? 'Dịch cả câu:' : 'Dịch:'}
+                </span>
+                <p className="text-slate-700 leading-relaxed">{cleanVi}</p>
+              </div>
             )}
           </div>
         );
@@ -3372,13 +3456,13 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
       // 3. Vocab / Kanji question (Image 2, 3)
       if (q.section === 'vocab') {
         const rightOpt = stripRuby(q.options[q.correctAnswer] || '');
-        const rightVi = q.optionsVi?.[q.correctAnswer] || '';
+        const rightVi = sanitizeOptVi(q.optionsVi?.[q.correctAnswer], q.options[q.correctAnswer]);
         const boldMatch = (q.question || '').match(/\*\*(.*?)\*\*/);
         const kanjiWord = boldMatch ? stripRuby(boldMatch[1]) : '';
 
         let vocabTitle = '';
         if (kanjiWord && rightOpt && kanjiWord !== rightOpt) {
-          vocabTitle = `${kanjiWord} (${rightOpt}): ${rightVi}`;
+          vocabTitle = rightVi ? `${kanjiWord} (${rightOpt}): ${rightVi}` : `${kanjiWord} (${rightOpt})`;
         } else if (q.keyGrammarOrVocab) {
           vocabTitle = q.keyGrammarOrVocab
             .replace(/^Từ khóa trọng tâm:\s*/i, '')
@@ -3430,6 +3514,14 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
     return (
       <div className={`min-h-screen bg-[#F8FAFC] pb-24 font-japanese ${!showFurigana ? 'hide-furigana' : ''}`}>
+        <style>{`
+          #global-top-header { display: none !important; }
+          .hide-furigana rt {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+          }
+        `}</style>
         {/* TOP ACTION & TOGGLE BAR (Image 1, 2) */}
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -3555,7 +3647,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                 {isPassed ? 'ĐỖ' : 'TRƯỢT'}
               </h2>
               <p className="text-xl font-black text-slate-800">
-                {examResult.totalScore}/180 ĐIỂM
+                {examResult.totalScore}/{maxPossibleResultScore} ĐIỂM
               </p>
             </div>
 
@@ -3573,7 +3665,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
             {/* Thời gian */}
             <p className="text-xs font-bold text-slate-600 uppercase tracking-wider font-sans">
-              THỜI GIAN: {totalMinutesSpent} PHÚT {totalSecondsSpent} GIÂY / {totalAllowedMinutes} PHÚT
+              THỜI GIAN: {totalMinutesSpent} PHÚT {totalSecondsSpent} GIÂY{examMode === 'exam' ? ` / ${totalAllowedMinutes} PHÚT` : ''}
             </p>
           </div>
 
@@ -3585,37 +3677,43 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
             <div className="space-y-2.5">
               {/* Row 1: Kanji • Từ vựng • Ngữ pháp */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
-                <span className="text-sm font-bold text-slate-800">
-                  Kanji • Từ vựng • Ngữ pháp
-                </span>
-                <div className="text-right">
-                  <span className="text-sm font-black text-slate-900 block">{langScore}/60</span>
-                  <span className="text-xs text-slate-500 block">{langCorrect}/{langQuestions.length} câu đúng</span>
+              {langQuestions.length > 0 && (
+                <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
+                  <span className="text-sm font-bold text-slate-800">
+                    Kanji • Từ vựng • Ngữ pháp
+                  </span>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-slate-900 block">{langScore}/60</span>
+                    <span className="text-xs text-slate-500 block">{langCorrect}/{langQuestions.length} câu đúng</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Row 2: Đọc hiểu */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
-                <span className="text-sm font-bold text-slate-800">
-                  Đọc hiểu
-                </span>
-                <div className="text-right">
-                  <span className="text-sm font-black text-slate-900 block">{readingScore}/60</span>
-                  <span className="text-xs text-slate-500 block">{readingCorrect}/{readingQuestions.length} câu đúng</span>
+              {readingQuestions.length > 0 && (
+                <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
+                  <span className="text-sm font-bold text-slate-800">
+                    Đọc hiểu
+                  </span>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-slate-900 block">{readingScore}/60</span>
+                    <span className="text-xs text-slate-500 block">{readingCorrect}/{readingQuestions.length} câu đúng</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Row 3: Nghe hiểu */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
-                <span className="text-sm font-bold text-slate-800">
-                  Nghe hiểu
-                </span>
-                <div className="text-right">
-                  <span className="text-sm font-black text-slate-900 block">{listeningScore}/60</span>
-                  <span className="text-xs text-slate-500 block">{listeningCorrect}/{listeningQuestions.length} câu đúng</span>
+              {listeningQuestions.length > 0 && (
+                <div className="p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 transition-all flex items-center justify-between shadow-2xs">
+                  <span className="text-sm font-bold text-slate-800">
+                    Nghe hiểu
+                  </span>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-slate-900 block">{listeningScore}/60</span>
+                    <span className="text-xs text-slate-500 block">{listeningCorrect}/{listeningQuestions.length} câu đúng</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -3722,6 +3820,11 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                           className="text-base font-bold text-slate-900 leading-relaxed font-japanese"
                           dangerouslySetInnerHTML={{ __html: renderQuestionText(cleanQuestionText(q.question, q.orderNumber)) }}
                         />
+                        {q.section === 'listening' && (q.subType === 'quick_response' || /即時応答/.test(q.subTypeLabel || '')) && (
+                          <p className="text-xs text-slate-400 italic mt-0.5 font-sans">
+                            Nghe băng và chọn câu phản hồi phù hợp nhất
+                          </p>
+                        )}
                         {showTranslations && q.questionVi && (
                           <p className="text-xs text-slate-500 italic mt-1 font-sans">
                             {cleanQuestionVi(q.questionVi, q.orderNumber)}
@@ -3730,47 +3833,13 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                       </div>
                     </div>
 
-                    {/* BĂNG NGHE NẾU CÓ (Audio Player - Image 9) */}
+                    {/* BĂNG NGHE NẾU CÓ (ChoukaiAudioPlayer) */}
                     {(q.section === 'listening' || q.audioUrl) && (
-                      <div className="p-3 bg-slate-900 text-white rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs font-sans">
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => handleToggleReviewAudio(q)}
-                            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition-all cursor-pointer"
-                          >
-                            {reviewAudioPlayingId === q.questionId ? (
-                              <>
-                                <Pause className="w-3.5 h-3.5 fill-white" />
-                                <span>Tạm dừng</span>
-                              </>
-                            ) : (
-                              <>
-                                <Play className="w-3.5 h-3.5 fill-white" />
-                                <span>Phát băng nghe</span>
-                              </>
-                            )}
-                          </button>
-                          <span className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
-                            <Headphones className="w-3.5 h-3.5 text-indigo-400" />
-                            <span>{reviewAudioPlayingId === q.questionId ? 'Đang phát...' : 'Băng nghe gốc'}</span>
-                          </span>
-
-                          {/* Bộ chỉnh tốc độ 0.8x, 1.0x, 1.2x */}
-                          <div className="flex items-center gap-1 bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">
-                            {[0.8, 1.0, 1.2].map((rate) => (
-                              <button
-                                key={rate}
-                                onClick={() => handleChangePlaybackRate(rate)}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                                  audioPlaybackRate === rate ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                                }`}
-                              >
-                                {rate}x
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                      <ChoukaiAudioPlayer
+                        src={resolveAudioUrl(q.audioUrl || `/api/exam/audio/${q.questionId}`)}
+                        orderNumber={q.orderNumber}
+                        className="mb-2"
+                      />
                     )}
 
                     {/* TỜ ĐỀ THI MINH HỌA HÌNH ẢNH NẾU CÓ */}
@@ -3816,7 +3885,7 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
 
                     {/* 4 PHƯƠNG ÁN LỰA CHỌN (Image 2, 3, 4) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      {q.options.map((opt, optIdx) => {
+                      {deduplicateRuntimeOptions(q.options, q.correctAnswer).map((opt, optIdx) => {
                         const isUserPick = q.userAnswer === optIdx;
                         const isRightAnswer = q.correctAnswer === optIdx;
 
@@ -3849,13 +3918,18 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
                               <div className="min-w-0 flex-1">
                                 <span
                                   className="font-japanese text-sm leading-relaxed"
-                                  dangerouslySetInnerHTML={{ __html: opt }}
+                                  dangerouslySetInnerHTML={{ __html: renderQuestionText(opt) }}
                                 />
-                                {((q.section === 'listening' || showTranslations) && q.optionsVi?.[optIdx]) && (
-                                  <p className="text-xs text-blue-600 font-medium mt-0.5 font-sans">
-                                    {q.optionsVi[optIdx]}
-                                  </p>
-                                )}
+                                {(() => {
+                                  const rawOptVi = (q.optionsVi?.[optIdx] || '').replace(/^Phương án:\s*/i, '').trim();
+                                  const cleanOptJp = stripRuby(opt || '').trim();
+                                  if (!(q.section === 'listening' || showTranslations) || !rawOptVi || rawOptVi === cleanOptJp) return null;
+                                  return (
+                                    <p className="text-xs text-blue-600 font-medium mt-0.5 font-sans">
+                                      {rawOptVi}
+                                    </p>
+                                  );
+                                })()}
                               </div>
                             </div>
                             {icon}
@@ -3939,19 +4013,19 @@ export function ExamStudio({ onNavigateToReading, onNavigateToGrammar, onNavigat
         </div>
 
         {/* Nút Điều Hướng Cuối Trang */}
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between pt-8 font-sans">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-center gap-4 pt-8 pb-4 font-sans">
           <button
             onClick={exitToCatalog}
-            className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer shadow-xs"
+            className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer shadow-xs"
           >
             Về danh sách đề thi
           </button>
           {activeExam && (
             <button
               onClick={() => handleStartExam(activeExam, 'practice')}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all cursor-pointer shadow-sm"
+              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all cursor-pointer shadow-sm"
             >
-              🔄 Làm lại bài thi này
+              Làm lại bài thi này
             </button>
           )}
         </div>
